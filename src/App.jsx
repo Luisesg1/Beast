@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where } from "firebase/firestore";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 const firebaseConfig = {
   apiKey: "AIzaSyAh3pfGv0vEpKmGtNKKRvAhma1pGtA7Alc",
   authDomain: "gymtracker-app-2c603.firebaseapp.com",
@@ -10,9 +10,11 @@ const firebaseConfig = {
   messagingSenderId: "1006490404310",
   appId: "1:1006490404310:web:015b3d4817304032aed077",
 };
+const ADMIN_EMAILS = []; // reemplaza con tu email real
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
 
 const ThemeCtx = createContext();
 const useTheme = () => useContext(ThemeCtx);
@@ -27,6 +29,16 @@ const numDot = (v) => v.replace(/[^0-9.]/g, "");
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 const DAYS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+
+const ACCENT_COLORS = [
+  { name: "Azul",    value: "#3b82f6", dim: "#1a2f52" },
+  { name: "Verde",   value: "#22c55e", dim: "#14532d" },
+  { name: "Morado",  value: "#8b5cf6", dim: "#2e1065" },
+  { name: "Rosa",    value: "#ec4899", dim: "#500724" },
+  { name: "Naranja", value: "#f97316", dim: "#431407" },
+  { name: "Rojo",    value: "#ef4444", dim: "#450a0a" },
+  { name: "Cyan",    value: "#06b6d4", dim: "#083344" },
+];
 
 const PLANS = {
   guest: { name: "Invitado", price: "Sin cuenta", color: "#f59e0b", features: ["3 sesiones", "Sin historial guardado", "Herramientas básicas"] },
@@ -95,12 +107,159 @@ const EXERCISE_DB = [
 ];
 const MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
 
+// ─── Exercise GIF Hook ────────────────────────────────────────────────────────
+function useExerciseGif(exName) {
+  const [gifUrl, setGifUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!exName || exName === "__custom__") { setGifUrl(null); return; }
+    setLoading(true);
+    setGifUrl(null);
+
+    const nameMap = {
+      "Press Banca":                 "barbell bench press",
+      "Press Banca Inclinado":       "incline bench press",
+      "Press Mancuernas":            "dumbbell bench press",
+      "Aperturas Mancuernas":        "dumbbell fly",
+      "Fondos":                      "chest dip",
+      "Crossover Polea":             "cable crossover",
+      "Press Pecho Máquina":         "machine chest press",
+      "Dominadas":                   "pull-up",
+      "Remo con Barra":              "barbell bent over row",
+      "Remo Mancuerna":              "dumbbell one arm row",
+      "Peso Muerto":                 "barbell deadlift",
+      "Pullover":                    "dumbbell pullover",
+      "Jalón al Pecho":              "cable lat pulldown",
+      "Remo Polea Baja":             "seated cable row",
+      "Face Pull":                   "cable face pull",
+      "Press Hombro Barra":          "barbell overhead press",
+      "Press Arnold":                "arnold press",
+      "Elevaciones Laterales":       "dumbbell lateral raise",
+      "Elevaciones Frontales":       "dumbbell front raise",
+      "Pájaros":                     "dumbbell reverse fly",
+      "Press Hombro Máquina":        "machine shoulder press",
+      "Curl Bíceps Barra":           "barbell curl",
+      "Curl Mancuernas":             "dumbbell bicep curl",
+      "Curl Martillo":               "hammer curl",
+      "Curl Concentrado":            "concentration curl",
+      "Curl Polea":                  "cable curl",
+      "Press Francés":               "skull crusher",
+      "Extensión Tríceps Mancuerna": "dumbbell tricep extension",
+      "Fondos Tríceps":              "tricep dip",
+      "Tríceps Polea":               "triceps pushdown",
+      "Sentadilla":                  "barbell squat",
+      "Sentadilla Goblet":           "dumbbell goblet squat",
+      "Zancadas":                    "barbell lunge",
+      "Prensa de Pierna":            "leg press",
+      "Extensión Cuádriceps":        "leg extension",
+      "Peso Muerto Rumano":          "romanian deadlift",
+      "Curl Femoral Tumbado":        "lying leg curl",
+      "Hip Thrust":                  "barbell hip thrust",
+      "Abductores":                  "hip abduction",
+      "Pantorrillas Máquina":        "calf raise",
+      "Elevación de Talones":        "standing calf raise",
+      "Plancha":                     "plank",
+      "Crunch":                      "crunch",
+      "Elevación de Piernas":        "hanging leg raise",
+      "Crunch Polea":                "cable crunch",
+      "Rueda Abdominal":             "ab wheel roller",
+      "Burpees":                     "burpee",
+      "Saltar Cuerda":               "jump rope",
+      "Cinta Correr":                "run",
+      "Bicicleta Estática":          "stationary bike",
+      "Elíptica":                    "elliptical",
+    };
+
+    const searchName = nameMap[exName] || exName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").trim();
+    fetch(`https://exercisedb.p.rapidapi.com/exercises/name/${encodeURIComponent(searchName)}?limit=1&offset=0`, {
+      method: "GET",
+      headers: {
+        "x-rapidapi-key": "process.env.RAPIDAPI_KEY",
+        "x-rapidapi-host": "exercisedb.p.rapidapi.com"
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      console.log("ExerciseDB response:", data);
+console.log("gifUrl:", data[0]?.gifUrl);
+console.log("FULL OBJECT:", JSON.stringify(data[0]));
+      if (Array.isArray(data) && data.length > 0 && data[0].id) {
+  setGifUrl(`https://v1.exercisedb.io/image/${data[0].id}.gif`);
+      } else {
+        setGifUrl(null);
+      }
+      setLoading(false);
+    })
+    .catch((err) => {
+      console.log("ExerciseDB error:", err);
+      setGifUrl(null);
+      setLoading(false);
+    });
+  }, [exName]);
+
+  return { gifUrl, loading };
+}
+
+// ─── Exercise GIF Display ─────────────────────────────────────────────────────
+function ExerciseGif({ exName, size = 120 }) {
+  const { gifUrl, loading } = useExerciseGif(exName);
+  if (!exName || exName === "__custom__") return null;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: 12, overflow: "hidden",
+      background: "var(--input-bg)", border: "1px solid var(--border)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0
+    }}>
+      {loading && <div style={{ fontSize: 24 }}>⏳</div>}
+      {!loading && gifUrl && (
+        <img
+          src={gifUrl} alt={exName}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={e => { e.target.style.display = "none"; }}
+        />
+      )}
+      {!loading && !gifUrl && <div style={{ fontSize: 24 }}>🏋️</div>}
+    </div>
+  );
+}
+
 // ─── 1RM Calculator ───────────────────────────────────────────────────────────
 function calc1RM(weight, reps) {
   if (!weight || !reps || reps <= 0) return 0;
   const w = parseFloat(weight), r = parseFloat(reps);
   if (r === 1) return w;
   return Math.round(w * (1 + r / 30));
+}
+
+// ─── Session Volume & PR Detection ───────────────────────────────────────────
+function calcSessionVolume(session) {
+  return (session.exercises || []).reduce((acc, ex) => {
+    if (ex.sets?.length > 0) {
+      return acc + ex.sets.reduce((s, st) => s + (parseFloat(st.weight)||0) * (parseFloat(st.reps)||1), 0);
+    }
+    return acc + (parseFloat(ex.weight)||0) * (parseFloat(ex.reps)||1);
+  }, 0);
+}
+
+function detectNewPRs(newSession, existingSessions) {
+  const newPRs = [];
+  (newSession.exercises || []).forEach(ex => {
+    const newW = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
+    const newR = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st=>parseFloat(st.reps)||0)) : parseFloat(ex.reps)||0;
+    const new1RM = calc1RM(newW, newR);
+    if (new1RM <= 0) return;
+    const prevBest = existingSessions
+      .flatMap(s => (s.exercises||[]).filter(e => e.name === ex.name))
+      .reduce((best, e) => {
+        const w = e.sets?.length>0 ? Math.max(...e.sets.map(st=>parseFloat(st.weight)||0)) : parseFloat(e.weight)||0;
+        const r = e.sets?.length>0 ? Math.max(...e.sets.map(st=>parseFloat(st.reps)||0)) : parseFloat(e.reps)||0;
+        return Math.max(best, calc1RM(w, r));
+      }, 0);
+    if (new1RM > prevBest) newPRs.push({ name: ex.name, rm: new1RM });
+  });
+  return newPRs;
 }
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
@@ -120,6 +279,68 @@ function Sparkline({ data }) {
   );
 }
 
+// ─── PR Confetti ──────────────────────────────────────────────────────────────
+function PRConfetti({ prs, onDone }) {
+  const canvasRef = useRef();
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const COLORS = ["#3b82f6","#f59e0b","#22c55e","#ec4899","#8b5cf6","#f97316","#ffffff"];
+    const particles = Array.from({ length: 160 }, () => ({
+      x: canvas.width * 0.2 + Math.random() * canvas.width * 0.6,
+      y: -20 - Math.random() * 180,
+      w: 6 + Math.random() * 9, h: 9 + Math.random() * 7,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      vx: (Math.random() - 0.5) * 5, vy: 2.5 + Math.random() * 4.5,
+      angle: Math.random() * Math.PI * 2, spin: (Math.random() - 0.5) * 0.25,
+      opacity: 1, shape: Math.random() > 0.5 ? "rect" : "circle",
+    }));
+    let frame = 0, raf;
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      frame++;
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.vx *= 0.99; p.angle += p.spin;
+        if (frame > 90) p.opacity = Math.max(0, p.opacity - 0.016);
+        ctx.save(); ctx.globalAlpha = p.opacity;
+        ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.fillStyle = p.color;
+        if (p.shape === "circle") { ctx.beginPath(); ctx.arc(0,0,p.w/2,0,Math.PI*2); ctx.fill(); }
+        else { ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h); }
+        ctx.restore();
+      });
+      if (frame < 180) raf = requestAnimationFrame(draw);
+      else { ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); }
+    }
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <>
+      <canvas ref={canvasRef} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:9998 }} />
+      <div style={{ position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+        zIndex:9999, pointerEvents:"none", textAlign:"center",
+        animation:"prBannerIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards" }}>
+        <div style={{ background:"linear-gradient(135deg,rgba(245,158,11,0.97),rgba(251,191,36,0.97))",
+          border:"2px solid rgba(255,255,255,0.3)", borderRadius:20, padding:"20px 32px",
+          boxShadow:"0 20px 60px rgba(245,158,11,0.5)", maxWidth:320 }}>
+          <div style={{ fontSize:40, marginBottom:6 }}>🏆</div>
+          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:28, fontWeight:900,
+            color:"#0f172a", letterSpacing:1, marginBottom:8 }}>¡NUEVO RÉCORD!</div>
+          {prs.slice(0,3).map(pr => (
+            <div key={pr.name} style={{ fontSize:13, fontWeight:700, color:"#1e293b",
+              background:"rgba(255,255,255,0.4)", borderRadius:8, padding:"4px 10px", marginBottom:4 }}>
+              {pr.name} → {pr.rm} kg 1RM
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
 
 // ─── Active Workout Mode ──────────────────────────────────────────────────────
 function ActiveWorkoutModal({ exercises, onClose, onSave, unit }) {
@@ -407,46 +628,82 @@ function TemplatesModal({ sessions, onLoad, onClose }) {
 
 // ─── Weekly Chart ─────────────────────────────────────────────────────────────
 function WeeklyChart({ sessions }) {
-  // Build last 8 weeks data
-  const weeks = [];
-  for (let i = 7; i >= 0; i--) {
-    const start = new Date(); start.setDate(start.getDate() - (i+1)*7); start.setHours(0,0,0,0);
-    const end = new Date(); end.setDate(end.getDate() - i*7); end.setHours(23,59,59,999);
-    const wSessions = sessions.filter(s => { const d = new Date(s.date+"T00:00:00"); return d >= start && d <= end; });
-    const vol = wSessions.reduce((acc,s) => acc + (s.exercises||[]).reduce((a,ex) => {
-      const w = ex.sets?.length>0 ? ex.sets.reduce((sum,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sum,0) : (parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1);
-      return a+w;
-    },0),0);
-    const label = i === 0 ? "Esta sem." : i === 1 ? "Ant." : `S-${i}`;
-    weeks.push({ label, count: wSessions.length, vol: Math.round(vol) });
+  const [period, setPeriod] = useState("week");
+  const [metric, setMetric] = useState("count");
+
+  function buildData() {
+    if (period === "day") {
+      return Array.from({length:14},(_,i)=>{
+        const d = new Date(); d.setDate(d.getDate()-(13-i));
+        const ds = d.toISOString().slice(0,10);
+        const ss = sessions.filter(s=>s.date===ds);
+        const vol = ss.reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>{
+          return a+(ex.sets?.length>0?ex.sets.reduce((sum,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sum,0):(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1));
+        },0),0);
+        return {label:d.getDate()+"/"+(d.getMonth()+1), count:ss.length, vol:Math.round(vol)};
+      });
+    }
+    if (period === "week") {
+      return Array.from({length:8},(_,i)=>{
+        const start=new Date(); start.setDate(start.getDate()-(7-i)*7); start.setHours(0,0,0,0);
+        const end=new Date(start); end.setDate(end.getDate()+7);
+        const ss=sessions.filter(s=>{const d=new Date(s.date+"T00:00:00");return d>=start&&d<end;});
+        const vol=ss.reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>{
+          return a+(ex.sets?.length>0?ex.sets.reduce((sum,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sum,0):(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1));
+        },0),0);
+        return {label:i===7?"Esta":`S-${7-i}`, count:ss.length, vol:Math.round(vol)};
+      });
+    }
+    if (period === "month") {
+      return Array.from({length:12},(_,i)=>{
+        const d=new Date(); d.setMonth(d.getMonth()-(11-i));
+        const y=d.getFullYear(),m=d.getMonth();
+        const ss=sessions.filter(s=>{const sd=new Date(s.date+"T00:00:00");return sd.getFullYear()===y&&sd.getMonth()===m;});
+        const vol=ss.reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>{
+          return a+(ex.sets?.length>0?ex.sets.reduce((sum,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sum,0):(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1));
+        },0),0);
+        const months=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+        return {label:months[m], count:ss.length, vol:Math.round(vol)};
+      });
+    }
+    return Array.from({length:4},(_,i)=>{
+      const y=new Date().getFullYear()-(3-i);
+      const ss=sessions.filter(s=>s.date.startsWith(y));
+      const vol=ss.reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>{
+        return a+(ex.sets?.length>0?ex.sets.reduce((sum,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sum,0):(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1));
+      },0),0);
+      return {label:String(y), count:ss.length, vol:Math.round(vol)};
+    });
   }
 
-  const maxCount = Math.max(...weeks.map(w=>w.count), 1);
-  const maxVol = Math.max(...weeks.map(w=>w.vol), 1);
-  const [view, setView] = useState("count");
+  const data = buildData();
+  const vals = data.map(d=>metric==="count"?d.count:d.vol);
+  const maxVal = Math.max(...vals,1);
 
   return (
     <div className="card">
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-        <div className="card-label" style={{ margin:0 }}>📈 Progreso semanal</div>
-        <div style={{ display:"flex", gap:6 }}>
-          <button className={`muscle-chip ${view==="count"?"active":""}`} onClick={()=>setView("count")} style={{ padding:"4px 10px" }}>Sesiones</button>
-          <button className={`muscle-chip ${view==="vol"?"active":""}`} onClick={()=>setView("vol")} style={{ padding:"4px 10px" }}>Volumen</button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+        <div className="card-label" style={{margin:0}}>📈 Progreso</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {[["day","Día"],["week","Semana"],["month","Mes"],["year","Año"]].map(([v,l])=>(
+            <button key={v} className={`muscle-chip ${period===v?"active":""}`} style={{padding:"3px 10px",fontSize:11}} onClick={()=>setPeriod(v)}>{l}</button>
+          ))}
         </div>
       </div>
-      <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:100 }}>
-        {weeks.map((w,i) => {
-          const val = view==="count" ? w.count : w.vol;
-          const max = view==="count" ? maxCount : maxVol;
-          const h = max > 0 ? Math.max((val/max)*90, val>0?6:0) : 0;
-          const isLast = i === weeks.length-1;
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        <button className={`muscle-chip ${metric==="count"?"active":""}`} style={{padding:"3px 10px",fontSize:11}} onClick={()=>setMetric("count")}>Sesiones</button>
+        <button className={`muscle-chip ${metric==="vol"?"active":""}`} style={{padding:"3px 10px",fontSize:11}} onClick={()=>setMetric("vol")}>Volumen</button>
+      </div>
+      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:90}}>
+        {data.map((d,i)=>{
+          const val=metric==="count"?d.count:d.vol;
+          const h=maxVal>0?Math.max((val/maxVal)*82,val>0?4:0):0;
+          const isLast=i===data.length-1;
           return (
-            <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-              <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:700 }}>{val>0 ? (view==="vol" ? `${(val/1000).toFixed(1)}t` : val) : ""}</div>
-              <div style={{ width:"100%", height:h, background: isLast ? "var(--accent)" : "var(--border)", borderRadius:"4px 4px 0 0", transition:"height 0.4s ease", minHeight: val>0?4:0, position:"relative" }}>
-                {isLast && <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg,rgba(59,130,246,0.4),transparent)", borderRadius:"4px 4px 0 0" }} />}
-              </div>
-              <div style={{ fontSize:9, color: isLast?"var(--accent)":"var(--text-muted)", fontWeight: isLast?700:400, textAlign:"center" }}>{w.label}</div>
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+              <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textAlign:"center"}}>{val>0?(metric==="vol"?`${(val/1000).toFixed(1)}t`:val):""}</div>
+              <div style={{width:"100%",height:h,background:isLast?"var(--accent)":"rgba(59,130,246,0.35)",borderRadius:"3px 3px 0 0",transition:"height 0.4s"}}/>
+              <div style={{fontSize:8,color:isLast?"var(--accent)":"var(--text-muted)",fontWeight:isLast?700:400,textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",width:"100%",textOverflow:"ellipsis"}}>{d.label}</div>
             </div>
           );
         })}
@@ -454,7 +711,6 @@ function WeeklyChart({ sessions }) {
     </div>
   );
 }
-
 
 // ─── Weekly Goal Modal ────────────────────────────────────────────────────────
 function WeeklyGoalModal({ goal, onSave, onClose, sessions }) {
@@ -977,7 +1233,8 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
   const [exWeight, setExWeight] = useState("");
   const [exReps, setExReps] = useState("");
   const [exSets, setExSets] = useState([]);
-
+  const [exSeriesCount, setExSeriesCount] = useState("3");
+  const [exNote, setExNote] = useState("");
   const workoutNames = [...new Set(sessions.map(s => s.workout).filter(Boolean))];
   const todayDow = (new Date().getDay() + 6) % 7;
 
@@ -1281,12 +1538,13 @@ function ExerciseLibrary({ onSelect, onClose }) {
               <div className="lib-group-title">{muscle}</div>
               {exs.map(ex => (
                 <button key={ex.name} className="lib-item" onClick={() => { onSelect(ex.name); onClose(); }}>
-                  <div className="lib-info">
-                    <span className="lib-name">{ex.name}</span>
-                    <span className="lib-meta">{ex.equipment} · {ex.machine ? "Requiere máquina" : "Sin máquina"}</span>
-                  </div>
-                  <span className="lib-add">+</span>
-                </button>
+                <ExerciseGif exName={ex.name} size={52} />
+                <div className="lib-info">
+                  <span className="lib-name">{ex.name}</span>
+                  <span className="lib-meta">{ex.equipment} · {ex.machine ? "Requiere máquina" : "Sin máquina"}</span>
+                </div>
+                <span className="lib-add">+</span>
+              </button>
               ))}
             </div>
           ))}
@@ -1764,12 +2022,15 @@ function CoachModal({ user, sessions, onClose }) {
   }
 
   async function activateCoach() {
-    setActivating(true);
-    const profile = await createCoachProfile(user.uid, user.name, user.email);
-    setCoachProfile(profile);
-    setActivating(false);
+  if (!ADMIN_EMAILS.includes(user.email)) {
+    alert("❌ Solo administradores pueden activar el modo Coach.");
+    return;
   }
-
+  setActivating(true);
+  const profile = await createCoachProfile(user.uid, user.name, user.email);
+  setCoachProfile(profile);
+  setActivating(false);
+}
   async function loadAthleteData(athlete) {
     setSelectedAthlete(athlete);
     setAthleteLoading(true);
@@ -2460,6 +2721,111 @@ async function teamsSet(code, val) {
   } catch(e) { console.error("teamsSet:", e); return false; }
 }
 
+function AvatarEditor({ user, onPhotoUpdate }) {
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef();
+
+  async function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
+      try {
+        await updateDoc(doc(db, "users", user.uid), { photoURL: base64 });
+        onPhotoUpdate(base64);
+      } catch(e) { console.error(e); }
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:8}}>
+      <div style={{width:80,height:80,borderRadius:"50%",background:"linear-gradient(135deg,var(--accent),#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,fontWeight:800,color:"white",overflow:"hidden",border:"3px solid var(--accent)"}}>
+        {user.photoURL
+          ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+          : user.name?.[0]?.toUpperCase()
+        }
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile} />
+      <button className="btn-ghost small" onClick={() => fileRef.current.click()} disabled={uploading}>
+        {uploading ? "⏳ Subiendo..." : "📷 Cambiar foto"}
+      </button>
+    </div>
+  );
+}
+function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose }) {
+  const prs = getPRs(sessions);
+  const streak = getStreak(sessions);
+  const lastEntry = bodyStats.entries?.slice(-1)[0];
+  const imc = lastEntry && bodyStats.height
+    ? (lastEntry.weight / Math.pow(bodyStats.height/100,2)).toFixed(1) : null;
+  const imcColor = !imc ? "var(--text)" : imc < 18.5 ? "#60a5fa" : imc < 25 ? "#22c55e" : imc < 30 ? "#f97316" : "#ef4444";
+  const thisWeek = sessions.filter(s=>(new Date()-new Date(s.date+"T00:00:00"))/86400000<=7).length;
+  const thisMonth = sessions.filter(s=>(new Date()-new Date(s.date+"T00:00:00"))/86400000<=30).length;
+  const totalVol = Math.round(sessions.reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>{
+    const w=ex.sets?.length>0?ex.sets.reduce((sum,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sum,0):(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1);
+    return a+w;
+  },0),0)/1000*10)/10;
+  const kcal = Math.round(totalVol * 6);
+  const topPRs = Object.entries(prs).sort((a,b)=>b[1].rm-a[1].rm).slice(0,5);
+  const earned = BADGE_DEFS.filter(b=>b.check(sessions,prs));
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal modal-wide" onClick={e=>e.stopPropagation()} style={{maxHeight:"90vh",overflowY:"auto"}}>
+        <div className="modal-header">
+          <h3 className="modal-title">👤 Mi perfil</h3>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <AvatarEditor user={user} onPhotoUpdate={(url) => { user.photoURL = url; }} />
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:800}}>{user.name}</div>
+          <div style={{fontSize:12,color:"var(--text-muted)"}}>{user.email}</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10,marginBottom:20}}>
+          {[
+            {icon:"⚖️",label:"Peso",value:lastEntry?`${lastEntry.weight}kg`:"—"},
+            {icon:"📏",label:"Estatura",value:bodyStats.height?`${bodyStats.height}cm`:"—"},
+            {icon:"🧮",label:"IMC",value:imc||"—",color:imcColor},
+            {icon:"🏋️",label:"Sesiones",value:sessions.length},
+            {icon:"📅",label:"Esta semana",value:thisWeek},
+            {icon:"🗓️",label:"Este mes",value:thisMonth},
+            {icon:"🔥",label:"Racha",value:`${streak}d`},
+            {icon:"⭐",label:"PRs",value:Object.keys(prs).length},
+            {icon:"📦",label:"Volumen",value:`${totalVol}t`},
+            {icon:"🔥",label:"~kcal",value:kcal},
+          ].map(s=>(
+            <div key={s.label} style={{background:"var(--input-bg)",border:"1px solid var(--border)",borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+              <div style={{fontSize:20}}>{s.icon}</div>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:s.color||"var(--accent)"}}>{s.value}</div>
+              <div style={{fontSize:10,color:"var(--text-muted)"}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {topPRs.length>0 && <>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:"var(--accent)",textTransform:"uppercase",marginBottom:10}}>🏆 Top PRs</div>
+          {topPRs.map(([name,data],i)=>(
+            <div key={name} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border)",fontSize:13}}>
+              <span>{["🥇","🥈","🥉","4️⃣","5️⃣"][i]} {name}</span>
+              <span style={{fontWeight:800,color:"var(--accent)"}}>{data.rm}kg 1RM</span>
+            </div>
+          ))}
+        </>}
+        {earned.length>0 && <>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:"#f59e0b",textTransform:"uppercase",margin:"16px 0 10px"}}>🏅 Logros ({earned.length})</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {earned.map(b=><span key={b.id} title={b.desc} style={{fontSize:24}}>{b.icon}</span>)}
+          </div>
+        </>}
+        <button className="btn-ghost" style={{width:"100%",marginTop:16}} onClick={onOpenBodyStats}>⚖️ Actualizar peso y estatura</button>
+      </div>
+    </div>
+  );
+}
+
 function TeamsModal({ user, sessions, onClose }) {
   const [tab, setTab] = useState("home");
   const [myTeams, setMyTeams] = useState(() => load(`gym_teams_${user.email}`, []));
@@ -3020,12 +3386,36 @@ function firebaseErrMsg(code) {
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
+function PasswordStrength({ pass }) {
+  const checks = {
+    length: pass.length >= 8,
+    upper: /[A-Z]/.test(pass),
+    lower: /[a-z]/.test(pass),
+    number: /[0-9]/.test(pass),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  const colors = ["#ef4444","#f97316","#eab308","#22c55e"];
+  if (!pass) return null;
+  return (
+    <div style={{marginTop:6}}>
+      <div style={{display:"flex",gap:3,marginBottom:4}}>
+        {[0,1,2,3].map(i=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<score?colors[score-1]:"var(--border)"}}/>)}
+      </div>
+      {[{ok:checks.length,l:"8+ caracteres"},{ok:checks.upper,l:"Mayúscula"},{ok:checks.lower,l:"Minúscula"},{ok:checks.number,l:"Número"}].map(x=>(
+        <div key={x.l} style={{fontSize:10,color:x.ok?"#22c55e":"var(--text-muted)"}}>{x.ok?"✓":"○"} {x.l}</div>
+      ))}
+    </div>
+  );
+}
+
 function LoginScreen() {
-  const { loginWithFirebase, registerWithFirebase, loginAsGuest, resetPassword } = useAuth();
+  const { loginWithFirebase, registerWithFirebase, loginAsGuest, resetPassword, loginWithGoogle } = useAuth();
   const [mode, setMode] = useState("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [passConfirm, setPassConfirm] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3046,6 +3436,7 @@ function LoginScreen() {
     if (!email || !pass) { setErr("Completa todos los campos"); return; }
     if (mode === "register") {
       if (!name.trim()) { setErr("Ingresa tu nombre"); return; }
+      if (pass !== passConfirm) { setErr("Las contraseñas no coinciden"); return; }
       setLoading(true);
       const result = await registerWithFirebase(name.trim(), email, pass);
       setLoading(false);
@@ -3081,15 +3472,9 @@ function LoginScreen() {
           </div>
         )}
 
-        {mode === "register" && (
-          <div className="field">
-            <label className="field-label">Nombre</label>
-            <input className="input" placeholder="Tu nombre" value={name} onChange={e => setName(e.target.value)} />
-          </div>
-        )}
-
         <div className="field">
           <label className="field-label">Email</label>
+          
           <input className="input" type="email" placeholder="email@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" onKeyDown={e => e.key === "Enter" && !pass && submit()} />
         </div>
 
@@ -3097,8 +3482,19 @@ function LoginScreen() {
           <div className="field">
             <label className="field-label">Contraseña</label>
             <input className="input" type="password" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+            {mode === "register" && <PasswordStrength pass={pass}/>}
           </div>
         )}
+        {mode === "register" && (
+  <div className="field">
+    <label className="field-label">Confirmar contraseña</label>
+    <input className="input" type="password" placeholder="••••••••"
+      value={passConfirm} onChange={e => setPassConfirm(e.target.value)} />
+    {pass && passConfirm && pass !== passConfirm && (
+      <span style={{fontSize:11,color:"#f87171"}}>❌ Las contraseñas no coinciden</span>
+    )}
+  </div>
+)}
 
         {err && <div className="err-msg">{err}</div>}
         {msg && <div style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.3)", color:"#22c55e", borderRadius:8, padding:"9px 12px", fontSize:13, marginBottom:10 }}>{msg}</div>}
@@ -3108,35 +3504,39 @@ function LoginScreen() {
         </button>
 
         {mode === "login" && (
-          <p style={{ textAlign:"center", marginTop:10, fontSize:13 }}>
-            <button className="link-btn" onClick={() => switchMode("forgot")} style={{ color:"var(--text-muted)" }}>¿Olvidaste tu contraseña?</button>
-          </p>
-        )}
-        {mode === "forgot" && (
-          <p style={{ textAlign:"center", marginTop:10, fontSize:13 }}>
-            <button className="link-btn" onClick={() => switchMode("login")}>← Volver al inicio</button>
-          </p>
-        )}
-        {mode !== "forgot" && (
-          <p className="text-muted" style={{ fontSize:13, textAlign:"center", marginTop:14 }}>
-            {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
-            <button className="link-btn" onClick={() => switchMode(mode === "login" ? "register" : "login")}>
-              {mode === "login" ? "Regístrate" : "Inicia sesión"}
-            </button>
-          </p>
-        )}
-        <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0 16px" }}>
-          <div style={{ flex:1, height:1, background:"var(--border)" }} />
-          <span style={{ fontSize:12, color:"var(--text-muted)", fontWeight:600 }}>O</span>
-          <div style={{ flex:1, height:1, background:"var(--border)" }} />
-        </div>
-        <button className="btn-guest" onClick={loginAsGuest}>
-          <span style={{ fontSize:18 }}>👤</span>
-          <div style={{ textAlign:"left" }}>
-            <div style={{ fontWeight:700, fontSize:14 }}>Entrar como invitado</div>
-            <div style={{ fontSize:11, opacity:0.7, marginTop:1 }}>3 sesiones · Sin historial guardado</div>
-          </div>
-        </button>
+  <p style={{ textAlign:"center", marginTop:10, fontSize:13 }}>
+    <button className="link-btn" onClick={() => switchMode("forgot")} style={{ color:"var(--text-muted)" }}>¿Olvidaste tu contraseña?</button>
+  </p>
+)}
+{mode === "forgot" && (
+  <p style={{ textAlign:"center", marginTop:10, fontSize:13 }}>
+    <button className="link-btn" onClick={() => switchMode("login")}>← Volver al inicio</button>
+  </p>
+)}
+{mode !== "forgot" && (
+  <p className="text-muted" style={{ fontSize:13, textAlign:"center", marginTop:14 }}>
+    {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
+    <button className="link-btn" onClick={() => switchMode(mode === "login" ? "register" : "login")}>
+      {mode === "login" ? "Regístrate" : "Inicia sesión"}
+    </button>
+  </p>
+)}
+<div style={{ display:"flex", alignItems:"center", gap:12, margin:"16px 0 12px" }}>
+  <div style={{ flex:1, height:1, background:"var(--border)" }} />
+  <span style={{ fontSize:12, color:"var(--text-muted)", fontWeight:600 }}>O</span>
+  <div style={{ flex:1, height:1, background:"var(--border)" }} />
+</div>
+<button onClick={() => { loginWithGoogle(); }} 
+ style={{width:"100%",background:"white",border:"1px solid #d1dce8",borderRadius:12,padding:"11px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",marginBottom:12,fontFamily:"Barlow,sans-serif",fontSize:14,fontWeight:600,color:"#1f2937"}}>
+  <img src="https://www.google.com/favicon.ico" width={18}/> Continuar con Google
+</button>
+<button className="btn-guest" onClick={loginAsGuest}>
+  <span style={{ fontSize:18 }}>👤</span>
+  <div style={{ textAlign:"left" }}>
+    <div style={{ fontWeight:700, fontSize:14 }}>Entrar como invitado</div>
+    <div style={{ fontSize:11, opacity:0.7, marginTop:1 }}>3 sesiones · Sin historial guardado</div>
+  </div>
+</button>
       </div>
     </div>
   );
@@ -3233,6 +3633,10 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
 function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onShare, getProgressData, expanded, onToggle, allSessions, onUpdate }) {
   const u = s.unit || unit;
   const [editingExId, setEditingExId] = useState(null);
+  const sessionVol = calcSessionVolume(s);
+  const volDisplay = sessionVol >= 1000
+    ? `${(sessionVol/1000).toFixed(1)}t`
+    : sessionVol > 0 ? `${Math.round(sessionVol)}kg` : null;
 
   // Detect PRs in this session
   const prs = new Set();
@@ -3280,6 +3684,11 @@ function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onSha
           {prs.size > 0 && <span style={{ fontSize: 10, background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.5)", color: "#f59e0b", borderRadius: 6, padding: "2px 7px", fontWeight: 700 }}>🏆 {prs.size} PR</span>}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {volDisplay && (
+            <span className="ex-count" style={{ color:"var(--accent)", borderColor:"rgba(59,130,246,0.3)" }}>
+              🏋️ {volDisplay}
+            </span>
+          )}
           <span className="ex-count">{(s.exercises || []).length} ejerc.</span>
           <span className="chevron">{expanded ? "▲" : "▼"}</span>
         </div>
@@ -3296,26 +3705,31 @@ function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onSha
               <div key={ex.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10, marginBottom: 10 }}>
                 {/* Row header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 6 }}>
+                  <ExerciseGif exName={ex.name} size={48} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span className="ex-name">{ex.name}</span>
                     {prs.has(ex.name) && <span style={{ fontSize: 9, background: "rgba(251,191,36,0.15)", color: "#f59e0b", borderRadius: 4, padding: "1px 5px", marginLeft: 6, fontWeight: 800 }}>PR</span>}
                   </div>
                   <button className="icon-action" title="Ver progreso" onClick={() => onProgress(ex.name)}>📈</button>
-                  <button className="btn-ghost small" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setEditingExId(isEditing ? null : ex.id)}>
-                    {isEditing ? "✓ Listo" : "✏️ Editar"}
-                  </button>
+              <button className="btn-ghost small" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setEditingExId(isEditing ? null : ex.id)}>
+                  {isEditing ? "✓ Listo" : "✏️ Editar"}
+                </button>
+              </div>
+
+              {/* View mode: just show summary */}
+              {!isEditing && (
+                <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-muted)" }}>
+                  {hasMultiSets
+                    ? ex.sets.map((st, i) => <span key={st.id} style={{ marginRight: 10 }}>S{i+1}: <b style={{ color: "var(--text)" }}>{st.weight||"—"}{u}×{st.reps||"—"}</b></span>)
+                    : <span><b style={{ color: (displayWeight && displayWeight !== "0") ? "var(--text)" : "var(--accent)" }}>{(displayWeight && displayWeight !== "0") ? `${displayWeight}${u} × ${displayReps}` : "⚠️ Sin peso/reps — pulsa Editar"}</b></span>
+                  }
                 </div>
-
-                {/* View mode: just show summary */}
-                {!isEditing && (
-                  <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-muted)" }}>
-                    {hasMultiSets
-                      ? ex.sets.map((st, i) => <span key={st.id} style={{ marginRight: 10 }}>S{i+1}: <b style={{ color: "var(--text)" }}>{st.weight||"—"}{u}×{st.reps||"—"}</b></span>)
-                      : <span><b style={{ color: (displayWeight && displayWeight !== "0") ? "var(--text)" : "var(--accent)" }}>{(displayWeight && displayWeight !== "0") ? `${displayWeight}${u} × ${displayReps}` : "⚠️ Sin peso/reps — pulsa Editar"}</b></span>
-                    }
-                  </div>
-                )}
-
+              )}
+              {!isEditing && ex.note && (
+                <div style={{ marginTop: 4, fontSize: 11, color: "var(--accent)", fontStyle: "italic", display:"flex", alignItems:"center", gap:4 }}>
+                  💬 {ex.note}
+                </div>
+              )}
                 {/* Edit mode */}
                 {isEditing && (
                   <div style={{ marginTop: 8 }}>
@@ -3397,6 +3811,8 @@ function GymApp() {
   const [exWeight, setExWeight] = useState("");
   const [exReps, setExReps] = useState("");
   const [exSets, setExSets] = useState([]);
+  const [exSeriesCount, setExSeriesCount] = useState("3");
+  const [exNote, setExNote] = useState("");
   const [editingId, setEditingId] = useState(null);
 
   const [expanded, setExpanded] = useState(null);
@@ -3415,6 +3831,16 @@ function GymApp() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showWeeklyGoal, setShowWeeklyGoal] = useState(false);
   const [showTeams, setShowTeams] = useState(false);
+  const [accentColor, setAccentColor] = useState(() => load("gym_accent", ACCENT_COLORS[0]));
+  useEffect(() => {
+    document.documentElement.style.setProperty("--accent", accentColor.value);
+    document.documentElement.style.setProperty("--accent-dim", accentColor.dim);
+    store("gym_accent", accentColor);
+  }, [accentColor]);
+  const [showAccentPicker, setShowAccentPicker] = useState(false);
+  const accentRef = useRef();
+  const [prConfetti, setPrConfetti] = useState(null); // { prs: [...] }
+  const [showProfile, setShowProfile] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
   const [showAthleteCoach, setShowAthleteCoach] = useState(false);
@@ -3438,6 +3864,11 @@ function GymApp() {
     const handle = (e) => { if (presetRef.current && !presetRef.current.contains(e.target)) setShowPresets(false); };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
+  }, []);
+  useEffect(() => {
+    const handle = (e) => { if (accentRef.current && !accentRef.current.contains(e.target)) setShowAccentPicker(false); };
+    document.addEventListener("click", handle);
+    return () => document.removeEventListener("click", handle);
   }, []);
 
   const allExNames = [...new Set(sessions.flatMap(s => (s.exercises || []).map(e => e.name)))];
@@ -3471,11 +3902,13 @@ function GymApp() {
 
   function addExercise() {
     const finalName = exName === "__custom__" ? exCustom : exName;
-    if (!finalName) return;
-    if (!exWeight || !exReps) { showToast("⚠️ Ingresa peso y repeticiones"); return; }
-    const sets = exSets.length > 0 ? exSets : (exWeight || exReps ? [{ id: uid(), weight: exWeight, reps: exReps }] : []);
-    setCurrentExercises(prev => [...prev, { id: uid(), name: finalName, sets, weight: exWeight, reps: exReps }]);
-    setExName(""); setExCustom(""); setExWeight(""); setExReps(""); setExSets([]); setShowSugg(false);
+    if (!finalName) { showToast("⚠️ Selecciona un ejercicio"); return; }
+    if (!exWeight) { showToast("⚠️ Ingresa el peso"); return; }
+    if (!exReps) { showToast("⚠️ Ingresa las repeticiones"); return; }
+    const count = Math.max(1, parseInt(exSeriesCount) || 3);
+    const sets = Array.from({ length: count }, () => ({ id: uid(), weight: exWeight, reps: exReps }));
+    setCurrentExercises(prev => [...prev, { id: uid(), name: finalName, sets, weight: exWeight, reps: exReps, note: exNote }]);
+    setExName(""); setExCustom(""); setExWeight(""); setExReps(""); setExSets([]); setExSeriesCount("3"); setExNote(""); setShowSugg(false);
   }
 
   function applyPreset(name) {
@@ -3494,9 +3927,14 @@ function GymApp() {
       setSessions(prev => prev.map(s => s.id === editingId ? { ...s, date, workout, notes, exercises: currentExercises } : s));
       setEditingId(null); showToast("✅ Sesión actualizada");
     } else {
-      setSessions(prev => [{ id: uid(), date, workout, notes, exercises: currentExercises, unit }, ...prev]);
-      showToast("✅ Sesión guardada");
-      // advance cycle
+      const newSession = { id: uid(), date, workout, notes, exercises: currentExercises, unit };
+      const newPRs = detectNewPRs(newSession, sessions);
+      setSessions(prev => [newSession, ...prev]);
+      if (newPRs.length > 0) {
+        setPrConfetti({ prs: newPRs });
+      } else {
+        showToast("✅ Sesión guardada");
+      }  // advance cycle
       if (weeklyPlan.mode === "cycle" && weeklyPlan.cycle?.length > 0) {
         const nextPos = (weeklyPlan.cyclePos + 1) % weeklyPlan.cycle.length;
         setWeeklyPlan(p => ({ ...p, cyclePos: nextPos }));
@@ -3624,10 +4062,12 @@ function GymApp() {
             <span className="nav-icon">⚔️</span>
             <span className="nav-label">Reto semanal</span>
           </button>
-          <button className="nav-item" onClick={() => setShowCoach(true)}>
+          {user.isCoach && (
+  <button className="nav-item" onClick={() => setShowCoach(true)}>
     <span className="nav-icon">🏅</span>
-  <span className="nav-label">Panel Coach</span>
-</button>
+    <span className="nav-label">Panel Coach</span>
+  </button>
+)}
 <button className="nav-item" onClick={() => setShowAthleteCoach(true)}>
   <span className="nav-icon">🎽</span>
   <span className="nav-label">Mi Coach</span>
@@ -3636,7 +4076,11 @@ function GymApp() {
 
         <div className="sidebar-bottom">
           <div className="user-card">
-            <div className="user-avatar">{user.name?.[0]?.toUpperCase() || "U"}</div>
+            <div className="user-avatar" style={{cursor:"pointer", overflow:"hidden", padding:0}} onClick={() => setShowProfile(true)}>
+  {user.photoURL
+    ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}} referrerPolicy="no-referrer" />
+    : user.name?.[0]?.toUpperCase() || "U"}
+</div>
             <div style={{ minWidth: 0 }}>
               <div className="user-name">{user.name}</div>
               {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>✓ Cuenta activa</span>}
@@ -3723,7 +4167,7 @@ function GymApp() {
                   { icon: "🎯", label: "Meta semanal", action: () => { setShowWeeklyGoal(true); setMobileNavOpen(false); } },
                   { icon: "👥", label: "GymTeams", action: () => { setShowTeams(true); setMobileNavOpen(false); } },
                   { icon: "⚔️", label: "Reto semanal", action: () => { setShowChallenge(true); setMobileNavOpen(false); } },
-                  { icon: "🏅", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } },
+                  ...(user.isCoach ? [{ icon: "🏅", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
                   { icon: "🎽", label: "Mi Coach", action: () => { setShowAthleteCoach(true); setMobileNavOpen(false); } },
                   { icon: "📦", label: "Exportar JSON", action: () => { exportJSON(); setMobileNavOpen(false); } },
                   { icon: "📊", label: "Exportar CSV", action: () => { exportCSV(); setMobileNavOpen(false); } },
@@ -3867,49 +4311,58 @@ function GymApp() {
                 </div>
               </div>
               <div className="form-row" style={{ alignItems: "flex-end" }}>
-                <div className="field" style={{ flex: 2 }}>
-                  <label className="field-label">Ejercicio</label>
-                  <select className="input" value={exName} onChange={e => setExName(e.target.value)}>
-                    <option value="">— Selecciona —</option>
-                    {(exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle)).map(ex => (
-                      <option key={ex.name} value={ex.name}>{ex.name} {ex.machine ? "🔧" : ""}</option>
-                    ))}
-                    <option value="__custom__">✏️ Escribir uno personalizado...</option>
-                  </select>
-                  {exName === "__custom__" && (
-                    <input className="input" style={{ marginTop:6 }} placeholder="Nombre del ejercicio..." value={exCustom} onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
-                  )}
-                </div>
-                <div className="field">
-                  <label className="field-label">Peso ({unit})</label>
-                  <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
-                </div>
-                <div className="field">
-                  <label className="field-label">Reps</label>
-                  <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
-                </div>
-                <button className="btn-ghost" style={{ alignSelf: "flex-end", padding: "10px 14px", whiteSpace: "nowrap" }} onClick={addSet}>+ Set</button>
-              </div>
+  <div className="field" style={{ flex: 2 }}>
+    <label className="field-label">Ejercicio</label>
+    <select className="input" value={exName} onChange={e => setExName(e.target.value)}>
+      <option value="">— Selecciona —</option>
+      {(exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle)).map(ex => (
+        <option key={ex.name} value={ex.name}>{ex.name} {ex.machine ? "🔧" : ""}</option>
+      ))}
+      <option value="__custom__">✏️ Escribir uno personalizado...</option>
+    </select>
+    {exName === "__custom__" && (
+      <input className="input" style={{ marginTop:6 }} placeholder="Nombre del ejercicio..." value={exCustom} onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
+    )}
+  </div>
+  <div className="field">
+    <label className="field-label">Peso ({unit})</label>
+    <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+  </div>
+  <div className="field">
+    <label className="field-label">Repeticiones</label>
+    <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+  </div>
+  <div className="field" style={{ maxWidth: 80 }}>
+    <label className="field-label">Series</label>
+    <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g,""))} className="input" />
+  </div>
+</div>
 
-              {(exName && exName !== "__custom__" || exCustom) && exWeight && exReps && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8, marginBottom: 8 }}>
-                  1RM estimado: <b style={{ color: "var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
-                </div>
-              )}
-
-              {exSets.length > 0 && (
-                <div className="sets-row">
-                  {exSets.map((s, i) => (
-                    <span key={s.id} className="set-chip">
-                      S{i + 1}: {s.weight}{unit}×{s.reps}
-                      <button className="chip-del" onClick={() => setExSets(prev => prev.filter(x => x.id !== s.id))}>×</button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
-
+{(exName && exName !== "__custom__") && (
+  <div style={{ display: "flex", gap: 14, alignItems: "center", margin: "8px 0" }}>
+    <ExerciseGif exName={exName} size={100} />
+    <div>
+      {exWeight && exReps && (
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
+          1RM estimado: <b style={{ color: "var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
+        </div>
+      )}
+      {(() => {
+        const db = EXERCISE_DB.find(e => e.name === exName);
+        return db ? (
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            💪 {db.muscle} · {db.equipment} {db.machine ? "· 🔧 Máquina" : ""}
+          </div>
+        ) : null;
+      })()}
+    </div>
+  </div>
+)}
+<div className="field" style={{ marginTop: 4 }}>
+  <label className="field-label">Nota del ejercicio (opcional)</label>
+  <input className="input" placeholder="Ej: bajar lento, agarre cerrado..." value={exNote} onChange={e => setExNote(e.target.value)} />
+</div>
+<button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
               {currentExercises.length > 0 && (
                 <div className="ex-list">
                   {currentExercises.map(ex => {
@@ -4025,6 +4478,7 @@ function GymApp() {
       {showBadges && <BadgesModal sessions={sessions} onClose={() => setShowBadges(false)} />}
       {showTemplates && <TemplatesModal sessions={sessions} onLoad={(workout, exercises) => { setWorkout(workout); setCurrentExercises(exercises.map(e => ({...e, id: uid()}))); setActiveTab("new"); }} onClose={() => setShowTemplates(false)} />}
       {showWeeklyGoal && <WeeklyGoalModal goal={weeklyGoal} onSave={setWeeklyGoal} onClose={() => setShowWeeklyGoal(false)} sessions={sessions} />}
+      {showProfile && <UserProfileModal user={user} sessions={sessions} bodyStats={bodyStats} onOpenBodyStats={()=>{setShowProfile(false);setShowBodyStats(true);}} onClose={()=>setShowProfile(false)} />}
       {showTeams && <TeamsModal user={user} sessions={sessions} onClose={() => setShowTeams(false)} />}
       {showChallenge && <TeamChallengeModal user={user} sessions={sessions} onClose={() => setShowChallenge(false)} />}
       {showCoach && <CoachModal user={user} sessions={sessions} onClose={() => setShowCoach(false)} />}
@@ -4038,6 +4492,7 @@ function GymApp() {
       {showOneRM && <OneRMModal onClose={() => setShowOneRM(false)} />}
       {showBodyStats && <BodyStatsModal stats={bodyStats} onSave={setBodyStats} onClose={() => setShowBodyStats(false)} />}
       {showPlanner && <WeeklyPlannerModal plan={weeklyPlan} onSave={setWeeklyPlan} onClose={() => setShowPlanner(false)} sessions={sessions} />}
+      {prConfetti && <PRConfetti prs={prConfetti.prs} onDone={() => { setPrConfetti(null); showToast("✅ Sesión guardada"); }} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
@@ -4057,6 +4512,7 @@ export default function App() {
   useEffect(() => { store("gym_dark", dark); }, [dark]);
 
   // Firebase auth listener
+  
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -4069,9 +4525,7 @@ export default function App() {
           profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
           try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
         }
-        setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" });
-      } else {
-        setCurrentUser(null);
+        setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile.isCoach || false, photoURL: firebaseUser.photoURL || profile.photoURL || null });
       }
       setAuthLoading(false);
     });
@@ -4089,6 +4543,7 @@ export default function App() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
       await updateProfile(cred.user, { displayName: name });
+      await sendEmailVerification(cred.user);
       await setDoc(doc(db, "users", cred.user.uid), { uid: cred.user.uid, name, email, plan: "free" }, { merge: true });
       return { ok: true };
     } catch (e) { return { ok: false, msg: firebaseErrMsg(e.code) }; }
@@ -4097,6 +4552,13 @@ export default function App() {
   async function resetPassword(email) {
     try { await sendPasswordResetEmail(auth, email); return { ok: true }; }
     catch (e) { return { ok: false, msg: firebaseErrMsg(e.code) }; }
+  }
+
+  async function loginWithGoogle() {
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      return { ok: true };
+    } catch(e) { return { ok: false, msg: firebaseErrMsg(e.code) }; }
   }
 
   function loginAsGuest() {
@@ -4121,7 +4583,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={{ dark, toggleDark }}>
-      <AuthCtx.Provider value={{ user: currentUser, loginWithFirebase, registerWithFirebase, logout, loginAsGuest, resetPassword }}>
+      <AuthCtx.Provider value={{ user: currentUser, loginWithFirebase, registerWithFirebase, logout, loginAsGuest, resetPassword, loginWithGoogle }}>
         <style>{CSS}</style>
         {!currentUser ? <LoginScreen /> : <GymApp />}
       </AuthCtx.Provider>
@@ -4137,7 +4599,8 @@ const CSS = `
 
 body[data-theme="dark"] {
   --bg: #080f1a; --surface: #0c1524; --card: #0f1c2e; --border: #1a2d45;
-  --accent: #3b82f6; --accent-dim: #1a2f52; --text: #e2e8f0; --text-muted: #4a6080;
+  --accent: #3b82f6;
+--accent-dim: #1a2f52; --accent-dim: #1a2f52; --text: #e2e8f0; --text-muted: #4a6080;
   --danger: #ef4444; --sidebar-bg: #060d18; --input-bg: #070e1a; --shadow: 0 4px 24px rgba(0,0,0,0.5);
 }
 body[data-theme="light"] {
@@ -4339,9 +4802,10 @@ input[type="date"].input { color-scheme: dark; }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 .fade-in { animation: fadeIn 0.3s ease; }
-select.input { cursor: pointer; }
+;select.input { cursor: pointer; }
 select.input option { background: var(--surface); color: var(--text); }
 .btn-guest { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-family: 'Barlow', sans-serif; }
 .btn-guest:hover { border-color: #f59e0b; background: rgba(245,158,11,0.06); }
 .guest-banner { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); color: #fbbf24; border-radius: 12px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+@keyframes prBannerIn { from { opacity:0; transform:translate(-50%,-50%) scale(0.6); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
 `;
