@@ -4584,9 +4584,24 @@ export default function App() {
 
   async function loginWithGoogle() {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      googleProvider.setCustomParameters({ prompt: "select_account" });
+      const cred = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = cred.user;
+      let profile = null;
+      try {
+        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+        profile = snap.exists() ? snap.data() : null;
+      } catch {}
+      if (!profile) {
+        profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
+        try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
+      }
+      setCurrentUser({ uid: firebaseUser.uid, name: profile?.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile?.isCoach || false, photoURL: firebaseUser.photoURL || profile?.photoURL || null });
       return { ok: true };
-    } catch(e) { return { ok: false, msg: firebaseErrMsg(e.code) }; }
+    } catch(e) { 
+      console.error("Google login error:", e);
+      return { ok: false, msg: firebaseErrMsg(e.code) }; 
+    }
   }
 
   function loginAsGuest() {
