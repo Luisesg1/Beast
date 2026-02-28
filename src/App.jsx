@@ -1574,7 +1574,7 @@ function ProgressPrediction({ sessions }) {
 
   if (!selected && validExercises.length > 0) {
     // auto-select first
-  }
+  } 
   const ex = selected || validExercises[0] || "";
   const points = ex ? (exMap[ex] || []).sort((a,b) => a.date.localeCompare(b.date)) : [];
 
@@ -1599,7 +1599,8 @@ function ProgressPrediction({ sessions }) {
 
     // Predict reaching round targets
     if (slope > 0) {
-      const roundTargets = [60,70,80,90,100,110,120,130,140,150,160,180,200].filter(t => t > currentRM);
+      const step = currentRM < 60 ? 5 : currentRM < 100 ? 5 : 10;
+const roundTargets = [1,2,3,4,5,6].map(i => Math.round((currentRM + i * step) / step) * step).filter(t => t > currentRM);
       targets = roundTargets.slice(0,3).map(target => {
         const daysNeeded = (target - intercept) / slope - lastX;
         const weeksNeeded = Math.ceil(daysNeeded / 7);
@@ -3472,6 +3473,12 @@ function LoginScreen() {
           </div>
         )}
 
+        {mode === "register" && (
+        <div className="field">
+          <label className="field-label">Nombre</label>
+          <input className="input" type="text" placeholder="Tu nombre" value={name} onChange={e => setName(lettersOnly(e.target.value))} autoComplete="name" />
+        </div>
+      )}
         <div className="field">
           <label className="field-label">Email</label>
           
@@ -4333,7 +4340,7 @@ function GymApp() {
     <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
   </div>
   <div className="field" style={{ maxWidth: 80 }}>
-    <label className="field-label">Series</label>
+    <label className="field-label">Repeticiones</label>
     <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g,""))} className="input" />
   </div>
 </div>
@@ -4511,6 +4518,24 @@ export default function App() {
   useEffect(() => { document.body.setAttribute("data-theme", dark ? "dark" : "light"); }, [dark]);
   useEffect(() => { store("gym_dark", dark); }, [dark]);
 
+  // Handle Google redirect result
+  useEffect(() => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+        const firebaseUser = result.user;
+        let profile = null;
+        try {
+          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+          profile = snap.exists() ? snap.data() : null;
+        } catch {}
+        if (!profile) {
+          profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
+          try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
   // Firebase auth listener
   
   useEffect(() => {
@@ -4531,7 +4556,6 @@ export default function App() {
     });
     return unsub;
   }, []);
-
   const toggleDark = () => setDark(d => !d);
 
   async function loginWithFirebase(email, pass) {
@@ -4556,7 +4580,7 @@ export default function App() {
 
   async function loginWithGoogle() {
     try {
-      const cred = await signInWithPopup(auth, googleProvider);
+      await signInWithRedirect(auth, googleProvider);
       return { ok: true };
     } catch(e) { return { ok: false, msg: firebaseErrMsg(e.code) }; }
   }
