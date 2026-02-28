@@ -10,7 +10,7 @@ const firebaseConfig = {
   messagingSenderId: "1006490404310",
   appId: "1:1006490404310:web:015b3d4817304032aed077",
 };
-const ADMIN_EMAILS = []; // reemplaza con tu email real
+const ADMIN_EMAILS = ["luiseduardooo2000@gmail.com"]; // reemplaza con tu email real
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -1306,7 +1306,7 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
           <div style={{ flex: 1, minWidth: 60 }}>
             <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Reps" value={exReps} onChange={e => setExReps(numDot(e.target.value))} />
           </div>
-          <button className="btn-ghost small" onClick={addSet}>+ Set</button>
+          <button className="btn-ghost small" onClick={addSet}>+ Serie</button>
         </div>
         {exSets.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2005,6 +2005,7 @@ function CoachModal({ user, sessions, onClose }) {
   const [assignRoutineId, setAssignRoutineId] = useState("");
   const [assignEmail, setAssignEmail] = useState("");
   const [assignMsg, setAssignMsg] = useState("");
+  const [assignDay, setAssignDay] = useState(-1);
   const [addAthleteEmail, setAddAthleteEmail] = useState("");
   const [addAthleteMsg, setAddAthleteMsg] = useState("");
   const [err, setErr] = useState("");
@@ -2094,7 +2095,7 @@ function CoachModal({ user, sessions, onClose }) {
   async function handleAssign() {
     if (!assignRoutineId || !assignEmail) { setAssignMsg("Selecciona rutina e ingresa email"); return; }
     const routine = routines.find(r => r.id === assignRoutineId);
-    const result = await assignRoutineToAthlete(user.uid, assignEmail, assignRoutineId, routine?.name || "");
+    const result = await assignRoutineToAthlete(user.uid, assignEmail, assignRoutineId, routine?.name || "", assignDay);
     setAssignMsg(result.ok ? "✅ Rutina asignada correctamente" : `❌ ${result.msg}`);
   }
 
@@ -2270,7 +2271,7 @@ function CoachModal({ user, sessions, onClose }) {
                     <div className="field">
                       <input className="input" style={{ fontSize: 13 }} placeholder="Reps" value={rExReps} onChange={e => setRExReps(numDot(e.target.value))} />
                     </div>
-                    <button className="btn-ghost small" onClick={addRSet}>+ Set</button>
+                    <button className="btn-ghost small" onClick={addRSet}>+ Serie</button>
                   </div>
                   {rExSets.length > 0 && (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2358,6 +2359,13 @@ function CoachModal({ user, sessions, onClose }) {
                     {athletes.map(a => <option key={a.uid} value={a.email}>{a.name} ({a.email})</option>)}
                   </select>
                 </div>
+                <div className="field" style={{ marginBottom: 16 }}>
+  <label className="field-label">Día de la semana (opcional)</label>
+  <select className="input" value={assignDay} onChange={e => setAssignDay(parseInt(e.target.value))}>
+    <option value={-1}>— Sin día fijo —</option>
+    {DAYS_ES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+  </select>
+</div>
                 <button className="btn-primary" style={{ width: "100%" }} onClick={handleAssign}>📨 Asignar rutina</button>
                 {assignMsg && <div style={{ marginTop: 12, fontSize: 13, color: assignMsg.startsWith("✅") ? "#22c55e" : "#f87171", textAlign: "center" }}>{assignMsg}</div>}
               </div>
@@ -2443,6 +2451,7 @@ function AthleteCoachPanel({ user, onClose }) {
   const [joinCode, setJoinCode] = useState("");
   const [joinMsg, setJoinMsg] = useState("");
   const [joining, setJoining] = useState(false);
+  const [activeWorkout, setActiveWorkout] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -2461,116 +2470,276 @@ function AthleteCoachPanel({ user, onClose }) {
     setLoading(false);
   }
 
-  async function handleJoin() {
-    if (!joinCode.trim()) return;
+  // ─── Athlete Workout Runner ───────────────────────────────────────────────────
+function AthleteWorkoutRunner({ routine, onClose, onSave }) {
+    const [exercises, setExercises] = useState(
+      (routine.exercises || []).map(ex => ({
+        ...ex,
+        athleteSets: (ex.sets?.length > 0 ? ex.sets : [{ id: uid(), weight: ex.weight || "", reps: ex.reps || "" }])
+          .map(s => ({ ...s, id: uid(), weight: s.weight || "", reps: s.reps || "", done: false }))
+      }))
+    );
+    const [currentEx, setCurrentEx] = useState(0);
+    const [elapsed, setElapsed] = useState(0);
+    const [running, setRunning] = useState(true);
+    const timerRef = useRef();
+
+    useEffect(() => {
+      if (running) timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+      else clearInterval(timerRef.current);
+      return () => clearInterval(timerRef.current);
+    }, [running]);
+
+    const fmt = s => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
+    const totalSets = exercises.reduce((a, e) => a + e.athleteSets.length, 0);
+    const doneSets = exercises.reduce((a, e) => a + e.athleteSets.filter(s => s.done).length, 0);
+    const pct = totalSets > 0 ? doneSets / totalSets : 0;
+
+    function updateSet(exIdx, setIdx, field, val) {
+      setExercises(prev => prev.map((ex, i) => i !== exIdx ? ex : {
+        ...ex, athleteSets: ex.athleteSets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val })
+      }));
+    }
+
+    function toggleDone(exIdx, setIdx) {
+      setExercises(prev => prev.map((ex, i) => i !== exIdx ? ex : {
+        ...ex, athleteSets: ex.athleteSets.map((s, j) => j !== setIdx ? s : { ...s, done: !s.done })
+      }));
+    }
+
+    function finish() {
+      setRunning(false);
+      const sessionExercises = exercises.map(ex => ({
+        id: ex.id, name: ex.name,
+        sets: ex.athleteSets.map(s => ({ id: s.id, weight: s.weight, reps: s.reps })),
+        weight: ex.athleteSets[0]?.weight || "",
+        reps: ex.athleteSets[0]?.reps || "",
+      }));
+      onSave(sessionExercises, elapsed);
+    }
+
+    const ex = exercises[currentEx];
+
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 3000, display: "flex", flexDirection: "column" }}>
+        <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800 }}>⚡ {routine.name}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series completadas</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 30, fontWeight: 800, color: "var(--accent)", letterSpacing: 2 }}>{fmt(elapsed)}</div>
+            <button onClick={() => setRunning(r => !r)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 11, cursor: "pointer" }}>{running ? "⏸ Pausar" : "▶ Reanudar"}</button>
+          </div>
+          <button onClick={finish} style={{ background: "var(--accent)", border: "none", color: "white", borderRadius: 10, padding: "10px 16px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>💾 Finalizar</button>
+          <button onClick={onClose} style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ height: 4, background: "var(--border)", flexShrink: 0 }}>
+          <div style={{ height: "100%", background: "linear-gradient(90deg, var(--accent), #22c55e)", width: `${pct * 100}%`, transition: "width 0.4s ease" }} />
+        </div>
+        <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", overflowX: "auto", flexShrink: 0 }}>
+          {exercises.map((e, i) => {
+            const done = e.athleteSets.every(s => s.done) && e.athleteSets.length > 0;
+            return (
+              <button key={i} onClick={() => setCurrentEx(i)} style={{
+                background: currentEx === i ? "var(--accent)" : done ? "rgba(34,197,94,0.15)" : "var(--card)",
+                border: `1px solid ${currentEx === i ? "var(--accent)" : done ? "#22c55e" : "var(--border)"}`,
+                color: currentEx === i ? "white" : done ? "#22c55e" : "var(--text-muted)",
+                borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0
+              }}>{done ? "✓ " : ""}{e.name}</button>
+            );
+          })}
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+          {ex && (
+            <div>
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{ex.name}</div>
+              {ex.comment && (
+                <div style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--accent)", marginBottom: 14, fontStyle: "italic" }}>
+                  💬 Coach: {ex.comment}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginBottom: 6, padding: "0 4px" }}>
+                <div style={{ width: 36, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Serie</div>
+                <div style={{ flex: 1, fontSize: 10, color: "var(--accent)", textAlign: "center" }}>Ref. coach</div>
+                <div style={{ flex: 1, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Tu peso (kg)</div>
+                <div style={{ flex: 1, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Tus reps</div>
+                <div style={{ width: 56, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Hecho</div>
+              </div>
+              {ex.athleteSets.map((s, j) => {
+                const coachSet = ex.sets?.[j] || ex.sets?.[0] || { weight: ex.weight || "—", reps: ex.reps || "—" };
+                return (
+                  <div key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, padding: "10px 4px", background: s.done ? "rgba(34,197,94,0.08)" : "var(--card)", border: `1px solid ${s.done ? "rgba(34,197,94,0.3)" : "var(--border)"}`, borderRadius: 10 }}>
+                    <div style={{ width: 36, textAlign: "center", fontWeight: 800, fontSize: 14, fontFamily: "Barlow Condensed, sans-serif", color: s.done ? "#22c55e" : "var(--text-muted)" }}>S{j+1}</div>
+                    <div style={{ flex: 1, textAlign: "center", fontSize: 13, color: "var(--accent)", fontWeight: 600, opacity: 0.7 }}>{coachSet.weight || "—"}kg×{coachSet.reps || "—"}</div>
+                    <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder={coachSet.weight || "0"} />
+                    <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder={coachSet.reps || "0"} />
+                    <button onClick={() => toggleDone(currentEx, j)} style={{ width: 56, height: 40, background: s.done ? "#22c55e" : "var(--input-bg)", border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`, borderRadius: 10, cursor: "pointer", fontSize: 18 }}>
+                      {s.done ? "✓" : "○"}
+                    </button>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                {currentEx > 0 && <button onClick={() => setCurrentEx(i => i-1)} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 10, padding: 10, cursor: "pointer", fontSize: 13 }}>← Anterior</button>}
+                {currentEx < exercises.length - 1 && <button onClick={() => setCurrentEx(i => i+1)} style={{ flex: 1, background: "var(--accent)", border: "none", color: "white", borderRadius: 10, padding: 10, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700 }}>Siguiente →</button>}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+async function handleJoin() {
+    if (!joinCode.trim()) { setJoinMsg("Ingresa un código"); return; }
     setJoining(true);
     const result = await joinCoachByCode(user.uid, user.name, user.email, joinCode.trim().toUpperCase());
     setJoining(false);
-    if (result.ok) {
-      setJoinMsg(`✅ Conectado con coach ${result.coachData.name}`);
-      await loadData();
-    } else setJoinMsg(`❌ ${result.msg}`);
+    if (result.ok) { setJoinMsg("✅ Conectado con tu coach!"); loadData(); }
+    else setJoinMsg(`❌ ${result.msg}`);
+  }
+
+  if (loading) return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ textAlign:"center", padding:40 }}>
+        <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
+        <div style={{ color:"var(--text-muted)" }}>Cargando...</div>
+      </div>
+    </div>
+  );
+
+  if (activeWorkout) {
+    return (
+      <AthleteWorkoutRunner
+        routine={activeWorkout}
+        onClose={() => setActiveWorkout(null)}
+        onSave={async (exercises, elapsed) => {
+          setActiveWorkout(null);
+        }}
+      />
+    );
+  }
+
+  if (activeWorkout) {
+    return (
+      <AthleteWorkoutRunner
+        routine={activeWorkout}
+        onClose={() => setActiveWorkout(null)}
+        onSave={async (exercises, elapsed) => {
+          setActiveWorkout(null);
+        }}
+      />
+    );
+  }
+
+   if (activeWorkout) {
+    return (
+      <AthleteWorkoutRunner
+        routine={activeWorkout}
+        onClose={() => setActiveWorkout(null)}
+        onSave={async (exercises, elapsed) => {
+          setActiveWorkout(null);
+        }}
+      />
+    );
   }
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight:"88vh", overflowY:"auto" }}>
         <div className="modal-header">
           <h3 className="modal-title">🎽 Mi Coach</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="tab-row" style={{ marginBottom: 20 }}>
-          <button className={`tab-btn ${tab==="routines"?"active":""}`} onClick={() => setTab("routines")}>📋 Rutinas asignadas</button>
-          <button className={`tab-btn ${tab==="coaches"?"active":""}`} onClick={() => setTab("coaches")}>👥 Mis coaches</button>
-          <button className={`tab-btn ${tab==="join"?"active":""}`} onClick={() => setTab("join")}>🔗 Unirse a coach</button>
+        <div className="tab-row" style={{ marginBottom:20 }}>
+          <button className={`tab-btn ${tab==="routines"?"active":""}`} onClick={()=>setTab("routines")}>📋 Rutinas</button>
+          <button className={`tab-btn ${tab==="coaches"?"active":""}`} onClick={()=>setTab("coaches")}>👥 Mis coaches</button>
+          <button className={`tab-btn ${tab==="join"?"active":""}`} onClick={()=>setTab("join")}>🔗 Unirme</button>
         </div>
 
-        {loading && <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)" }}>⏳ Cargando...</div>}
-
-        {!loading && tab === "routines" && (
+        {tab === "routines" && (
           <div>
             {fullRoutines.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "30px 0", color: "var(--text-muted)" }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-                <p>Aún no tienes rutinas asignadas por un coach.</p>
-                <p style={{ fontSize: 12, marginTop: 8 }}>Únete a un coach con su código en la pestaña "Unirse a coach".</p>
+              <div style={{ textAlign:"center", padding:"30px 0", color:"var(--text-muted)" }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
+                <p style={{ fontSize:14 }}>Aún no tienes rutinas asignadas.<br/>Únete a un coach con su código.</p>
               </div>
-            ) : fullRoutines.map(r => {
-              const assigned = assignedRoutines.find(ar => ar.routineId === r.id);
-              return (
-                <div key={r.id} style={{ padding: "16px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 16 }}>{r.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                        Asignada {fmtDate(assigned?.assignedAt)} {assigned?.completed && <span style={{ color: "#22c55e" }}>· ✅ Completada</span>}
-                      </div>
-                    </div>
-                    {assigned?.completed
-                      ? <span style={{ fontSize: 20 }}>✅</span>
-                      : <button className="btn-ghost small" onClick={() => markRoutineCompleted(user.uid, r.id).then(loadData)}>Marcar completada</button>
-                    }
-                  </div>
-                  {r.notes && (
-                    <div style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", marginBottom: 10, fontStyle: "italic" }}>
-                      💬 Coach: {r.notes}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {(r.exercises||[]).map(ex => (
-                      <div key={ex.id} style={{ padding: "10px 12px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{ex.name}</div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                          {ex.sets?.length > 0 ? ex.sets.map((s,i) => `S${i+1}: ${s.weight}kg×${s.reps}`).join(" · ") : ex.weight ? `${ex.weight}kg × ${ex.reps} reps` : "Sin peso definido"}
-                        </div>
-                        {ex.comment && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontStyle: "italic" }}>💬 {ex.comment}</div>}
-                      </div>
-                    ))}
-                  </div>
+            ) : fullRoutines.map(r => (
+              <div key={r.id} style={{ padding:"14px 16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                  <div style={{ fontWeight:700, fontSize:15 }}>{r.name}</div>
+                  <button className="btn-primary" style={{ fontSize:14, padding:"8px 16px" }}
+                    onClick={() => setActiveWorkout(r)}>▶ Iniciar</button>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {!loading && tab === "coaches" && (
-          <div>
-            {coaches.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: 20 }}>Sin coaches aún. Únete con un código.</p>
-            ) : coaches.map(c => (
-              <div key={c.coachUid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 8 }}>
-                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "white", fontSize: 16 }}>{c.coachName?.[0]?.toUpperCase()}</div>
-                <div>
-                  <div style={{ fontWeight: 700 }}>{c.coachName}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.coachEmail} · desde {fmtDate(c.addedAt)}</div>
+                {r.notes && <div style={{ fontSize:12, color:"var(--text-muted)", fontStyle:"italic", marginBottom:8 }}>{r.notes}</div>}
+                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                  {(r.exercises||[]).map(ex => (
+                    <span key={ex.id} style={{ fontSize:11, padding:"2px 8px", background:"rgba(59,130,246,0.1)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:10, color:"var(--text-muted)" }}>
+                      {ex.name}
+                    </span>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {!loading && tab === "join" && (
+        {tab === "coaches" && (
           <div>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>
-              Ingresa el código de tu coach para conectarte y recibir rutinas asignadas.
+            {coaches.length === 0 ? (
+              <p style={{ color:"var(--text-muted)", fontSize:13, textAlign:"center", padding:"20px 0" }}>Sin coaches aún.</p>
+            ) : coaches.map(c => (
+              <div key={c.coachUid} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, marginBottom:8 }}>
+                <div style={{ width:40, height:40, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"white" }}>
+                  {c.coachName?.[0]?.toUpperCase()||"?"}
+                </div>
+                <div>
+                  <div style={{ fontWeight:700 }}>{c.coachName}</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.coachEmail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "join" && (
+          <div>
+            <p style={{ fontSize:13, color:"var(--text-muted)", marginBottom:16, lineHeight:1.6 }}>
+              Pídele a tu coach su código y escríbelo aquí para conectarte y recibir rutinas.
             </p>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input className="input" placeholder="COACH-XXXXXX" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 3, fontSize: 16 }} maxLength={12} onKeyDown={e => e.key === "Enter" && handleJoin()} />
-              <button className="btn-primary" style={{ fontSize: 15, padding: "10px 20px" }} onClick={handleJoin} disabled={joining}>
-                {joining ? "⏳" : "Unirse"}
+            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+              <input className="input" placeholder="Código del coach (ej: COACH-ABC123)"
+                value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                style={{ flex:1, fontFamily:"monospace", letterSpacing:2, fontSize:15 }}
+                onKeyDown={e => e.key==="Enter" && handleJoin()} />
+              <button className="btn-primary" style={{ fontSize:15, padding:"10px 20px" }}
+                onClick={handleJoin} disabled={joining}>
+                {joining ? "⏳" : "Unirme"}
               </button>
             </div>
-            {joinMsg && <div style={{ fontSize: 13, color: joinMsg.startsWith("✅") ? "#22c55e" : "#f87171", textAlign: "center" }}>{joinMsg}</div>}
+            {joinMsg && (
+              <div style={{ fontSize:13, color: joinMsg.startsWith("✅")?"#22c55e":"#f87171", textAlign:"center", marginTop:8 }}>
+                {joinMsg}
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
-}
 
-// Uses Firestore for cross-user data
-const STORAGE_AVAILABLE = true; // Firestore always available
+  // activeWorkout runner overlay
+  {activeWorkout && (
+    <AthleteWorkoutRunner
+      routine={activeWorkout}
+      onClose={() => setActiveWorkout(null)}
+      onSave={async (exercises, elapsed) => {
+        setActiveWorkout(null);
+      }}
+    />
+  )}
+}
 
 // ─── Coach/Athlete Functions ──────────────────────────────────────────────────
 async function getCoachProfile(uid) {
@@ -2614,20 +2783,19 @@ async function deleteCoachRoutine(coachUid, routineId) {
   } catch(e) { return false; }
 }
 
-async function assignRoutineToAthlete(coachUid, athleteEmail, routineId, routineName) {
+async function assignRoutineToAthlete(coachUid, athleteEmail, routineId, routineName, dayOfWeek = -1) {
   try {
-    // Find athlete by email
     const usersSnap = await getDocs(collection(db, "users"));
     const athleteDoc = usersSnap.docs.find(d => d.data().email === athleteEmail);
     if (!athleteDoc) return { ok: false, msg: "Atleta no encontrado" };
     const athleteUid = athleteDoc.id;
 
-    // Add to athlete's assigned routines
     await setDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId), {
-      routineId, coachUid, coachName: "", routineName, assignedAt: todayStr(), completed: false
+      routineId, coachUid, coachName: "", routineName,
+      assignedAt: todayStr(), completed: false,
+      dayOfWeek
     }, { merge: true });
 
-    // Add athlete to coach's list
     await setDoc(doc(db, "coaches", coachUid), {
       athletes: { [athleteUid]: { email: athleteEmail, name: athleteDoc.data().name, uid: athleteUid, addedAt: todayStr() } }
     }, { merge: true });
@@ -4207,42 +4375,58 @@ function GymApp() {
         {activeTab === "new" && (
           <div className="content-area fade-in">
             {!editingId && (() => {
-  const allDays = weeklyPlan.mode === "weekly"
-    ? DAYS_ES.map((name, i) => ({ name: weeklyPlan.weekly?.[i]?.name || "", exercises: weeklyPlan.weekly?.[i]?.exercises || [], dayLabel: name })).filter(d => d.name)
-    : (weeklyPlan.cycle || []).map((d, i) => ({ name: d.name || `Día ${i+1}`, exercises: d.exercises || [], dayLabel: `Día ${i+1}` })).filter(d => d.name);
+  const todayDow = (new Date().getDay() + 6) % 7; // 0=Lunes
+  const dayName = DAYS_ES[todayDow];
 
-  if (allDays.length === 0) return null;
+  // Rutina del planificador propio
+  const ownPlan = weeklyPlan.mode === "weekly"
+    ? weeklyPlan.weekly?.[todayDow]
+    : weeklyPlan.cycle?.[weeklyPlan.cyclePos];
+  const ownName = typeof ownPlan === "string" ? ownPlan : ownPlan?.name;
+  const ownExercises = ownPlan?.exercises || [];
+
+  // Rutina del coach (si tiene)
+  // Se busca en assignedRoutines filtradas por día (guardadas con dayOfWeek)
+  // Por ahora mostramos el banner de planificador propio
+  if (!ownName) return null;
 
   return (
-    <div style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>📅 Cargar desde planificador</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {allDays.map((day, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, flexWrap: "wrap", gap: 8 }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{day.dayLabel}: <span style={{ color: "var(--accent)" }}>{day.name}</span></div>
-              {day.exercises.length > 0 && (
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 5 }}>
-                  {day.exercises.map(ex => (
-                    <span key={ex.id} style={{ fontSize: 11, padding: "2px 8px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 10, color: "var(--text-muted)" }}>
-                      {ex.name}{ex.sets?.length > 0 ? ` · ${ex.sets.length}s` : ex.weight ? ` · ${ex.weight}kg` : ""}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button className="btn-ghost small" onClick={() => {
-              setWorkout(day.name);
-              if (day.exercises.length > 0) {
-                setCurrentExercises(day.exercises.map(e => ({ ...e, id: uid() })));
-                showToast(`✅ ${day.exercises.length} ejercicios cargados`);
-              }
-            }}>
-              {day.exercises.length > 0 ? `💪 Cargar ${day.exercises.length} ej. →` : "Usar nombre →"}
-            </button>
+    <div style={{
+      background: "rgba(59,130,246,0.08)",
+      border: "1px solid rgba(59,130,246,0.3)",
+      borderRadius: 14,
+      padding: "14px 18px",
+      marginBottom: 16,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 10
+    }}>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 4 }}>
+          📅 Hoy es {dayName}
+        </div>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800 }}>
+          Te toca: <span style={{ color: "var(--accent)" }}>{ownName}</span>
+        </div>
+        {ownExercises.length > 0 && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {ownExercises.length} ejercicios planificados
           </div>
-        ))}
+        )}
       </div>
+      <button className="btn-ghost small" onClick={() => {
+        setWorkout(ownName);
+        if (ownExercises.length > 0) {
+          setCurrentExercises(ownExercises.map(e => ({ ...e, id: uid() })));
+          showToast(`✅ ${ownExercises.length} ejercicios cargados`);
+        } else {
+          showToast(`✅ Rutina "${ownName}" cargada`);
+        }
+      }}>
+        💪 Cargar rutina →
+      </button>
     </div>
   );
 })()}
@@ -4340,7 +4524,7 @@ function GymApp() {
     <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
   </div>
   <div className="field" style={{ maxWidth: 80 }}>
-    <label className="field-label">Repeticiones</label>
+    <label className="field-label">Series</label>
     <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g,""))} className="input" />
   </div>
 </div>
@@ -4383,7 +4567,7 @@ function GymApp() {
                         {/* Header row */}
                         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
                           <span className="ex-name" style={{ flex: 1 }}>{ex.name}</span>
-                          <button className="btn-ghost small" style={{ fontSize: 11, padding: "3px 8px" }} onClick={addSetToEx}>+ Set</button>
+                          <button className="btn-ghost small" style={{ fontSize: 11, padding: "3px 8px" }} onClick={addSetToEx}>+ Serie</button>
                           <button className="chip-del" style={{ fontSize: 16 }} onClick={() => setCurrentExercises(prev => prev.filter(e => e.id !== ex.id))}>✕</button>
                         </div>
                         {/* Sets: if multiple sets show each row, else show single weight/reps */}
