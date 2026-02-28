@@ -4532,6 +4532,8 @@ export default function App() {
           profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
           try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
         }
+        setCurrentUser({ uid: firebaseUser.uid, name: profile?.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile?.isCoach || false, photoURL: firebaseUser.photoURL || profile?.photoURL || null });
+        setAuthLoading(false);
       }
     }).catch(() => {});
   }, []);
@@ -4551,6 +4553,8 @@ export default function App() {
           try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
         }
         setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile.isCoach || false, photoURL: firebaseUser.photoURL || profile.photoURL || null });
+      } else {
+        setCurrentUser(null);
       }
       setAuthLoading(false);
     });
