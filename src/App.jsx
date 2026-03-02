@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { initializeApp, getApps } from "firebase/app";
+import GIF_MAP from './assets/gif/gifMap.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 const firebaseConfig = {
@@ -107,124 +108,23 @@ const EXERCISE_DB = [
 ];
 const MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
 
-// ─── Exercise GIF Hook ────────────────────────────────────────────────────────
-function useExerciseGif(exName) {
-  const [gifUrl, setGifUrl] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!exName || exName === "__custom__") { setGifUrl(null); return; }
-    setLoading(true);
-    setGifUrl(null);
-
-    const nameMap = {
-      "Press Banca":                 "barbell bench press",
-      "Press Banca Inclinado":       "incline bench press",
-      "Press Mancuernas":            "dumbbell bench press",
-      "Aperturas Mancuernas":        "dumbbell fly",
-      "Fondos":                      "chest dip",
-      "Crossover Polea":             "cable crossover",
-      "Press Pecho Máquina":         "machine chest press",
-      "Dominadas":                   "pull-up",
-      "Remo con Barra":              "barbell bent over row",
-      "Remo Mancuerna":              "dumbbell one arm row",
-      "Peso Muerto":                 "barbell deadlift",
-      "Pullover":                    "dumbbell pullover",
-      "Jalón al Pecho":              "cable lat pulldown",
-      "Remo Polea Baja":             "seated cable row",
-      "Face Pull":                   "cable face pull",
-      "Press Hombro Barra":          "barbell overhead press",
-      "Press Arnold":                "arnold press",
-      "Elevaciones Laterales":       "dumbbell lateral raise",
-      "Elevaciones Frontales":       "dumbbell front raise",
-      "Pájaros":                     "dumbbell reverse fly",
-      "Press Hombro Máquina":        "machine shoulder press",
-      "Curl Bíceps Barra":           "barbell curl",
-      "Curl Mancuernas":             "dumbbell bicep curl",
-      "Curl Martillo":               "hammer curl",
-      "Curl Concentrado":            "concentration curl",
-      "Curl Polea":                  "cable curl",
-      "Press Francés":               "skull crusher",
-      "Extensión Tríceps Mancuerna": "dumbbell tricep extension",
-      "Fondos Tríceps":              "tricep dip",
-      "Tríceps Polea":               "triceps pushdown",
-      "Sentadilla":                  "barbell squat",
-      "Sentadilla Goblet":           "dumbbell goblet squat",
-      "Zancadas":                    "barbell lunge",
-      "Prensa de Pierna":            "leg press",
-      "Extensión Cuádriceps":        "leg extension",
-      "Peso Muerto Rumano":          "romanian deadlift",
-      "Curl Femoral Tumbado":        "lying leg curl",
-      "Hip Thrust":                  "barbell hip thrust",
-      "Abductores":                  "hip abduction",
-      "Pantorrillas Máquina":        "calf raise",
-      "Elevación de Talones":        "standing calf raise",
-      "Plancha":                     "plank",
-      "Crunch":                      "crunch",
-      "Elevación de Piernas":        "hanging leg raise",
-      "Crunch Polea":                "cable crunch",
-      "Rueda Abdominal":             "ab wheel roller",
-      "Burpees":                     "burpee",
-      "Saltar Cuerda":               "jump rope",
-      "Cinta Correr":                "run",
-      "Bicicleta Estática":          "stationary bike",
-      "Elíptica":                    "elliptical",
-    };
-
-    const searchName = nameMap[exName] || exName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").trim();
-    fetch(`https://exercisedb.p.rapidapi.com/exercises/name/${encodeURIComponent(searchName)}?limit=1&offset=0`, {
-      method: "GET",
-      headers: {
-        "x-rapidapi-key": "process.env.RAPIDAPI_KEY",
-        "x-rapidapi-host": "exercisedb.p.rapidapi.com"
-      }
-    })
-    .then(r => r.json())
-    .then(data => {
-      console.log("ExerciseDB response:", data);
-console.log("gifUrl:", data[0]?.gifUrl);
-console.log("FULL OBJECT:", JSON.stringify(data[0]));
-      if (Array.isArray(data) && data.length > 0 && data[0].id) {
-  setGifUrl(`https://v1.exercisedb.io/image/${data[0].id}.gif`);
-      } else {
-        setGifUrl(null);
-      }
-      setLoading(false);
-    })
-    .catch((err) => {
-      console.log("ExerciseDB error:", err);
-      setGifUrl(null);
-      setLoading(false);
-    });
-  }, [exName]);
-
-  return { gifUrl, loading };
-}
-
-// ─── Exercise GIF Display ─────────────────────────────────────────────────────
 function ExerciseGif({ exName, size = 120 }) {
-  const { gifUrl, loading } = useExerciseGif(exName);
-  if (!exName || exName === "__custom__") return null;
+  const src = GIF_MAP[exName];
+  if (!src || !exName || exName === "__custom__") return null;
   return (
-    <div style={{
-      width: size, height: size, borderRadius: 12, overflow: "hidden",
-      background: "var(--input-bg)", border: "1px solid var(--border)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0
-    }}>
-      {loading && <div style={{ fontSize: 24 }}>⏳</div>}
-      {!loading && gifUrl && (
-        <img
-          src={gifUrl} alt={exName}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          onError={e => { e.target.style.display = "none"; }}
-        />
-      )}
-      {!loading && !gifUrl && <div style={{ fontSize: 24 }}>🏋️</div>}
-    </div>
+    <img
+      src={src}
+      alt={exName}
+      style={{
+        width: size, height: size,
+        borderRadius: 12, objectFit: "cover",
+        border: "1px solid var(--border)",
+        flexShrink: 0,
+      }}
+      onError={e => { e.target.style.display = "none"; }}
+    />
   );
 }
-
 // ─── 1RM Calculator ───────────────────────────────────────────────────────────
 function calc1RM(weight, reps) {
   if (!weight || !reps || reps <= 0) return 0;
@@ -246,18 +146,19 @@ function calcSessionVolume(session) {
 function detectNewPRs(newSession, existingSessions) {
   const newPRs = [];
   (newSession.exercises || []).forEach(ex => {
-    const newW = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
-    const newR = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st=>parseFloat(st.reps)||0)) : parseFloat(ex.reps)||0;
-    const new1RM = calc1RM(newW, newR);
-    if (new1RM <= 0) return;
+    const newW = ex.sets?.length > 0
+      ? Math.max(...ex.sets.map(st => parseFloat(st.weight) || 0))
+      : parseFloat(ex.weight) || 0;
+    if (newW <= 0) return;
     const prevBest = existingSessions
-      .flatMap(s => (s.exercises||[]).filter(e => e.name === ex.name))
+      .flatMap(s => (s.exercises || []).filter(e => e.name === ex.name))
       .reduce((best, e) => {
-        const w = e.sets?.length>0 ? Math.max(...e.sets.map(st=>parseFloat(st.weight)||0)) : parseFloat(e.weight)||0;
-        const r = e.sets?.length>0 ? Math.max(...e.sets.map(st=>parseFloat(st.reps)||0)) : parseFloat(e.reps)||0;
-        return Math.max(best, calc1RM(w, r));
+        const w = e.sets?.length > 0
+          ? Math.max(...e.sets.map(st => parseFloat(st.weight) || 0))
+          : parseFloat(e.weight) || 0;
+        return Math.max(best, w);
       }, 0);
-    if (new1RM > prevBest) newPRs.push({ name: ex.name, rm: new1RM });
+    if (newW > prevBest) newPRs.push({ name: ex.name, rm: newW });
   });
   return newPRs;
 }
@@ -801,20 +702,66 @@ function WeeklyGoalModal({ goal, onSave, onClose, sessions }) {
 
 // ─── Badges / Logros ──────────────────────────────────────────────────────────
 const BADGE_DEFS = [
-  { id: "first",       icon: "🏋️", name: "Primera sesión",    desc: "Completaste tu primera sesión",          check: (s) => s.length >= 1 },
-  { id: "sessions5",   icon: "🔥", name: "En racha",          desc: "5 sesiones completadas",                 check: (s) => s.length >= 5 },
-  { id: "sessions10",  icon: "💪", name: "Dedicado",          desc: "10 sesiones completadas",                check: (s) => s.length >= 10 },
-  { id: "sessions25",  icon: "🦾", name: "Consistente",       desc: "25 sesiones completadas",                check: (s) => s.length >= 25 },
-  { id: "sessions50",  icon: "🏆", name: "Veterano",          desc: "50 sesiones completadas",                check: (s) => s.length >= 50 },
-  { id: "pr1",         icon: "⭐", name: "Primer PR",         desc: "Superaste un récord personal",           check: (s, prs) => Object.keys(prs).length >= 1 },
-  { id: "pr5",         icon: "🌟", name: "Máquina de PRs",    desc: "5 récords personales distintos",         check: (s, prs) => Object.keys(prs).length >= 5 },
-  { id: "variety",     icon: "🎯", name: "Variado",           desc: "10 ejercicios distintos registrados",    check: (s) => new Set(s.flatMap(x => (x.exercises||[]).map(e=>e.name))).size >= 10 },
-  { id: "streak3",     icon: "🔑", name: "3 días seguidos",   desc: "Entrenaste 3 días consecutivos",         check: (s) => getStreak(s) >= 3 },
-  { id: "streak7",     icon: "🗓️", name: "Semana perfecta",  desc: "7 días consecutivos entrenando",         check: (s) => getStreak(s) >= 7 },
-  { id: "heavy",       icon: "🏗️", name: "Pesado",           desc: "Registraste 100kg+ en un ejercicio",     check: (s) => s.some(x => (x.exercises||[]).some(e => parseFloat(e.weight) >= 100 || (e.sets||[]).some(st => parseFloat(st.weight) >= 100))) },
-  { id: "early",       icon: "🌅", name: "Madrugador",        desc: "Sesión registrada antes de las 8am",     check: (s) => false }, // can't detect time easily, just decorative
-];
+  // ⭐ NIVEL 1 — Bronce
+  { id: "first",      stars: 1, icon: "🏋️", name: "Primera sesión",     desc: "Completaste tu primera sesión",           check: (s) => s.length >= 1 },
+  { id: "sessions5",  stars: 1, icon: "🔥", name: "En racha",            desc: "5 sesiones completadas",                  check: (s) => s.length >= 5 },
+  { id: "pr1",        stars: 1, icon: "⭐", name: "Primer PR",           desc: "Superaste un récord personal",            check: (s, prs) => Object.keys(prs).length >= 1 },
+  { id: "variety10",  stars: 1, icon: "🎯", name: "Explorador",          desc: "10 ejercicios distintos registrados",     check: (s) => new Set(s.flatMap(x => (x.exercises||[]).map(e=>e.name))).size >= 10 },
+  { id: "streak3",    stars: 1, icon: "🔑", name: "3 días seguidos",     desc: "Entrenaste 3 días consecutivos",          check: (s) => getStreak(s) >= 3 },
+  { id: "sunday",     stars: 1, icon: "☀️", name: "Dominguero",          desc: "Entrenaste un domingo",                   check: (s) => s.some(x => new Date(x.date+"T00:00:00").getDay() === 0) },
+  { id: "holiday",    stars: 1, icon: "🎉", name: "Sin excusas",         desc: "Entrenaste en día 1 de enero o 25 dic",  check: (s) => s.some(x => { const d=new Date(x.date+"T00:00:00"); return (d.getMonth()===0&&d.getDate()===1)||(d.getMonth()===11&&d.getDate()===25); }) },
+  { id: "minimalist", stars: 1, icon: "🔬", name: "Minimalista",         desc: "Sesión completa con solo 3 ejercicios",  check: (s) => s.some(x => (x.exercises||[]).length === 3) },
 
+  // ⭐⭐ NIVEL 2 — Plata
+  { id: "sessions10", stars: 2, icon: "💪", name: "Dedicado",            desc: "10 sesiones completadas",                 check: (s) => s.length >= 10 },
+  { id: "sessions25", stars: 2, icon: "🦾", name: "Consistente",         desc: "25 sesiones completadas",                 check: (s) => s.length >= 25 },
+  { id: "sessions50", stars: 2, icon: "🏅", name: "Veterano",            desc: "50 sesiones completadas",                 check: (s) => s.length >= 50 },
+  { id: "pr5",        stars: 2, icon: "🌟", name: "Máquina de PRs",      desc: "5 PRs en ejercicios distintos",           check: (s, prs) => Object.keys(prs).length >= 5 },
+  { id: "streak7",    stars: 2, icon: "🗓️", name: "Semana perfecta",    desc: "7 días consecutivos entrenando",          check: (s) => getStreak(s) >= 7 },
+  { id: "heavy",      stars: 2, icon: "🏗️", name: "Pesado",             desc: "Registraste 100kg+ en un ejercicio",      check: (s) => s.some(x => (x.exercises||[]).some(e => parseFloat(e.weight)>=100 || (e.sets||[]).some(st=>parseFloat(st.weight)>=100))) },
+  { id: "streak14",   stars: 2, icon: "🔥", name: "En llamas",           desc: "14 días seguidos entrenando",             check: (s) => getStreak(s) >= 14 },
+  { id: "beast5in7",  stars: 2, icon: "⚡", name: "Modo bestia",         desc: "5 sesiones en 7 días",                    check: (s) => { const w=new Date(); w.setDate(w.getDate()-7); return s.filter(x=>new Date(x.date+"T00:00:00")>=w).length>=5; } },
+  { id: "variety25",  stars: 2, icon: "🧭", name: "Variado",             desc: "25 ejercicios distintos registrados",     check: (s) => new Set(s.flatMap(x=>(x.exercises||[]).map(e=>e.name))).size>=25 },
+  { id: "volume_ses", stars: 2, icon: "💥", name: "Volumen serio",       desc: "10.000 kg movidos en una sesión",         check: (s) => s.some(x=>calcSessionVolume(x)>=10000) },
+  { id: "early5",     stars: 2, icon: "🌅", name: "Madrugador",          desc: "5 sesiones registradas antes de las 8am", check: (s) => false },
+  { id: "night",      stars: 2, icon: "🦉", name: "Ave nocturna",        desc: "Sesión registrada después de las 10pm",  check: (s) => false },
+
+  // ⭐⭐⭐ NIVEL 3 — Oro
+  { id: "sessions100",stars: 3, icon: "💯", name: "Leyenda",             desc: "100 sesiones completadas",                check: (s) => s.length >= 100 },
+  { id: "pr10",       stars: 3, icon: "🏆", name: "Rompe récords",       desc: "PR en 10 ejercicios distintos",           check: (s, prs) => Object.keys(prs).length >= 10 },
+  { id: "streak30",   stars: 3, icon: "🔥", name: "Disciplina total",    desc: "30 días seguidos entrenando",             check: (s) => getStreak(s) >= 30 },
+  { id: "leg20",      stars: 3, icon: "🦵", name: "Piernas de acero",    desc: "20 sesiones de pierna",                   check: (s) => s.filter(x=>(x.exercises||[]).some(e=>["Cuádriceps","Femoral","Glúteos","Pantorrillas"].includes(EXERCISE_DB.find(d=>d.name===e.name)?.muscle))).length>=20 },
+  { id: "chest20",    stars: 3, icon: "💪", name: "Rey del press",       desc: "20 sesiones de pecho",                    check: (s) => s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Pecho")).length>=20 },
+  { id: "back20",     stars: 3, icon: "🏋️", name: "Espalda ancha",      desc: "20 sesiones de espalda",                  check: (s) => s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Espalda")).length>=20 },
+  { id: "core15",     stars: 3, icon: "🪨", name: "Core de piedra",      desc: "15 sesiones con trabajo abdominal",       check: (s) => s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Core")).length>=15 },
+  { id: "balanced",   stars: 3, icon: "⚖️", name: "Equilibrado",        desc: "Todos los grupos musculares en 1 semana", check: (s) => { const w=new Date(); w.setDate(w.getDate()-7); const ms=new Set(s.filter(x=>new Date(x.date+"T00:00:00")>=w).flatMap(x=>(x.exercises||[]).map(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle)).filter(Boolean)); return ["Pecho","Espalda","Cuádriceps","Core","Hombros"].every(m=>ms.has(m)); } },
+  { id: "variety50",  stars: 3, icon: "🎓", name: "Maestro técnico",     desc: "50 ejercicios distintos registrados",     check: (s) => new Set(s.flatMap(x=>(x.exercises||[]).map(e=>e.name))).size>=50 },
+  { id: "90days",     stars: 3, icon: "🧬", name: "Nueva versión",       desc: "90 días de actividad acumulada",          check: (s) => { const sorted=[...s].sort((a,b)=>a.date.localeCompare(b.date)); if(sorted.length<30) return false; const first=new Date(sorted[0].date+"T00:00:00"),last=new Date(sorted[sorted.length-1].date+"T00:00:00"); return (last-first)/86400000>=90; } },
+  { id: "vol_100k",   stars: 3, icon: "📦", name: "Toneladas movidas",   desc: "100.000 kg acumulados en total",          check: (s) => s.reduce((acc,x)=>acc+calcSessionVolume(x),0)>=100000 },
+  { id: "perfect_mo", stars: 3, icon: "📅", name: "Mes perfecto",        desc: "Entrenaste 20+ días en un mes",           check: (s) => { const m=new Date().getMonth(),y=new Date().getFullYear(); return s.filter(x=>{const d=new Date(x.date+"T00:00:00"); return d.getMonth()===m&&d.getFullYear()===y;}).length>=20; } },
+
+  // ⭐⭐⭐⭐ NIVEL 4 — Platino
+  { id: "sessions200",stars: 4, icon: "🗡️", name: "Veterano del hierro", desc: "200 sesiones completadas",               check: (s) => s.length >= 200 },
+  { id: "streak90",   stars: 4, icon: "💎", name: "90 días seguidos",    desc: "90 días consecutivos entrenando",         check: (s) => getStreak(s) >= 90 },
+  { id: "180days",    stars: 4, icon: "🔮", name: "Cambio real",         desc: "180 días de actividad acumulada",         check: (s) => { const sorted=[...s].sort((a,b)=>a.date.localeCompare(b.date)); if(sorted.length<60) return false; const first=new Date(sorted[0].date+"T00:00:00"),last=new Date(sorted[sorted.length-1].date+"T00:00:00"); return (last-first)/86400000>=180; } },
+  { id: "leg100",     stars: 4, icon: "🦾", name: "Especialista piernas", desc: "100 sesiones de pierna",                 check: (s) => s.filter(x=>(x.exercises||[]).some(e=>["Cuádriceps","Femoral","Glúteos","Pantorrillas"].includes(EXERCISE_DB.find(d=>d.name===e.name)?.muscle))).length>=100 },
+  { id: "sessions500",stars: 4, icon: "⚔️", name: "500 batallas",        desc: "500 sesiones completadas",               check: (s) => s.length >= 500 },
+  { id: "6months",    stars: 4, icon: "🔱", name: "Medio año imparable", desc: "6 meses con 12+ sesiones cada uno",       check: (s) => { let c=0; for(let i=0;i<6;i++){const d=new Date(); d.setMonth(d.getMonth()-i); const m=d.getMonth(),y=d.getFullYear(); if(s.filter(x=>{const sd=new Date(x.date+"T00:00:00"); return sd.getMonth()===m&&sd.getFullYear()===y;}).length>=12) c++;} return c>=6; } },
+  { id: "architect",  stars: 4, icon: "🏛️", name: "Arquitecto del físico", desc: "50+ sesiones de pecho, espalda y pierna", check: (s) => { const ch=s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Pecho")).length; const ba=s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Espalda")).length; const le=s.filter(x=>(x.exercises||[]).some(e=>["Cuádriceps","Femoral"].includes(EXERCISE_DB.find(d=>d.name===e.name)?.muscle))).length; return ch>=50&&ba>=50&&le>=50; } },
+  { id: "reinvention",stars: 4, icon: "🔄", name: "Reinvención",         desc: "Volviste tras 3+ meses y completaste 30 sesiones", check: (s) => { if(s.length<31) return false; const sorted=[...s].sort((a,b)=>a.date.localeCompare(b.date)); for(let i=1;i<sorted.length;i++){const gap=(new Date(sorted[i].date+"T00:00:00")-new Date(sorted[i-1].date+"T00:00:00"))/86400000; if(gap>=90) return sorted.slice(i).length>=30;} return false; } },
+  { id: "year_iron",  stars: 4, icon: "🏆", name: "Año de hierro",       desc: "12 meses distintos con sesiones registradas", check: (s) => new Set(s.map(x=>x.date.slice(0,7))).size>=12 },
+  { id: "pr20",       stars: 4, icon: "👑", name: "Coleccionista de PRs", desc: "PRs en 20 ejercicios distintos",         check: (s, prs) => Object.keys(prs).length >= 20 },
+
+  // ⭐⭐⭐⭐⭐ NIVEL 5 — Legendario
+  { id: "sessions1000",stars:5, icon: "💀", name: "Mil batallas",        desc: "1000 sesiones registradas",               check: (s) => s.length >= 1000 },
+  { id: "streak365",  stars: 5, icon: "🌞", name: "365 días seguidos",   desc: "365 días consecutivos entrenando",        check: (s) => getStreak(s) >= 365 },
+  { id: "year_full",  stars: 5, icon: "💫", name: "Transformación total", desc: "1 año sin pausas mayores a 2 semanas",   check: (s) => { if(s.length<100) return false; const sorted=[...s].sort((a,b)=>a.date.localeCompare(b.date)); const first=new Date(sorted[0].date+"T00:00:00"),last=new Date(sorted[sorted.length-1].date+"T00:00:00"); if((last-first)/86400000<365) return false; for(let i=1;i<sorted.length;i++){if((new Date(sorted[i].date+"T00:00:00")-new Date(sorted[i-1].date+"T00:00:00"))/86400000>14) return false;} return true; } },
+  { id: "5years",     stars: 5, icon: "🏟️", name: "Leyenda del gimnasio", desc: "5 años activo (60 meses con sesiones)", check: (s) => new Set(s.map(x=>x.date.slice(0,7))).size>=60 },
+  { id: "10years",    stars: 5, icon: "🔮", name: "ADN de hierro",       desc: "10 años registrado (120 meses)",          check: (s) => new Set(s.map(x=>x.date.slice(0,7))).size>=120 },
+  { id: "icon10k",    stars: 5, icon: "⚜️", name: "Ícono eterno",        desc: "10.000 sesiones registradas",             check: (s) => s.length >= 10000 },
+  { id: "vol_1m",     stars: 5, icon: "🌍", name: "Un millón de kilos",  desc: "1.000.000 kg acumulados en total",        check: (s) => s.reduce((acc,x)=>acc+calcSessionVolume(x),0)>=1000000 },
+  { id: "iron_gen",   stars: 5, icon: "🧬", name: "Generación hierro",   desc: "3 años entrenando 3+ veces/semana",       check: (s) => { const ref=new Date(); ref.setFullYear(ref.getFullYear()-3); const recent=s.filter(x=>new Date(x.date+"T00:00:00")>=ref); const weeks={}; recent.forEach(x=>{const d=new Date(x.date+"T00:00:00"); const wk=Math.floor((d-ref)/604800000); weeks[wk]=(weeks[wk]||0)+1;}); return Object.values(weeks).filter(c=>c>=3).length>=125; } },
+];
 function getStreak(sessions) {
   const dates = [...new Set(sessions.map(s => s.date))].sort().reverse();
   let streak = 0;
@@ -838,46 +785,119 @@ function getPRs(sessions) {
   return prs;
 }
 
-function BadgesModal({ sessions, onClose }) {
+function BadgesModal({ sessions, bodyStats, onClose }) {
   const prs = getPRs(sessions);
-  const earned = BADGE_DEFS.filter(b => b.check(sessions, prs));
-  const locked = BADGE_DEFS.filter(b => !b.check(sessions, prs));
+  const [filterLevel, setFilterLevel] = useState(0);
+
+  const starColors = {
+    1: { bg:"rgba(148,163,184,0.1)", border:"rgba(148,163,184,0.4)", color:"#94a3b8", label:"Bronce" },
+    2: { bg:"rgba(234,179,8,0.1)",   border:"rgba(234,179,8,0.4)",   color:"#eab308", label:"Plata" },
+    3: { bg:"rgba(59,130,246,0.1)",  border:"rgba(59,130,246,0.4)",  color:"#3b82f6", label:"Oro" },
+    4: { bg:"rgba(168,85,247,0.12)", border:"rgba(168,85,247,0.5)",  color:"#a855f7", label:"Platino" },
+    5: { bg:"rgba(245,158,11,0.15)", border:"rgba(245,158,11,0.6)",  color:"#f59e0b", label:"Legendario" },
+  };
+
+  function Stars({ n }) {
+    return (
+      <div style={{ display:"flex", gap:2 }}>
+        {[1,2,3,4,5].map(i => (
+          <span key={i} style={{ fontSize:10, opacity: i<=n ? 1 : 0.18 }}>⭐</span>
+        ))}
+      </div>
+    );
+  }
+
+  const allBadges = BADGE_DEFS.map(b => ({ ...b, unlocked: b.check(sessions, prs, bodyStats||{}) }));
+  const shown     = filterLevel === 0 ? allBadges : allBadges.filter(b => b.stars === filterLevel);
+  const earned    = shown.filter(b => b.unlocked);
+  const locked    = shown.filter(b => !b.unlocked);
+  const totalEarned = allBadges.filter(b => b.unlocked).length;
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "85vh", overflowY: "auto" }}>
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight:"88vh", overflowY:"auto" }}>
         <div className="modal-header">
           <h3 className="modal-title">🏅 Logros</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>{earned.length} de {BADGE_DEFS.length} logros desbloqueados</div>
-        
+
+        {/* Barra de progreso global */}
+        <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+          <div style={{ flex:"0 0 auto", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, padding:"10px 18px", textAlign:"center" }}>
+            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:30, fontWeight:800, color:"#f59e0b", lineHeight:1 }}>{totalEarned}</div>
+            <div style={{ fontSize:10, color:"var(--text-muted)" }}>de {BADGE_DEFS.length} logros</div>
+          </div>
+          <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"10px 16px", display:"flex", flexDirection:"column", justifyContent:"center" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:6 }}>
+              <span style={{ color:"var(--text-muted)" }}>Progreso general</span>
+              <span style={{ fontWeight:700, color:"var(--accent)" }}>{Math.round((totalEarned/BADGE_DEFS.length)*100)}%</span>
+            </div>
+            <div style={{ height:8, background:"var(--border)", borderRadius:4, overflow:"hidden" }}>
+              <div style={{ height:"100%", background:"linear-gradient(90deg,#f59e0b,#a855f7)", width:`${(totalEarned/BADGE_DEFS.length)*100}%`, borderRadius:4, transition:"width 0.6s" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Filtros por nivel */}
+        <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
+          <button className={`muscle-chip ${filterLevel===0?"active":""}`} style={{ fontSize:12 }} onClick={() => setFilterLevel(0)}>Todos</button>
+          {[1,2,3,4,5].map(n => {
+            const sc = starColors[n];
+            const cnt = allBadges.filter(b=>b.stars===n&&b.unlocked).length;
+            const tot = allBadges.filter(b=>b.stars===n).length;
+            return (
+              <button key={n} onClick={() => setFilterLevel(filterLevel===n ? 0 : n)} style={{
+                background: filterLevel===n ? sc.bg : "none",
+                border: `1px solid ${filterLevel===n ? sc.border : "var(--border)"}`,
+                color: filterLevel===n ? sc.color : "var(--text-muted)",
+                borderRadius:20, padding:"5px 12px", cursor:"pointer",
+                fontFamily:"Barlow,sans-serif", fontSize:12, fontWeight:600,
+                display:"flex", alignItems:"center", gap:5, transition:"all 0.2s",
+              }}>
+                {"⭐".repeat(n)} <span style={{ opacity:0.7 }}>{cnt}/{tot}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Desbloqueados */}
         {earned.length > 0 && (
           <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#f59e0b", textTransform: "uppercase", marginBottom: 12 }}>Desbloqueados ✨</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 24 }}>
-              {earned.map(b => (
-                <div key={b.id} style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
-                  <div style={{ fontSize: 32, marginBottom: 6 }}>{b.icon}</div>
-                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{b.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>{b.desc}</div>
-                </div>
-              ))}
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"#f59e0b", textTransform:"uppercase", marginBottom:12 }}>Desbloqueados ✨ ({earned.length})</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(148px,1fr))", gap:10, marginBottom:24 }}>
+              {earned.map(b => {
+                const sc = starColors[b.stars];
+                return (
+                  <div key={b.id} style={{ background:sc.bg, border:`1px solid ${sc.border}`, borderRadius:14, padding:"14px 12px", textAlign:"center" }}>
+                    <div style={{ fontSize:32, marginBottom:5 }}>{b.icon}</div>
+                    <div style={{ fontWeight:700, fontSize:13, marginBottom:3, lineHeight:1.3 }}>{b.name}</div>
+                    <div style={{ fontSize:10, color:"var(--text-muted)", lineHeight:1.4, marginBottom:7 }}>{b.desc}</div>
+                    <Stars n={b.stars} />
+                    <div style={{ fontSize:9, color:sc.color, fontWeight:700, marginTop:4, textTransform:"uppercase", letterSpacing:1 }}>{sc.label}</div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
 
+        {/* Bloqueados */}
         {locked.length > 0 && (
           <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>Bloqueados 🔒</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-              {locked.map(b => (
-                <div key={b.id} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 12px", textAlign: "center", opacity: 0.5 }}>
-                  <div style={{ fontSize: 32, marginBottom: 6, filter: "grayscale(1)" }}>{b.icon}</div>
-                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{b.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>{b.desc}</div>
-                </div>
-              ))}
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:12 }}>Por desbloquear 🔒 ({locked.length})</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(148px,1fr))", gap:10 }}>
+              {locked.map(b => {
+                const sc = starColors[b.stars];
+                return (
+                  <div key={b.id} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:14, padding:"14px 12px", textAlign:"center", opacity:0.5 }}>
+                    <div style={{ fontSize:32, marginBottom:5, filter:"grayscale(1)" }}>{b.icon}</div>
+                    <div style={{ fontWeight:700, fontSize:13, marginBottom:3, lineHeight:1.3 }}>{b.name}</div>
+                    <div style={{ fontSize:10, color:"var(--text-muted)", lineHeight:1.4, marginBottom:7 }}>{b.desc}</div>
+                    <Stars n={b.stars} />
+                    <div style={{ fontSize:9, color:sc.color, fontWeight:700, marginTop:4, textTransform:"uppercase", letterSpacing:1 }}>{sc.label}</div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
@@ -885,7 +905,6 @@ function BadgesModal({ sessions, onClose }) {
     </div>
   );
 }
-
 
 // ─── Muscle Map ───────────────────────────────────────────────────────────────
 const MUSCLE_GROUPS = {
@@ -1773,13 +1792,13 @@ function ExerciseLibrary({ onSelect, onClose }) {
               <div className="lib-group-title">{muscle}</div>
               {exs.map(ex => (
                 <button key={ex.name} className="lib-item" onClick={() => { onSelect(ex.name); onClose(); }}>
-                <ExerciseGif exName={ex.name} size={52} />
-                <div className="lib-info">
-                  <span className="lib-name">{ex.name}</span>
-                  <span className="lib-meta">{ex.equipment} · {ex.machine ? "Requiere máquina" : "Sin máquina"}</span>
-                </div>
-                <span className="lib-add">+</span>
-              </button>
+<ExerciseGif exName={ex.name} size={44} />
+<div className="lib-info">
+  <span className="lib-name">{ex.name}</span>
+  <span className="lib-meta">{ex.equipment} · {ex.machine ? "Requiere máquina" : "Sin máquina"}</span>
+</div>
+<span className="lib-add">+</span>
+</button>
               ))}
             </div>
           ))}
@@ -3298,7 +3317,7 @@ function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose 
   },0),0)/1000*10)/10;
   const kcal = Math.round(totalVol * 6);
   const topPRs = Object.entries(prs).sort((a,b)=>b[1].rm-a[1].rm).slice(0,5);
-  const earned = BADGE_DEFS.filter(b=>b.check(sessions,prs));
+  const earned = BADGE_DEFS.filter(b=>b.check(sessions,prs,bodyStats||{}));
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -4141,6 +4160,7 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
         ))}
       </div>
 
+      <StreakBanner sessions={sessions} />
       <WeeklyChart sessions={sessions} />
       <ProgressPrediction sessions={sessions} />
       <MuscleBalance sessions={sessions} />
@@ -4178,14 +4198,13 @@ function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onSha
     const sessReps = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.reps) || 0)) : parseFloat(ex.reps) || 0;
     const sess1RM = calc1RM(sessWeight, sessReps);
     const prevBest = allSessions
-      .filter(ps => ps.date < s.date)
-      .flatMap(ps => (ps.exercises || []).filter(pe => pe.name === ex.name))
-      .reduce((best, pe) => {
-        const pw = pe.sets?.length > 0 ? Math.max(...pe.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(pe.weight) || 0;
-        const pr = pe.sets?.length > 0 ? Math.max(...pe.sets.map(st => parseFloat(st.reps) || 0)) : parseFloat(pe.reps) || 0;
-        return Math.max(best, calc1RM(pw, pr));
-      }, 0);
-    if (sess1RM > prevBest && sessWeight > 0) prs.add(ex.name);
+  .filter(ps => ps.date < s.date)
+  .flatMap(ps => (ps.exercises || []).filter(pe => pe.name === ex.name))
+  .reduce((best, pe) => {
+    const pw = pe.sets?.length > 0 ? Math.max(...pe.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(pe.weight) || 0;
+    return Math.max(best, pw);
+  }, 0);
+if (sessWeight > prevBest && sessWeight > 0) prs.add(ex.name);
   });
 
   function updateExField(exId, field, val) {
@@ -4215,7 +4234,7 @@ function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onSha
           <span className="session-date">{fmtDate(s.date)}</span>
           <span className="session-workout">{s.workout}</span>
           {prs.size > 0 && <span style={{ fontSize: 10, background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.5)", color: "#f59e0b", borderRadius: 6, padding: "2px 7px", fontWeight: 700 }}>🏆 {prs.size} PR</span>}
-        </div>
+          <StreakChip sessions={allSessions} compact />        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {volDisplay && (
             <span className="ex-count" style={{ color:"var(--accent)", borderColor:"rgba(59,130,246,0.3)" }}>
@@ -4238,7 +4257,6 @@ function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onSha
               <div key={ex.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10, marginBottom: 10 }}>
                 {/* Row header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 6 }}>
-                  <ExerciseGif exName={ex.name} size={48} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span className="ex-name">{ex.name}</span>
                     {prs.has(ex.name) && <span style={{ fontSize: 9, background: "rgba(251,191,36,0.15)", color: "#f59e0b", borderRadius: 4, padding: "1px 5px", marginLeft: 6, fontWeight: 800 }}>PR</span>}
@@ -4430,7 +4448,6 @@ function RestTimerFloating({ timer, setTimer }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LiveTrainMode.jsx
-// Pantalla completa de entrenamiento en vivo. Pegar ANTES de GymApp.
 // Props: exercises, workout, date, notes, unit, sessions,
 //        onSaveSession(finalExercises, elapsedSecs), onBack,
 //        floatTimer, setFloatTimer,
@@ -4441,12 +4458,11 @@ function LiveTrainMode({
   exercises, workout, date, notes, unit, sessions,
   onSaveSession, onBack,
   floatTimer, setFloatTimer,
-  calc1RM, ExerciseGif, uid, numDot,
 }) {
-  const [elapsed, setElapsed] = React.useState(0);
-  const [running, setRunning] = React.useState(true);
-  const [currentEx, setCurrentEx] = React.useState(0);
-  const [exData, setExData] = React.useState(() =>
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(true);
+  const [currentEx, setCurrentEx] = useState(0);
+  const [exData, setExData] = useState(() =>
     exercises.map(ex => ({
       ...ex,
       sets: ex.sets?.length
@@ -4454,10 +4470,10 @@ function LiveTrainMode({
         : [{ id: uid(), weight: "", reps: "", done: false }],
     }))
   );
-  const [showSummary, setShowSummary] = React.useState(false);
-  const timerRef = React.useRef();
+  const [showSummary, setShowSummary] = useState(false);
+  const timerRef = useRef();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (running) timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
     else clearInterval(timerRef.current);
     return () => clearInterval(timerRef.current);
@@ -4697,7 +4713,7 @@ function LiveTrainMode({
         </div>
 
         <button
-          onClick={() => { setRunning(false); setShowSummary(true); }}
+        onClick={() => { setRunning(false); setShowSummary(true); setFloatTimer(f => ({ ...f, visible: false, running: false })); }}
           style={{
             background: "var(--accent)", border: "none", color: "white",
             borderRadius: 10, padding: "10px 14px",
@@ -4767,14 +4783,14 @@ function LiveTrainMode({
 
               {/* Exercise header */}
               <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 18 }}>
-                <ExerciseGif exName={ex.name} size={80} />
                 <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontFamily: "Barlow Condensed, sans-serif",
-                    fontSize: 26, fontWeight: 800, marginBottom: 2,
-                  }}>
-                    {ex.name}
-                  </div>
+  <ExerciseGif exName={ex.name} size={80} />
+  <div style={{
+    fontFamily: "Barlow Condensed, sans-serif",
+    fontSize: 26, fontWeight: 800, marginBottom: 2,
+  }}>
+    {ex.name}
+  </div>  
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
                     {doneCount}/{ex.sets.length} series
                   </div>
@@ -4973,7 +4989,41 @@ function LiveTrainMode({
     </div>
   );
 }
-// ─── GymApp ───────────────────────────────────────────────────────────────────
+
+function StreakBanner({ sessions }) {
+  const streak = getStreak(sessions);
+  if (streak < 1) return null;
+  const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
+  const msg   = streak >= 365 ? "¡LEYENDA VIVIENTE!" : streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡INCENDIO TOTAL!" : streak >= 14 ? "¡En llamas!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!";
+  return (
+    <div style={{ background:`linear-gradient(135deg,${color}18,${color}08)`, border:`1px solid ${color}50`, borderRadius:14, padding:"12px 18px", display:"flex", alignItems:"center", gap:14, marginBottom:20, boxShadow:`0 4px 20px ${color}18` }}>
+      <div style={{ fontSize:34, lineHeight:1 }}>🔥</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:11, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:2 }}>{msg}</div>
+        <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
+          <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:34, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
+          <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>días seguidos</span>
+        </div>
+      </div>
+      <div style={{ display:"flex", gap:3 }}>
+        {[3,7,14,30,90].map(t => (
+          <div key={t} style={{ width:8, height:8, borderRadius:"50%", background: streak>=t ? color : "var(--border)", transition:"background 0.3s" }} title={`${t}d`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StreakChip({ sessions, compact = false }) {
+  const streak = getStreak(sessions);
+  if (streak < 2) return null;
+  const color = streak >= 30 ? "#f97316" : streak >= 14 ? "#a855f7" : streak >= 7 ? "#3b82f6" : "#f59e0b";
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${color}18`, border:`1px solid ${color}50`, borderRadius:20, padding: compact ? "2px 7px" : "3px 10px", fontSize: compact ? 10 : 11, fontWeight:700, color, flexShrink:0 }}>
+      🔥 {streak}d
+    </span>
+  );
+}
 function GymApp() {
   const { dark, toggleDark } = useTheme();
   const { user, logout } = useAuth();
@@ -5024,6 +5074,9 @@ function GymApp() {
   const [exNote, setExNote] = useState("");
   const [editingId, setEditingId] = useState(null);
 
+  const [filterPeriod, setFilterPeriod] = useState("");
+const [filterOrder, setFilterOrder] = useState("desc");
+const [filterMuscle, setFilterMuscle] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [filterWorkout, setFilterWorkout] = useState("");
   const [showPresets, setShowPresets] = useState(false);
@@ -5052,7 +5105,19 @@ function GymApp() {
   const [showProfile, setShowProfile] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
-  const [showAthleteCoach, setShowAthleteCoach] = useState(false);
+const [showAthleteCoach, setShowAthleteCoach] = useState(false);
+  const [coachRoutines, setCoachRoutines] = useState([]);
+
+  useEffect(() => {
+    if (!user.isGuest) {
+      getAthleteRoutines(user.uid).then(async (assigned) => {
+        const full = await Promise.all(
+          assigned.map(r => getFullRoutine(r.coachUid, r.routineId))
+        );
+        setCoachRoutines(full.filter(Boolean));
+      });
+    }
+  }, [user.uid]);
   const [sessionMode, setSessionMode] = useState(null); // null | "live" | "register"
   const [liveActive, setLiveActive] = useState(false);
   const [floatTimer, setFloatTimer] = useState({ visible: false, secs: 90, running: false, elapsed: 0 });
@@ -5227,7 +5292,28 @@ function GymApp() {
     return sessions.flatMap(s => (s.exercises || []).filter(ex => ex.name.toLowerCase() === name.toLowerCase()).map(ex => ({ date: s.date, weight: parseFloat(ex.weight) || 0 }))).sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  const filtered = sessions.filter(s => !filterWorkout || s.workout.toLowerCase().includes(filterWorkout.toLowerCase()));
+  const filtered = sessions
+  .filter(s => {
+    if (filterWorkout) {
+      const matchRutina = s.workout.toLowerCase().includes(filterWorkout.toLowerCase());
+      const matchMusculo = (s.exercises||[]).some(ex => EXERCISE_DB.find(e => e.name === ex.name)?.muscle === filterWorkout);
+      if (!matchRutina && !matchMusculo) return false;
+    }
+    if (filterMuscle) {
+      const tiene = (s.exercises||[]).some(ex => EXERCISE_DB.find(e => e.name === ex.name)?.muscle === filterMuscle);
+      if (!tiene) return false;
+    }
+    if (filterPeriod) {
+      const dias = parseInt(filterPeriod);
+      const diff = (new Date() - new Date(s.date+"T00:00:00")) / 86400000;
+      if (diff > dias) return false;
+    }
+    return true;
+  })
+  .sort((a, b) => filterOrder === "desc"
+    ? b.date.localeCompare(a.date)
+    : a.date.localeCompare(b.date)
+  );  
 
   const NAV = [
     { id: "new", icon: "➕", label: "Nueva sesión" },
@@ -5315,7 +5401,7 @@ function GymApp() {
             </button>
             <h1 className="page-title">
               {activeTab === "new"
-            ? (editingId ? "✏️ Editar sesión" : `👋 Hola, ${user.name.split(" ")[0]}!`)
+            ? (editingId ? "✏️ Editando sesión" : `👋 Hola, ${user.name.split(" ")[0]}!`)
             : activeTab === "history" ? "📋 Historial"
             : "📊 Dashboard"}
             </h1>
@@ -5408,7 +5494,6 @@ function GymApp() {
         floatTimer={floatTimer}
         setFloatTimer={setFloatTimer}
         calc1RM={calc1RM}
-        ExerciseGif={ExerciseGif}
         uid={uid}
         numDot={numDot}
         onBack={() => setLiveActive(false)}
@@ -5560,6 +5645,7 @@ function GymApp() {
 
           </div>
 
+          <StreakBanner sessions={sessions} />
           {/* Herramientas rápidas */}
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>
             Herramientas
@@ -5673,7 +5759,6 @@ function GymApp() {
             </div>
             {exName && exName !== "__custom__" && (
               <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0" }}>
-                <ExerciseGif exName={exName} size={80} />
                 {exWeight && exReps && (
                   <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                     1RM: <b style={{ color: "var(--accent)" }}>{calc1RM(exWeight, exReps)}kg</b>
@@ -5681,6 +5766,11 @@ function GymApp() {
                 )}
               </div>
             )}
+            {exName && exName !== "__custom__" && (
+  <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0" }}>
+    <ExerciseGif exName={exName} size={80} />
+  </div>
+)}
             <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
 
             {currentExercises.length > 0 && (
@@ -5691,7 +5781,7 @@ function GymApp() {
                     borderRadius: 10, marginBottom: 8, padding: "10px 14px",
                     display: "flex", alignItems: "center", gap: 12,
                   }}>
-                    <ExerciseGif exName={ex.name} size={44} />
+
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{ex.name}</div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -5758,13 +5848,6 @@ function GymApp() {
               <button className="link-btn" onClick={logout}>Crear cuenta →</button>
             </div>
           )}
-
-          {/* ── MISMO FORMULARIO QUE ANTES — no cambió nada ── */}
-          {/* Fecha, nombre, notas, agregar ejercicios, guardar */}
-          {/* Podés dejar exactamente el mismo JSX del bloque "register" que ya tenías */}
-          {/* Lo único que cambia es que al guardar (saveSession) también se llama: */}
-          {/*   setSessionMode(null)  ← agregar esta línea al final de saveSession */}
-
           <div className="card">
             <div className="card-label">Info de la sesión</div>
             <div className="form-row">
@@ -5791,14 +5874,96 @@ function GymApp() {
             </div>
           </div>
 
-          {/* [AQUÍ VA EL RESTO DEL FORMULARIO DE EJERCICIOS — mismo que antes] */}
-          {/* Copiá el bloque de agregar ejercicios / lista / guardar del código original */}
-          {/* y pegalo acá directamente sin cambios */}
+          <div className="card">
+  <div className="card-label">Ejercicios de la sesión</div>
+  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+    {["Todos", ...MUSCLES].map(m => (
+      <button key={m} className={`muscle-chip ${exMuscle === m ? "active" : ""}`}
+        onClick={() => { setExMuscle(m); setExName(""); }}>
+        {m}
+      </button>
+    ))}
+  </div>
+  <div className="form-row" style={{ alignItems: "flex-end" }}>
+    <div className="field" style={{ flex: 2 }}>
+      <label className="field-label">Ejercicio</label>
+      <select className="input" value={exName} onChange={e => setExName(e.target.value)}>
+        <option value="">— Selecciona —</option>
+        {(exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle)).map(ex => (
+          <option key={ex.name} value={ex.name}>{ex.name}{ex.machine ? " 🔧" : ""}</option>
+        ))}
+        <option value="__custom__">✏️ Personalizado...</option>
+      </select>
+      {exName === "__custom__" && (
+        <>
+          <input className="input" style={{ marginTop: 6 }} placeholder="Nombre..." value={exCustom}
+            onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
+          <select className="input" style={{ marginTop: 6 }} value={exCustomMuscle} onChange={e => setExCustomMuscle(e.target.value)}>
+            <option value="">— Músculo —</option>
+            {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </>
+      )}
+    </div>
+    <div className="field">
+      <label className="field-label">Peso ({unit})</label>
+      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+    </div>
+    <div className="field">
+      <label className="field-label">Reps</label>
+      <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+    </div>
+    <div className="field" style={{ maxWidth: 80 }}>
+      <label className="field-label">Series</label>
+      <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g, ""))} className="input" />
+    </div>
+  </div>
+  {exName && exName !== "__custom__" && (
+    <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0" }}>
+      <ExerciseGif exName={exName} size={80} />
+      {exWeight && exReps && (
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          1RM: <b style={{ color: "var(--accent)" }}>{calc1RM(exWeight, exReps)}kg</b>
+        </div>
+      )}
+    </div>
+  )}
+  <div className="field" style={{ marginBottom: 10 }}>
+    <label className="field-label">Nota del ejercicio (opcional)</label>
+    <input className="input" placeholder="Sensaciones, técnica..." value={exNote} onChange={e => setExNote(e.target.value)} />
+  </div>
+  <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
+  {currentExercises.length > 0 && (
+    <div className="ex-list" style={{ marginTop: 14 }}>
+      {currentExercises.map((ex) => (
+        <div key={ex.id} style={{
+          background: "var(--input-bg)", border: "1px solid var(--border)",
+          borderRadius: 10, marginBottom: 8, padding: "10px 14px",
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{ex.name}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              {ex.sets?.length > 1
+                ? `${ex.sets.length} series · ${ex.sets.map(s => `${s.weight}kg×${s.reps}`).join(", ")}`
+                : `${ex.weight || "—"}kg × ${ex.reps || "—"} reps`}
+            </div>
+            {ex.note && <div style={{ fontSize: 11, color: "var(--accent)", fontStyle: "italic" }}>💬 {ex.note}</div>}
+          </div>
+          <button className="chip-del" style={{ fontSize: 16 }}
+            onClick={() => setCurrentExercises(p => p.filter(e => e.id !== ex.id))}>
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <button className="btn-primary" style={{ flex: 1 }} onClick={() => {
-              saveSession(); // tu función existente
-              setSessionMode(null); // ← agregar esto
+          <div style={{ display:"flex", gap:10, marginTop:8 }}>
+            <button className="btn-primary" style={{ flex:1 }} onClick={() => {
+              saveSession();
+              setSessionMode(null);
             }}>
               💾 {editingId ? "Actualizar sesión" : "Guardar sesión"}
             </button>
@@ -5821,7 +5986,49 @@ function GymApp() {
         {/* Historial */}
         {activeTab === "history" && (
           <div className="content-area fade-in">
-            <input className="input" style={{ marginBottom: 20 }} placeholder="Filtrar por tipo de entrenamiento o día" value={filterWorkout} onChange={e => setFilterWorkout(e.target.value)} />
+            {(() => {
+  const rutinas = [...new Set(sessions.map(s => s.workout).filter(Boolean))];
+  const musculos = [...new Set(sessions.flatMap(s => (s.exercises||[]).map(ex => EXERCISE_DB.find(e => e.name === ex.name)?.muscle).filter(Boolean)))];
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {/* Búsqueda texto */}
+      <input className="input" style={{ marginBottom: 12 }} placeholder="Buscar entrenamiento..." value={filterWorkout} onChange={e => setFilterWorkout(e.target.value)} />
+
+      {/* Chips rutinas */}
+      {rutinas.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10, alignItems:"center" }}>
+          <button className={`muscle-chip ${filterWorkout===""?"active":""}`} onClick={() => setFilterWorkout("")}>Todas</button>
+          {rutinas.map(r => (
+            <button key={r} className={`muscle-chip ${filterWorkout===r?"active":""}`} onClick={() => setFilterWorkout(filterWorkout===r?"":r)}>{r}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Chips músculo */}
+      {musculos.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+          <span style={{ fontSize:10, fontWeight:700, color:"var(--text-muted)", letterSpacing:1, textTransform:"uppercase", alignSelf:"center", marginRight:4 }}>Músculo:</span>
+          {musculos.map(m => (
+            <button key={m} className={`muscle-chip ${filterMuscle===m?"active":""}`} onClick={() => setFilterMuscle(filterMuscle===m?"":m)}>{m}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Filtro fecha + orden */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        <span style={{ fontSize:10, fontWeight:700, color:"var(--text-muted)", letterSpacing:1, textTransform:"uppercase", alignSelf:"center", marginRight:4 }}>Período:</span>
+        {[["","Todas"],["7","Esta semana"],["30","Este mes"],["90","Últimos 3 meses"]].map(([v,l]) => (
+          <button key={v} className={`muscle-chip ${filterPeriod===v?"active":""}`} onClick={() => setFilterPeriod(filterPeriod===v&&v!==""?"":v)}>{l}</button>
+        ))}
+        <div style={{ marginLeft:"auto" }}>
+          <button className="muscle-chip" onClick={() => setFilterOrder(o => o==="desc"?"asc":"desc")}>
+            {filterOrder==="desc" ? "↓ Más reciente" : "↑ Más antiguo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
             {filtered.length === 0
               ? <div className="empty-state"><div style={{ fontSize: 48, marginBottom: 12 }}>🏋️</div><p className="text-muted">Sin sesiones aún. ¡A entrenar!</p></div>
               : filtered.map(s => (
@@ -5879,8 +6086,7 @@ function GymApp() {
           }}
         />
       )}
-      {showBadges && <BadgesModal sessions={sessions} onClose={() => setShowBadges(false)} />}
-      {showTemplates && <TemplatesModal sessions={sessions} onLoad={(workout, exercises) => { setWorkout(workout); setCurrentExercises(exercises.map(e => ({...e, id: uid()}))); setActiveTab("new"); }} onClose={() => setShowTemplates(false)} />}
+      {showBadges && <BadgesModal sessions={sessions} bodyStats={bodyStats} onClose={() => setShowBadges(false)} />}      {showTemplates && <TemplatesModal sessions={sessions} onLoad={(workout, exercises) => { setWorkout(workout); setCurrentExercises(exercises.map(e => ({...e, id: uid()}))); setActiveTab("new"); }} onClose={() => setShowTemplates(false)} />}
       {showWeeklyGoal && <WeeklyGoalModal goal={weeklyGoal} onSave={setWeeklyGoal} onClose={() => setShowWeeklyGoal(false)} sessions={sessions} />}
       {showProfile && <UserProfileModal user={user} sessions={sessions} bodyStats={bodyStats} onOpenBodyStats={()=>{setShowProfile(false);setShowBodyStats(true);}} onClose={()=>setShowProfile(false)} />}
       {showTeams && <TeamsModal user={user} sessions={sessions} onClose={() => setShowTeams(false)} />}
