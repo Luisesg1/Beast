@@ -116,11 +116,12 @@ function ExerciseGif({ exName, size = 120 }) {
       src={src}
       alt={exName}
       style={{
-        width: size, height: size,
-        borderRadius: 12, objectFit: "cover",
-        border: "1px solid var(--border)",
-        flexShrink: 0,
-      }}
+  width: size, height: size,
+  borderRadius: 16, objectFit: "cover",
+  border: "2px solid var(--border)",
+  flexShrink: 0,
+  background: "var(--input-bg)",
+}}
       onError={e => { e.target.style.display = "none"; }}
     />
   );
@@ -5768,7 +5769,9 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             )}
             {exName && exName !== "__custom__" && (
   <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0" }}>
-    <ExerciseGif exName={exName} size={80} />
+    <div style={{ margin: "10px 0" }}>
+  <ExerciseGif exName={exName} size={140} />
+</div>
   </div>
 )}
             <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
