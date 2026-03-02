@@ -5759,21 +5759,19 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               </div>
             </div>
             {exName && exName !== "__custom__" && (
-              <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0" }}>
-                {exWeight && exReps && (
-                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    1RM: <b style={{ color: "var(--accent)" }}>{calc1RM(exWeight, exReps)}kg</b>
-                  </div>
-                )}
-              </div>
-            )}
-            {exName && exName !== "__custom__" && (
-  <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0" }}>
-    <div style={{ margin: "10px 0" }}>
-  <ExerciseGif exName={exName} size={140} />
-</div>
+  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10, margin:"14px 0", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16 }}>
+    <ExerciseGif exName={exName} size={160} />
+    <div style={{ textAlign:"center" }}>
+      <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800 }}>{exName}</div>
+      {exWeight && exReps && (
+        <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:4 }}>
+          1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
+        </div>
+      )}
+    </div>
   </div>
 )}
+          
             <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
 
             {currentExercises.length > 0 && (
