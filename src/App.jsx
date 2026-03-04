@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import GIF_MAP from './assets/gif/gifMap.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, getRedirectResult } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 const firebaseConfig = {
   apiKey: "AIzaSyAh3pfGv0vEpKmGtNKKRvAhma1pGtA7Alc",
@@ -473,7 +473,7 @@ function ActiveWorkoutModal({ exercises, onClose, onSave, unit }) {
 function encodeTemplate(t) {
   try {
     const mini = { n: t.name, d: t.day ?? "", e: (t.exercises||[]).map(ex => ({ n: ex.name, w: ex.weight, r: ex.reps, s: ex.series || ex.sets?.length || 3 })) };
-    return btoa(unescape(encodeURIComponent(JSON.stringify(mini)))).replace(/=/g,"").slice(0,120);
+    return btoa(unescape(encodeURIComponent(JSON.stringify(mini)))).replace(/=/g,"");
   } catch { return null; }
 }
 
@@ -1428,8 +1428,41 @@ const [age, setAge] = useState(stats.age || "25");
   const [photos, setPhotos] = useState(() => {
     try { return JSON.parse(localStorage.getItem("gym_progress_photos") || "[]"); } catch { return []; }
   });
-  const [photoTab, setPhotoTab] = useState(false); // false = stats, true = fotos
+  const [photoTab, setPhotoTab] = useState(false);
   const photoInputRef = useRef();
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analyzeError, setAnalyzeError] = useState(null);
+
+  async function analyzePhotos() {
+    if (photos.length === 0) return;
+    setAnalyzing(true); setAnalysisResult(null); setAnalyzeError(null);
+    try {
+      const latest = photos[photos.length - 1];
+      const previous = photos.length >= 2 ? photos[photos.length - 2] : null;
+      const userContent = previous ? [
+        { type:"text", text:`Eres un entrenador personal experto. Compara estas dos fotos de progreso físico (anterior: ${fmtDate(previous.date)}, actual: ${fmtDate(latest.date)}). Analiza: 1) Cambios en masa muscular por zona 2) Cambios en definición/grasa 3) Postura y simetría 4) Mensaje motivador 5) 2-3 recomendaciones. Sé específico, positivo y usa emojis. Español latino neutro.` },
+        { type:"image", source:{ type:"base64", media_type: previous.dataUrl.split(";")[0].split(":")[1], data: previous.dataUrl.split(",")[1] }},
+        { type:"image", source:{ type:"base64", media_type: latest.dataUrl.split(";")[0].split(":")[1], data: latest.dataUrl.split(",")[1] }}
+      ] : [
+        { type:"text", text:`Eres un entrenador personal experto. Analiza esta foto de progreso físico (${fmtDate(latest.date)}). Incluye: 1) Composición corporal visible 2) Músculos más desarrollados 3) Áreas a trabajar 4) Mensaje motivador 5) 2-3 recomendaciones concretas. Usa emojis. Español latino neutro.` },
+        { type:"image", source:{ type:"base64", media_type: latest.dataUrl.split(";")[0].split(":")[1], data: latest.dataUrl.split(",")[1] }}
+      ];
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, messages:[{ role:"user", content: userContent }] })
+      });
+      const data = await res.json();
+      const text = data.content?.map(c=>c.text||"").join("\n").trim();
+      if (text) {
+        setAnalysisResult({ text, date: todayStr(), compared: !!previous });
+        const updated = photos.map((p,i) => i===photos.length-1 ? {...p, analysis:text, analysisDate:todayStr()} : p);
+        setPhotos(updated);
+        try { localStorage.setItem("gym_progress_photos", JSON.stringify(updated)); } catch {}
+      } else setAnalyzeError("No se pudo obtener el análisis. Intenta de nuevo.");
+    } catch { setAnalyzeError("Error al conectar. Verifica tu conexión."); }
+    finally { setAnalyzing(false); }
+  }
 
   function savePhoto(file) {
     const reader = new FileReader();
@@ -1570,10 +1603,41 @@ const [age, setAge] = useState(stats.age || "25");
           <div>
             <input ref={photoInputRef} type="file" accept="image/*" style={{ display:"none" }}
               onChange={e => { if (e.target.files[0]) savePhoto(e.target.files[0]); e.target.value = ""; }} />
-            <button className="btn-primary" style={{ width:"100%", marginBottom:16, fontSize:15 }}
-              onClick={() => photoInputRef.current?.click()}>
-              📸 Agregar foto de hoy
-            </button>
+            <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+              <button className="btn-primary" style={{ flex:1, fontSize:14 }} onClick={() => photoInputRef.current?.click()}>
+                📸 Agregar foto
+              </button>
+              {photos.length > 0 && (
+                <button onClick={analyzePhotos} disabled={analyzing} style={{
+                  flex:1, fontSize:13, padding:"10px 12px", border:"none", color:"white", borderRadius:10,
+                  cursor: analyzing?"not-allowed":"pointer", fontWeight:700,
+                  background: analyzing ? "var(--input-bg)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
+                  opacity: analyzing ? 0.7 : 1, display:"flex", alignItems:"center", justifyContent:"center", gap:6
+                }}>
+                  {analyzing ? "⏳ Analizando..." : `🤖 ${photos.length>=2?"Comparar fotos":"Analizar foto"}`}
+                </button>
+              )}
+            </div>
+
+            {analysisResult && (
+              <div style={{ background:"linear-gradient(135deg,rgba(168,85,247,0.1),rgba(124,58,237,0.05))", border:"1px solid rgba(168,85,247,0.35)", borderRadius:14, padding:16, marginBottom:16 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"#a855f7", textTransform:"uppercase" }}>🤖 Análisis IA · {fmtDate(analysisResult.date)}</span>
+                  {analysisResult.compared && <span style={{ fontSize:10, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", color:"#a855f7", borderRadius:6, padding:"2px 8px", fontWeight:700 }}>Comparación</span>}
+                </div>
+                <div style={{ fontSize:13, color:"var(--text)", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{analysisResult.text}</div>
+                <button onClick={() => setAnalysisResult(null)} style={{ marginTop:10, background:"none", border:"none", color:"var(--text-muted)", fontSize:11, cursor:"pointer", padding:0 }}>Cerrar análisis</button>
+              </div>
+            )}
+            {analyzeError && (
+              <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#ef4444" }}>{analyzeError}</div>
+            )}
+            {!analysisResult && photos.length > 0 && photos[photos.length-1].analysis && (
+              <div style={{ background:"rgba(168,85,247,0.07)", border:"1px solid rgba(168,85,247,0.2)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+                <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"#a855f7", textTransform:"uppercase", marginBottom:8 }}>🤖 Último análisis · {fmtDate(photos[photos.length-1].analysisDate)}</div>
+                <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{photos[photos.length-1].analysis}</div>
+              </div>
+            )}
 
             {photos.length === 0 ? (
               <div style={{ textAlign:"center", padding:"40px 0", color:"var(--text-muted)" }}>
@@ -2176,63 +2240,265 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
 
 
 // ─── Progress Modal ───────────────────────────────────────────────────────────
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+function OnboardingModal({ user, onComplete }) {
+  const [step, setStep] = useState(0);
+  const steps = [
+    {
+      emoji: "👋",
+      title: `¡Bienvenido, ${user.name?.split(" ")[0] || "atleta"}!`,
+      desc: "GymTracker es tu compañero de entrenamiento. Te ayuda a registrar sesiones, ver tu progreso y mejorar semana a semana.",
+      content: (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:16 }}>
+          {[
+            { icon:"🏋️", label:"Registra entrenamientos" },
+            { icon:"📈", label:"Ve tu progreso" },
+            { icon:"🏆", label:"Rompe récords personales" },
+            { icon:"👥", label:"Compite con amigos" },
+          ].map(f => (
+            <div key={f.label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 10px", textAlign:"center" }}>
+              <div style={{ fontSize:24, marginBottom:6 }}>{f.icon}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:"var(--text)" }}>{f.label}</div>
+            </div>
+          ))}
+        </div>
+      )
+    },
+    {
+      emoji: "📝",
+      title: "Registra tu primer entrenamiento",
+      desc: "Toca el botón + o ve a la pestaña Nuevo entrenamiento. Elige los ejercicios, agrega peso y repeticiones, y guarda.",
+      content: (
+        <div style={{ marginTop:16 }}>
+          <div style={{ background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:12, padding:14 }}>
+            <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.8 }}>
+              <div>1️⃣ Ve a <strong style={{ color:"var(--accent)" }}>Nuevo entrenamiento</strong></div>
+              <div>2️⃣ Elige el modo: <strong>⚡ En vivo</strong> (mientras entrenas) o <strong>📝 Registrar</strong> (después)</div>
+              <div>3️⃣ Agrega ejercicios con peso y repeticiones</div>
+              <div>4️⃣ Guarda tu sesión al terminar</div>
+            </div>
+          </div>
+          <div style={{ marginTop:12, background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.2)", borderRadius:10, padding:12 }}>
+            <div style={{ fontSize:12, color:"var(--text-muted)" }}>
+              💡 <strong style={{ color:"#22c55e" }}>Tip:</strong> En modo En vivo, el timer de descanso se activa automáticamente cuando marcas una serie como ✓ hecha.
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      emoji: "⚖️",
+      title: "Configura tu perfil",
+      desc: "Agrega tu peso, altura y objetivo para recibir recomendaciones personalizadas de calorías y proteínas.",
+      content: (
+        <div style={{ marginTop:16 }}>
+          <div style={{ background:"rgba(168,85,247,0.08)", border:"1px solid rgba(168,85,247,0.2)", borderRadius:12, padding:14 }}>
+            <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.8 }}>
+              <div>⚖️ Ve a <strong style={{ color:"#a855f7" }}>Peso & Estatura</strong> en el menú lateral</div>
+              <div>🎯 Elige tu objetivo: Déficit, Mantenimiento o Volumen</div>
+              <div>📊 El sistema calculará tus calorías y proteínas diarias</div>
+              <div>📸 Agrega fotos de progreso semanales para ver tu transformación</div>
+            </div>
+          </div>
+          <div style={{ marginTop:12, background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:10, padding:12 }}>
+            <div style={{ fontSize:12, color:"var(--text-muted)" }}>
+              🤖 <strong style={{ color:"#f59e0b" }}>IA integrada:</strong> Puedes analizar tus fotos de progreso con inteligencia artificial para ver cambios musculares.
+            </div>
+          </div>
+        </div>
+      )
+    },
+  ];
+
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
+
+  return (
+    <div className="overlay" style={{ zIndex:9999, background:"rgba(0,0,0,0.85)" }}>
+      <div className="modal" style={{ maxWidth:480, padding:28 }} onClick={e=>e.stopPropagation()}>
+        {/* Progress dots */}
+        <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:24 }}>
+          {steps.map((_,i) => (
+            <div key={i} style={{ width: i===step?24:8, height:8, borderRadius:10, background: i===step?"var(--accent)":i<step?"rgba(59,130,246,0.4)":"var(--border)", transition:"all 0.3s" }}/>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{ textAlign:"center", marginBottom:8 }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>{current.emoji}</div>
+          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, marginBottom:8 }}>{current.title}</div>
+          <div style={{ fontSize:14, color:"var(--text-muted)", lineHeight:1.6 }}>{current.desc}</div>
+        </div>
+
+        {current.content}
+
+        {/* Navigation */}
+        <div style={{ display:"flex", gap:10, marginTop:24 }}>
+          {step > 0 && (
+            <button onClick={() => setStep(s=>s-1)} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"1px solid var(--border)", background:"transparent", color:"var(--text-muted)", fontWeight:700, fontSize:14, cursor:"pointer" }}>
+              ← Atrás
+            </button>
+          )}
+          <button
+            onClick={() => isLast ? onComplete() : setStep(s=>s+1)}
+            style={{ flex:2, padding:"11px 0", borderRadius:10, border:"none", background:"var(--accent)", color:"white", fontWeight:700, fontSize:15, cursor:"pointer" }}>
+            {isLast ? "¡Empezar a entrenar! 💪" : "Siguiente →"}
+          </button>
+        </div>
+
+        {!isLast && (
+          <button onClick={onComplete} style={{ display:"block", width:"100%", marginTop:10, background:"none", border:"none", color:"var(--text-muted)", fontSize:12, cursor:"pointer", padding:4 }}>
+            Omitir tutorial
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProgressModal({ exName, sessions, onClose }) {
+  const [view, setView] = useState("weight"); // weight | rm1 | reps | volume
   const history = [];
   sessions.forEach(s => (s.exercises || []).forEach(ex => {
     if (ex.name.toLowerCase() === exName.toLowerCase()) {
-      const weight = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(ex.weight) || 0;
-      history.push({ date: s.date, weight, reps: ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.reps) || 0)) : parseFloat(ex.reps) || 0 });
+      const sets = ex.sets?.length > 0 ? ex.sets : [{ weight: ex.weight, reps: ex.reps }];
+      const weight = Math.max(...sets.map(st => parseFloat(st.weight) || 0));
+      const reps = Math.max(...sets.map(st => parseFloat(st.reps) || 0));
+      const vol = sets.reduce((s,st) => s + (parseFloat(st.weight)||0)*(parseFloat(st.reps)||1), 0);
+      const rm = calc1RM(weight, reps);
+      history.push({ date: s.date, weight, reps, vol: Math.round(vol), rm });
     }
   }));
   history.sort((a, b) => a.date.localeCompare(b.date));
-  const vals = history.map(h => h.weight);
-  const min = Math.min(...vals, 0), max = Math.max(...vals, 1), range = max - min || 1;
-  const W = 400, H = 130;
-  const prEntry = history.reduce((best, h) => calc1RM(h.weight, h.reps) > calc1RM(best.weight, best.reps) ? h : best, history[0] || { weight: 0, reps: 0 });
+
+  const prEntry = history.length > 0 ? history.reduce((best,h) => h.rm > best.rm ? h : best, history[0]) : null;
+  const W = 420, H = 140;
+
+  const vals = history.map(h => view==="rm1"?h.rm : view==="reps"?h.reps : view==="volume"?h.vol : h.weight);
+  const minV = Math.min(...vals), maxV = Math.max(...vals, minV+1), rangeV = maxV - minV || 1;
+  const px = (i) => 40 + (i / Math.max(history.length-1,1)) * (W - 50);
+  const py = (v) => H - ((v - minV) / rangeV) * (H - 20) - 4;
+
+  const viewLabels = { weight:"💪 Peso (kg)", rm1:"🏆 1RM estimado", reps:"🔄 Reps", volume:"📦 Volumen (kg)" };
+
+  // Trend
+  const trend = history.length >= 3 ? (() => {
+    const n = history.length, v = vals;
+    const xs = v.map((_,i)=>i), ys = v;
+    const sx=xs.reduce((a,b)=>a+b,0), sy=ys.reduce((a,b)=>a+b,0);
+    const sxy=xs.reduce((s,x,i)=>s+x*ys[i],0), sx2=xs.reduce((s,x)=>s+x*x,0);
+    const slope=(n*sxy-sx*sy)/(n*sx2-sx*sx);
+    return slope > 0.2 ? "📈 Tendencia positiva" : slope < -0.2 ? "📉 Tendencia a la baja" : "➡️ Estable";
+  })() : null;
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight:"88vh", overflowY:"auto" }}>
         <div className="modal-header">
           <h3 className="modal-title">📈 {exName}</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
-        {history.length < 2
-          ? <p className="text-muted" style={{ fontSize: 14 }}>Necesitas al menos 2 registros para ver progreso.</p>
-          : <>
-            {prEntry && <div style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.04))", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", gap: 16, alignItems: "center" }}>
-              <span style={{ fontSize: 20 }}>🏆</span>
+
+        {history.length < 2 ? (
+          <p className="text-muted" style={{ fontSize:14 }}>Necesitas al menos 2 registros para ver el progreso.</p>
+        ) : (<>
+          {/* PR banner */}
+          {prEntry && (
+            <div style={{ background:"linear-gradient(135deg,rgba(251,191,36,0.15),rgba(251,191,36,0.04))", border:"1px solid rgba(251,191,36,0.4)", borderRadius:12, padding:"12px 16px", marginBottom:16, display:"flex", gap:14, alignItems:"center" }}>
+              <span style={{ fontSize:28 }}>🏆</span>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#f59e0b", textTransform: "uppercase" }}>Récord personal</div>
-                <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "Barlow Condensed, sans-serif" }}>{prEntry.weight} kg × {prEntry.reps} reps → 1RM ≈ {calc1RM(prEntry.weight, prEntry.reps)} kg</div>
+                <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"#f59e0b", textTransform:"uppercase" }}>Récord Personal</div>
+                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:900 }}>
+                  {prEntry.weight}kg × {prEntry.reps} reps
+                  <span style={{ fontSize:14, color:"#f59e0b", marginLeft:10 }}>1RM ≈ {prEntry.rm}kg</span>
+                </div>
+                <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>{fmtDate(prEntry.date)} {trend && <span style={{ marginLeft:10 }}>{trend}</span>}</div>
               </div>
-            </div>}
-            <svg width="100%" viewBox={`0 0 ${W + 4} ${H + 30}`} style={{ display: "block", margin: "8px 0 12px" }}>
-              {[0, 0.5, 1].map(t => {
-                const y = H - t * H;
+            </div>
+          )}
+
+          {/* View selector */}
+          <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+            {Object.entries(viewLabels).map(([k,l]) => (
+              <button key={k} onClick={() => setView(k)} style={{
+                padding:"5px 12px", borderRadius:20, border:`1px solid ${view===k?"var(--accent)":"var(--border)"}`,
+                background: view===k?"var(--accent-dim)":"transparent", color: view===k?"var(--accent)":"var(--text-muted)",
+                fontSize:12, fontWeight:700, cursor:"pointer"
+              }}>{l}</button>
+            ))}
+          </div>
+
+          {/* Gráfica */}
+          <div style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"12px 8px 6px", marginBottom:14 }}>
+            <svg width="100%" viewBox={`0 0 ${W+8} ${H+36}`} style={{ display:"block" }}>
+              {[0,0.25,0.5,0.75,1].map(t => {
+                const y = py(minV + t*rangeV);
                 return <g key={t}>
-                  <line x1={36} y1={y} x2={W} y2={y} stroke="var(--border)" strokeWidth={1} />
-                  <text x={30} y={y + 4} textAnchor="end" fill="var(--text-muted)" fontSize={10}>{(min + t * range).toFixed(1)}</text>
+                  <line x1={40} y1={y} x2={W} y2={y} stroke="var(--border)" strokeWidth={1} strokeDasharray="4 3"/>
+                  <text x={34} y={y+4} textAnchor="end" fill="var(--text-muted)" fontSize={9}>{(minV+t*rangeV).toFixed(0)}</text>
                 </g>;
               })}
-              <polyline points={history.map((h, i) => `${36 + (i / (history.length - 1)) * (W - 36)},${H - ((h.weight - min) / range) * H}`).join(" ")} fill="none" stroke="#3b82f6" strokeWidth={2.5} strokeLinecap="round" />
-              {history.map((h, i) => {
-                const x = 36 + (i / (history.length - 1)) * (W - 36);
-                const y = H - ((h.weight - min) / range) * H;
-                const isPR = h === prEntry;
+              {/* Área */}
+              <polygon points={[
+                ...history.map((_,i)=>`${px(i)},${py(vals[i])}`),
+                `${px(history.length-1)},${H+4}`, `${px(0)},${H+4}`
+              ].join(" ")} fill={view==="rm1"?"rgba(245,158,11,0.08)":"rgba(59,130,246,0.07)"}/>
+              {/* Línea */}
+              <polyline
+                points={history.map((_,i)=>`${px(i)},${py(vals[i])}`).join(" ")}
+                fill="none" stroke={view==="rm1"?"#f59e0b":"var(--accent)"}
+                strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+              />
+              {/* Puntos */}
+              {history.map((h,i) => {
+                const x=px(i), y=py(vals[i]);
+                const isPR = h===prEntry && view==="rm1";
+                const isLast = i===history.length-1;
+                const dotColor = isPR?"#f59e0b":isLast?"#22c55e":"var(--accent)";
                 return <g key={i}>
-                  <circle cx={x} cy={y} r={isPR ? 6 : 4} fill={isPR ? "#f59e0b" : "#3b82f6"} />
-                  <text x={x} y={H + 22} textAnchor="middle" fill="var(--text-muted)" fontSize={9}>{fmtDate(h.date)}</text>
+                  <circle cx={x} cy={y} r={isPR||isLast?5.5:3.5} fill={dotColor} stroke="var(--card)" strokeWidth={1.5}/>
+                  {isPR && <text x={x} y={y-12} textAnchor="middle" fill="#f59e0b" fontSize={9} fontWeight={800}>PR</text>}
+                  {isLast && <text x={x} y={y-12} textAnchor="middle" fill="#22c55e" fontSize={9} fontWeight={800}>{vals[i]}</text>}
+                  <text x={x} y={H+24} textAnchor="middle" fill="var(--text-muted)" fontSize={8}>{fmtDate(h.date)}</text>
                 </g>;
               })}
             </svg>
-            <div style={{ display: "flex", gap: 20, fontSize: 13 }}>
-              {[["Máx", `${max}kg`], ["Mín", `${min}kg`], ["Registros", history.length], ["1RM est.", `${calc1RM(prEntry.weight, prEntry.reps)}kg`]].map(([l, v]) =>
-                <span key={l} className="text-muted">{l}: <b style={{ color: "var(--text)" }}>{v}</b></span>
-              )}
-            </div>
-          </>
-        }
+          </div>
+
+          {/* Stats rápidas */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
+            {[
+              ["Máx peso", `${Math.max(...history.map(h=>h.weight))}kg`, "var(--accent)"],
+              ["Mejor 1RM", `${Math.max(...history.map(h=>h.rm))}kg`, "#f59e0b"],
+              ["Registros", history.length, "var(--text)"],
+              ["Mejora total", (() => { const f=vals[0],l=vals[vals.length-1]; const p=Math.round((l-f)/f*100); return `${p>0?"+":""}${p}%`; })(), vals[vals.length-1]>=vals[0]?"#22c55e":"#f97316"],
+            ].map(([label,val,color]) => (
+              <div key={label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
+                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800, color }}>{val}</div>
+                <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Historial tabla */}
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Historial</div>
+          <div style={{ maxHeight:180, overflowY:"auto" }}>
+            {[...history].reverse().map((h,i) => {
+              const prev = history[history.length-2-i];
+              const improved = prev && h.rm > prev.rm;
+              return (
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 4px", borderBottom:"1px solid var(--border)", fontSize:12 }}>
+                  <span style={{ color:"var(--text-muted)", minWidth:70 }}>{fmtDate(h.date)}</span>
+                  <span style={{ flex:1, color:"var(--text)" }}>{h.weight}kg × {h.reps} reps</span>
+                  <span style={{ color:"#f59e0b", fontWeight:700, minWidth:60, textAlign:"right" }}>1RM {h.rm}kg</span>
+                  {improved && <span style={{ fontSize:10, color:"#22c55e", marginLeft:8 }}>↑</span>}
+                  {h===prEntry && <span style={{ fontSize:10, background:"rgba(245,158,11,0.15)", color:"#f59e0b", borderRadius:4, padding:"1px 5px", marginLeft:6, fontWeight:800 }}>PR</span>}
+                </div>
+              );
+            })}
+          </div>
+        </>)}
       </div>
     </div>
   );
@@ -2517,6 +2783,59 @@ function MuscleBalance({ sessions }) {
 
 
 // ─── Team Challenge ───────────────────────────────────────────────────────────
+
+// ─── Retos semanales rotativos ─────────────────────────────────────────────────
+const WEEKLY_CHALLENGES = [
+  { id:"vol10", emoji:"🏋️", title:"10,000 kg de volumen", desc:"Levanta un total de 10,000 kg esta semana", check:(sessions, weekStart) => {
+    return Math.round(sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart).reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>{
+      const sets=ex.sets?.length>0?ex.sets:[{weight:ex.weight,reps:ex.reps}];
+      return a+sets.reduce((sv,st)=>(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1)+sv,0);
+    },0),0));
+  }, target:10000, unit:"kg", format: v => `${v.toLocaleString()} / 10,000 kg` },
+  { id:"ses5", emoji:"📅", title:"5 sesiones esta semana", desc:"Entrena 5 días distintos esta semana", check:(sessions, weekStart) =>
+    sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart).length,
+    target:5, unit:"sesiones", format: v => `${v} / 5 sesiones` },
+  { id:"mus4", emoji:"💪", title:"4 grupos musculares", desc:"Entrena al menos 4 grupos musculares distintos", check:(sessions, weekStart) => {
+    const muscles = new Set();
+    sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart).forEach(s=>(s.exercises||[]).forEach(ex=>{
+      const db=EXERCISE_DB.find(e=>e.name===ex.name); if(db) muscles.add(db.muscle);
+    }));
+    return muscles.size;
+  }, target:4, unit:"grupos", format: v => `${v} / 4 grupos musculares` },
+  { id:"sets30", emoji:"🔢", title:"30 series completadas", desc:"Completa un total de 30 series esta semana", check:(sessions, weekStart) =>
+    sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart).reduce((acc,s)=>acc+(s.exercises||[]).reduce((a,ex)=>a+(ex.sets?.length||1),0),0),
+    target:30, unit:"series", format: v => `${v} / 30 series` },
+  { id:"streak3", emoji:"🔥", title:"3 días seguidos", desc:"Entrena 3 días consecutivos esta semana", check:(sessions, weekStart) => {
+    const days = new Set(sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart).map(s=>s.date));
+    let best=0, cur=0;
+    for(let i=0;i<7;i++){
+      const d=new Date(weekStart); d.setDate(d.getDate()+i);
+      const ds=d.toISOString().slice(0,10);
+      if(days.has(ds)){cur++;best=Math.max(best,cur);}else cur=0;
+    }
+    return best;
+  }, target:3, unit:"días", format: v => `${v} / 3 días seguidos` },
+  { id:"pr2", emoji:"🏆", title:"2 récords personales", desc:"Supera 2 récords personales esta semana", check:(sessions, weekStart) => {
+    const weekSess = sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart);
+    let prs=0;
+    weekSess.forEach(s=>(s.exercises||[]).forEach(ex=>{
+      const w=ex.sets?.length>0?Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)):parseFloat(ex.weight)||0;
+      const prev=sessions.filter(ps=>ps.date<s.date).flatMap(ps=>(ps.exercises||[]).filter(pe=>pe.name===ex.name))
+        .reduce((b,pe)=>Math.max(b,parseFloat(pe.weight)||0),0);
+      if(w>prev&&w>0) prs++;
+    }));
+    return prs;
+  }, target:2, unit:"PRs", format: v => `${v} / 2 récords` },
+];
+
+function getWeeklyChallenge() {
+  // Rota cada semana basado en número de semana del año
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const weekNum = Math.floor((now - startOfYear) / (7 * 86400000));
+  return WEEKLY_CHALLENGES[weekNum % WEEKLY_CHALLENGES.length];
+}
+
 function TeamChallengeModal({ user, sessions, onClose }) {
   const [myTeams] = useState(() => load(`gym_teams_${user.email}`, []));
   const [activeTeam, setActiveTeam] = useState(myTeams[0] || null);
@@ -2573,13 +2892,41 @@ function TeamChallengeModal({ user, sessions, onClose }) {
               </div>
             )}
 
-            {/* My week snapshot */}
-            <div style={{ background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:12, padding:"14px 16px", marginBottom:16 }}>
-              <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--accent)", textTransform:"uppercase", marginBottom:8 }}>Tu semana actual</div>
-              <div style={{ display:"flex", gap:16 }}>
-                <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800 }}>{myWeekSessions}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>sesiones</div></div>
-                <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800 }}>{myWeekVol}t</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>volumen</div></div>
-                {myRank > 0 && <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800, color:"#f59e0b" }}>#{myRank}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>ranking</div></div>}
+            {/* Reto de la semana */}
+            {(() => {
+              const challenge = getWeeklyChallenge();
+              const weekStart2 = new Date(); weekStart2.setDate(weekStart2.getDate()-7); weekStart2.setHours(0,0,0,0);
+              const progress = challenge.check(sessions, weekStart2);
+              const pct = Math.min(progress / challenge.target * 100, 100);
+              const done = progress >= challenge.target;
+              return (
+                <div style={{ background: done?"rgba(34,197,94,0.08)":"rgba(59,130,246,0.06)", border:`1px solid ${done?"rgba(34,197,94,0.3)":"rgba(59,130,246,0.2)"}`, borderRadius:12, padding:"14px 16px", marginBottom:14 }}>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color: done?"#22c55e":"var(--accent)", textTransform:"uppercase", marginBottom:6 }}>
+                    {done?"✅":"⚔️"} Reto de la semana
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:15 }}>{challenge.emoji} {challenge.title}</div>
+                      <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>{challenge.desc}</div>
+                    </div>
+                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:900, color: done?"#22c55e":"var(--accent)", marginLeft:12, flexShrink:0 }}>{Math.round(pct)}%</div>
+                  </div>
+                  <div style={{ background:"var(--border)", borderRadius:20, height:7, overflow:"hidden" }}>
+                    <div style={{ height:"100%", background: done?"#22c55e":"var(--accent)", width:`${pct}%`, borderRadius:20, transition:"width 0.6s ease" }}/>
+                  </div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:5, textAlign:"right" }}>{challenge.format(progress)}</div>
+                </div>
+              );
+            })()}
+
+            {/* My week snapshot — centrado */}
+            <div style={{ background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:12, padding:"16px", marginBottom:16, textAlign:"center" }}>
+              <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--accent)", textTransform:"uppercase", marginBottom:12 }}>Tu semana actual</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:24 }}>
+                <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900 }}>{myWeekSessions}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>sesiones</div></div>
+                <div style={{ width:1, background:"var(--border)" }}/>
+                <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900 }}>{myWeekVol}t</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>volumen</div></div>
+                {myRank > 0 && <><div style={{ width:1, background:"var(--border)" }}/><div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900, color:"#f59e0b" }}>#{myRank}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>ranking</div></div></>}
               </div>
             </div>
 
@@ -4194,6 +4541,7 @@ function TeamsModal({ user, sessions, onClose }) {
 
   async function createTeam() {
     if (!createName.trim()) { setErr("Ponle nombre al team"); return; }
+    if (myTeams.length >= 3) { setErr("Puedes estar en un máximo de 3 teams."); return; }
     const code = Math.random().toString(36).slice(2,8).toUpperCase();
     const team = { code, name: createName.trim(), createdBy: user.name, members: { [user.email]: myStats }, createdAt: todayStr() };
     await teamsSet(`team_${code}`, team);
@@ -4210,6 +4558,7 @@ function TeamsModal({ user, sessions, onClose }) {
   async function joinTeam() {
     const code = joinCode.trim().toUpperCase();
     if (!code) { setErr("Ingresa el código"); return; }
+    if (myTeams.length >= 3) { setErr("Puedes estar en un máximo de 3 teams."); return; }
     setLoading(true);
     const data = await teamsGet(`team_${code}`);
     setLoading(false);
@@ -5961,6 +6310,14 @@ function GymApp() {
   const bodyKey = `gym_body_${user.email}`;
   const [bodyStats, setBodyStats] = useState(() => load(bodyKey, { height: null, entries: [] }));
   const [showBodyStats, setShowBodyStats] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try { return !localStorage.getItem("gym_onboarding_done"); } catch { return false; }
+  });
+
+  function completeOnboarding() {
+    try { localStorage.setItem("gym_onboarding_done", "1"); } catch {}
+    setShowOnboarding(false);
+  }
 
   // Planner
   const plannerKey = `gym_planner_${user.email}`;
@@ -7221,6 +7578,10 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           onClose={() => setShowTeams(false)}
         />
       )}
+      {showOnboarding && (
+        <OnboardingModal user={user} onComplete={completeOnboarding} />
+      )}
+
       {showChallenge && (
         <TeamChallengeModal
           user={user}
