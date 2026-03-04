@@ -874,33 +874,81 @@ function WeeklyChart({ sessions }) {
   const vals = data.map(d=>metric==="count"?d.count:d.vol);
   const maxVal = Math.max(...vals,1);
 
+  const total = vals.reduce((a,b)=>a+b,0);
+  const avg = data.length > 0 ? (total / data.length).toFixed(metric==="vol"?1:1) : 0;
+
   return (
     <div className="card">
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <div className="card-label" style={{margin:0}}>📈 Progreso</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      {/* Header */}
+      <div style={{marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div className="card-label" style={{margin:0}}>📈 Progreso</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["count","Sesiones"],["vol","Volumen"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setMetric(v)} style={{padding:"3px 10px",fontSize:11,borderRadius:20,border:"1px solid",borderColor:metric===v?"var(--accent)":"var(--border)",background:metric===v?"var(--accent)":"transparent",color:metric===v?"white":"var(--text-muted)",cursor:"pointer",fontWeight:600,transition:"all 0.2s"}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:4,justifyContent:"center"}}>
           {[["day","Día"],["week","Semana"],["month","Mes"],["year","Año"]].map(([v,l])=>(
-            <button key={v} className={`muscle-chip ${period===v?"active":""}`} style={{padding:"3px 10px",fontSize:11}} onClick={()=>setPeriod(v)}>{l}</button>
+            <button key={v} onClick={()=>setPeriod(v)} style={{flex:1,padding:"5px 4px",fontSize:11,borderRadius:8,border:"1px solid",borderColor:period===v?"var(--accent)":"var(--border)",background:period===v?"var(--accent)":"transparent",color:period===v?"white":"var(--text-muted)",cursor:"pointer",fontWeight:period===v?700:500,transition:"all 0.2s"}}>{l}</button>
           ))}
         </div>
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:12}}>
-        <button className={`muscle-chip ${metric==="count"?"active":""}`} style={{padding:"3px 10px",fontSize:11}} onClick={()=>setMetric("count")}>Sesiones</button>
-        <button className={`muscle-chip ${metric==="vol"?"active":""}`} style={{padding:"3px 10px",fontSize:11}} onClick={()=>setMetric("vol")}>Volumen</button>
+
+      {/* Stat summary */}
+      <div style={{display:"flex",gap:12,marginBottom:14}}>
+        <div style={{flex:1,background:"var(--input-bg)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
+          <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Total</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:"var(--accent)"}}>{metric==="vol"?`${(total/1000).toFixed(1)}t`:total}</div>
+        </div>
+        <div style={{flex:1,background:"var(--input-bg)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
+          <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Promedio</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:"var(--text)"}}>{metric==="vol"?`${(Number(avg)/1000).toFixed(1)}t`:Number(avg).toFixed(1)}</div>
+        </div>
+        <div style={{flex:1,background:"var(--input-bg)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
+          <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Mejor</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:"#22c55e"}}>{metric==="vol"?`${(maxVal/1000).toFixed(1)}t`:maxVal}</div>
+        </div>
       </div>
-      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:90}}>
-        {data.map((d,i)=>{
-          const val=metric==="count"?d.count:d.vol;
-          const h=maxVal>0?Math.max((val/maxVal)*82,val>0?4:0):0;
-          const isLast=i===data.length-1;
-          return (
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textAlign:"center"}}>{val>0?(metric==="vol"?`${(val/1000).toFixed(1)}t`:val):""}</div>
-              <div style={{width:"100%",height:h,background:isLast?"var(--accent)":"rgba(59,130,246,0.35)",borderRadius:"3px 3px 0 0",transition:"height 0.4s"}}/>
-              <div style={{fontSize:8,color:isLast?"var(--accent)":"var(--text-muted)",fontWeight:isLast?700:400,textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",width:"100%",textOverflow:"ellipsis"}}>{d.label}</div>
-            </div>
-          );
-        })}
+
+      {/* Bar chart — fixed height container so bars are always centered */}
+      <div style={{width:"100%"}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${data.length},1fr)`,gap:3,alignItems:"flex-end",height:100,marginBottom:4}}>
+          {data.map((d,i)=>{
+            const val=metric==="count"?d.count:d.vol;
+            const pct=maxVal>0?(val/maxVal):0;
+            const barH=Math.max(pct*92, val>0?6:2);
+            const isLast=i===data.length-1;
+            const isEmpty=val===0;
+            return (
+              <div key={i} title={`${d.label}: ${metric==="vol"?(val/1000).toFixed(1)+"t":val+" ses"}`}
+                style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",gap:2,cursor:"default"}}>
+                <div style={{fontSize:8,color:isEmpty?"transparent":isLast?"var(--accent)":"var(--text-muted)",fontWeight:700,lineHeight:1}}>
+                  {metric==="vol"?`${(val/1000).toFixed(1)}t`:val}
+                </div>
+                <div style={{
+                  width:"100%",height:barH,
+                  background:isEmpty?"var(--border)":isLast?"var(--accent)":"rgba(59,130,246,0.45)",
+                  borderRadius:"4px 4px 0 0",
+                  transition:"height 0.5s ease",
+                  boxShadow:isLast&&!isEmpty?"0 0 8px var(--accent)40":undefined
+                }}/>
+              </div>
+            );
+          })}
+        </div>
+        {/* X axis labels */}
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${data.length},1fr)`,gap:3,borderTop:"1px solid var(--border)",paddingTop:4}}>
+          {data.map((d,i)=>{
+            const isLast=i===data.length-1;
+            return (
+              <div key={i} style={{fontSize:8,color:isLast?"var(--accent)":"var(--text-muted)",fontWeight:isLast?700:400,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {d.label}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1163,101 +1211,259 @@ const MUSCLE_GROUPS = {
 };
 
 function MuscleMapModal({ sessions, onClose }) {
-  const [period, setPeriod] = useState("week");
-  
+  const [period, setPeriod]   = useState("week");
+  const [view,   setView]     = useState("volume"); // "volume" | "recovery"
+  const [hover,  setHover]    = useState(null);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // ── Volume per muscle in period ───────────────────────────────────────────
   const cutoff = new Date();
-  if (period === "week") cutoff.setDate(cutoff.getDate() - 7);
+  if (period === "week")       cutoff.setDate(cutoff.getDate() - 7);
   else if (period === "month") cutoff.setDate(cutoff.getDate() - 30);
-  else cutoff.setFullYear(2000);
+  else                         cutoff.setFullYear(2000);
 
   const muscleCounts = {};
   sessions
     .filter(s => new Date(s.date + "T00:00:00") >= cutoff)
     .forEach(s => (s.exercises||[]).forEach(ex => {
       const dbEx = EXERCISE_DB.find(e => e.name === ex.name);
-      if (dbEx) muscleCounts[dbEx.muscle] = (muscleCounts[dbEx.muscle] || 0) + 1;
+      if (dbEx) muscleCounts[dbEx.muscle] = (muscleCounts[dbEx.muscle]||0) + 1;
     }));
 
+  // ── Days since last trained (for recovery view) ───────────────────────────
+  const lastTrained = {};
+  sessions.forEach(s => (s.exercises||[]).forEach(ex => {
+    const dbEx = EXERCISE_DB.find(e => e.name === ex.name);
+    if (dbEx?.muscle) {
+      if (!lastTrained[dbEx.muscle] || s.date > lastTrained[dbEx.muscle]) lastTrained[dbEx.muscle] = s.date;
+    }
+  }));
+  const daysSince = (muscle) => {
+    if (!lastTrained[muscle]) return 999;
+    return Math.round((today - new Date(lastTrained[muscle] + "T00:00:00")) / 86400000);
+  };
+
+  // Recovery status: ≤1 = just trained (red), 2 = recovering (orange), 3+ = ready (green), never = grey
+  const recoveryColor = (muscle) => {
+    const d = daysSince(muscle);
+    if (d === 999) return "#374151"; // never
+    if (d <= 1)   return "#ef4444"; // just trained — rest
+    if (d <= 2)   return "#f59e0b"; // recovering
+    if (d <= 5)   return "#22c55e"; // ready
+    return "#3b82f6";               // prime time
+  };
+  const recoveryLabel = (d) => {
+    if (d === 999) return "Nunca entrenado";
+    if (d <= 1)    return "Necesita descanso";
+    if (d <= 2)    return "Recuperando";
+    if (d <= 5)    return "Listo para entrenar";
+    return "¡A por él!";
+  };
+
   const maxCount = Math.max(...Object.values(muscleCounts), 1);
-  const sorted = Object.entries(muscleCounts).sort((a,b) => b[1]-a[1]);
+  const sorted   = Object.entries(muscleCounts).sort((a,b) => b[1]-a[1]);
+
+  // ── Per-muscle color & opacity for SVG ───────────────────────────────────
+  const getMuscleStyle = (muscle) => {
+    if (view === "recovery") {
+      const d = daysSince(muscle);
+      return { fill: recoveryColor(muscle), opacity: d === 999 ? 0.15 : 0.75 };
+    }
+    const count = muscleCounts[muscle] || 0;
+    return { fill: MUSCLE_GROUPS[muscle]?.fill || "#64748b", opacity: count > 0 ? 0.3 + (count/maxCount)*0.65 : 0.06 };
+  };
+
+  // ── Front / Back SVG paths ─────────────────────────────────────────────── 
+  // Front body silhouette base shape
+  const FRONT_BASE = "M 96 44 Q 96 22 120 20 Q 150 16 180 20 Q 204 22 204 44 Q 204 66 180 72 Q 150 76 120 72 Q 96 66 96 44 Z";
+  // Muscle areas mapped for front body (viewBox 0 0 300 420)
+  const FRONT_MUSCLES = {
+    "Hombros":    { paths: ["M 88 98 Q 70 92 68 108 Q 68 128 88 128 Q 96 118 92 100 Z","M 212 98 Q 230 92 232 108 Q 232 128 212 128 Q 204 118 208 100 Z"] },
+    "Pecho":      { paths: ["M 96 96 Q 120 88 148 94 Q 148 128 120 136 Q 96 130 92 112 Z","M 204 96 Q 180 88 152 94 Q 152 128 180 136 Q 204 130 208 112 Z"] },
+    "Bíceps":     { paths: ["M 76 136 Q 64 148 66 170 Q 78 178 88 166 Q 94 148 86 134 Z","M 224 136 Q 236 148 234 170 Q 222 178 212 166 Q 206 148 214 134 Z"] },
+    "Core":       { paths: ["M 108 148 Q 150 142 192 148 Q 192 196 150 200 Q 108 196 108 148 Z"] },
+    "Cuádriceps": { paths: ["M 108 208 Q 98 224 100 264 Q 116 272 128 256 Q 134 232 124 208 Z","M 192 208 Q 202 224 200 264 Q 184 272 172 256 Q 166 232 176 208 Z"] },
+    "Pantorrillas":{ paths: ["M 100 272 Q 90 288 94 316 Q 110 322 120 308 Q 124 286 112 272 Z","M 200 272 Q 210 288 206 316 Q 190 322 180 308 Q 176 286 188 272 Z"] },
+    "Cardio":     { paths: ["M 134 100 Q 150 90 166 100 Q 168 118 150 126 Q 132 118 134 100 Z"] },
+  };
+  const BACK_MUSCLES = {
+    "Hombros":    { paths: ["M 88 98 Q 70 92 68 108 Q 68 128 88 128 Q 96 118 92 100 Z","M 212 98 Q 230 92 232 108 Q 232 128 212 128 Q 204 118 208 100 Z"] },
+    "Espalda":    { paths: ["M 96 96 Q 150 88 204 96 Q 206 148 150 158 Q 94 148 96 96 Z"] },
+    "Tríceps":    { paths: ["M 76 136 Q 62 150 64 172 Q 78 180 88 168 Q 92 150 84 134 Z","M 224 136 Q 238 150 236 172 Q 222 180 212 168 Q 208 150 216 134 Z"] },
+    "Glúteos":    { paths: ["M 108 202 Q 150 194 192 202 Q 194 228 150 234 Q 106 228 108 202 Z"] },
+    "Femoral":    { paths: ["M 110 236 Q 100 256 104 284 Q 122 290 130 272 Q 134 250 120 234 Z","M 190 236 Q 200 256 196 284 Q 178 290 170 272 Q 166 250 180 234 Z"] },
+    "Pantorrillas":{ paths: ["M 102 290 Q 92 308 96 330 Q 114 336 122 320 Q 126 300 114 288 Z","M 198 290 Q 208 308 204 330 Q 186 336 178 320 Q 174 300 186 288 Z"] },
+  };
+
+  // Body outline SVG elements (generic humanoid)
+  const BodyOutline = () => (
+    <g opacity={0.18} fill="var(--text)">
+      {/* head */}
+      <ellipse cx={150} cy={44} rx={30} ry={30}/>
+      {/* neck */}
+      <rect x={141} y={72} width={18} height={16} rx={4}/>
+      {/* torso */}
+      <path d="M 92 88 Q 90 86 88 92 L 84 200 Q 84 206 90 208 L 110 210 L 110 200 L 100 198 L 102 96 L 198 96 L 200 198 L 190 200 L 190 210 L 210 208 Q 216 206 216 200 L 212 92 Q 210 86 208 88 Z"/>
+      {/* upper arms */}
+      <rect x={62} y={90} width={28} height={90} rx={12}/>
+      <rect x={210} y={90} width={28} height={90} rx={12}/>
+      {/* forearms */}
+      <rect x={60} y={178} width={26} height={72} rx={10}/>
+      <rect x={214} y={178} width={26} height={72} rx={10}/>
+      {/* legs */}
+      <rect x={106} y={206} width={38} height={108} rx={14}/>
+      <rect x={156} y={206} width={38} height={108} rx={14}/>
+      {/* calves */}
+      <rect x={104} y={310} width={36} height={84} rx={12}/>
+      <rect x={160} y={310} width={36} height={84} rx={12}/>
+    </g>
+  );
+
+  const MuscleLayer = ({ muscleMap }) => (
+    <>
+      {Object.entries(muscleMap).map(([muscle, { paths }]) => {
+        const { fill, opacity } = getMuscleStyle(muscle);
+        const isHovered = hover === muscle;
+        return paths.map((d, i) => (
+          <path
+            key={`${muscle}-${i}`} d={d} fill={fill}
+            opacity={isHovered ? Math.min(opacity + 0.25, 1) : opacity}
+            style={{ transition: "opacity 0.4s, fill 0.4s", cursor: "pointer", filter: isHovered ? `drop-shadow(0 0 6px ${fill})` : undefined }}
+            onMouseEnter={() => setHover(muscle)}
+            onMouseLeave={() => setHover(null)}
+            onClick={() => setHover(h => h === muscle ? null : muscle)}
+          >
+            <title>{muscle}: {view === "recovery" ? recoveryLabel(daysSince(muscle)) : `${muscleCounts[muscle]||0} series`}</title>
+          </path>
+        ));
+      })}
+    </>
+  );
+
+  const hoveredInfo = hover ? {
+    muscle: hover,
+    count: muscleCounts[hover] || 0,
+    days: daysSince(hover),
+    color: view === "recovery" ? recoveryColor(hover) : (MUSCLE_GROUPS[hover]?.fill || "#64748b"),
+  } : null;
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "92vh", overflowY: "auto", maxWidth: 560 }}>
         <div className="modal-header">
           <h3 className="modal-title">💪 Mapa muscular</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
-        <div className="tab-row" style={{ marginBottom: 20 }}>
-          {[["week","Esta semana"],["month","Este mes"],["all","Todo"]].map(([v,l]) => (
-            <button key={v} className={`tab-btn ${period===v?"active":""}`} onClick={() => setPeriod(v)}>{l}</button>
+
+        {/* Controls */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flex: 1, gap: 4 }}>
+            {[["week","Semana"],["month","Mes"],["all","Todo"]].map(([v,l]) => (
+              <button key={v} onClick={() => setPeriod(v)} style={{ flex:1, padding:"6px 4px", fontSize:11, borderRadius:8, border:"1px solid", borderColor:period===v?"var(--accent)":"var(--border)", background:period===v?"var(--accent)":"transparent", color:period===v?"white":"var(--text-muted)", cursor:"pointer", fontWeight:period===v?700:500, transition:"all 0.2s" }}>{l}</button>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:4 }}>
+            {[["volume","📊 Volumen"],["recovery","🔄 Recuperación"]].map(([v,l]) => (
+              <button key={v} onClick={() => setView(v)} style={{ padding:"6px 10px", fontSize:11, borderRadius:8, border:"1px solid", borderColor:view===v?"var(--accent)":"var(--border)", background:view===v?"var(--accent)":"transparent", color:view===v?"white":"var(--text-muted)", cursor:"pointer", fontWeight:view===v?700:500, transition:"all 0.2s", whiteSpace:"nowrap" }}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hover tooltip */}
+        {hoveredInfo && (
+          <div style={{ padding:"10px 14px", background:`${hoveredInfo.color}15`, border:`1px solid ${hoveredInfo.color}40`, borderRadius:10, marginBottom:12, display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:12, height:12, borderRadius:"50%", background:hoveredInfo.color, flexShrink:0 }}/>
+            <div style={{ flex:1 }}>
+              <span style={{ fontWeight:800, fontSize:14, color:"var(--text)" }}>{hoveredInfo.muscle}</span>
+              {view === "volume"
+                ? <span style={{ fontSize:12, color:"var(--text-muted)", marginLeft:8 }}>{hoveredInfo.count} series en este período</span>
+                : <span style={{ fontSize:12, color:hoveredInfo.color, marginLeft:8, fontWeight:600 }}>{hoveredInfo.days === 999 ? "Nunca entrenado" : `Hace ${hoveredInfo.days}d · ${recoveryLabel(hoveredInfo.days)}`}</span>
+              }
+            </div>
+          </div>
+        )}
+
+        {/* Front + Back bodies */}
+        <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
+          {[["FRENTE", FRONT_MUSCLES], ["ESPALDA", BACK_MUSCLES]].map(([label, muscleMap]) => (
+            <div key={label} style={{ flex:"0 0 auto", textAlign:"center" }}>
+              <div style={{ fontSize:9, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", marginBottom:4 }}>{label}</div>
+              <svg width={200} height={380} viewBox="0 0 300 420" style={{ display:"block" }}>
+                <BodyOutline />
+                <MuscleLayer muscleMap={muscleMap} />
+              </svg>
+            </div>
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-          {/* SVG Body */}
-          <div style={{ flex: "0 0 auto" }}>
-            <svg width={300} height={340} viewBox="0 0 300 340" style={{ display: "block" }}>
-              {/* Body outline */}
-              <ellipse cx={150} cy={72} rx={28} ry={28} fill="var(--border)" stroke="var(--border)" strokeWidth={1}/>
-              <rect x={118} y={98} width={64} height={90} rx={10} fill="var(--border)"/>
-              <rect x={90} y={100} width={28} height={75} rx={8} fill="var(--border)"/>
-              <rect x={182} y={100} width={28} height={75} rx={8} fill="var(--border)"/>
-              <rect x={80} y={170} width={22} height={55} rx={7} fill="var(--border)"/>
-              <rect x={198} y={170} width={22} height={55} rx={7} fill="var(--border)"/>
-              <rect x={120} y={188} width={26} height={90} rx={8} fill="var(--border)"/>
-              <rect x={154} y={188} width={26} height={90} rx={8} fill="var(--border)"/>
-              <rect x={122} y={276} width={22} height={55} rx={7} fill="var(--border)"/>
-              <rect x={156} y={276} width={22} height={55} rx={7} fill="var(--border)"/>
-
-              {/* Colored muscle groups */}
-              {Object.entries(MUSCLE_GROUPS).map(([muscle, { fill, paths }]) => {
-                const count = muscleCounts[muscle] || 0;
-                const opacity = count > 0 ? 0.3 + (count / maxCount) * 0.65 : 0;
-                return paths.map((d, i) => (
-                  <path key={`${muscle}-${i}`} d={d} fill={fill} opacity={opacity} style={{ transition: "opacity 0.5s ease" }}>
-                    <title>{muscle}: {count} series</title>
-                  </path>
-                ));
-              })}
-
-              {/* Labels for active muscles */}
-              {Object.entries(muscleCounts).slice(0,3).map(([m]) => {
-                const positions = { "Pecho":[150,127],"Hombros":[150,87],"Bíceps":[90,133],"Tríceps":[90,133],"Espalda":[150,132],"Core":[150,163],"Cuádriceps":[150,210],"Femoral":[150,210],"Glúteos":[150,188],"Pantorrillas":[150,255],"Cardio":[150,115] };
-                return null; // keep clean, legend handles labels
-              })}
-            </svg>
+        {/* Recovery legend */}
+        {view === "recovery" && (
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Leyenda de recuperación</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {[["#ef4444","Descansando (≤1d)"],["#f59e0b","Recuperando (2d)"],["#22c55e","Listo (3-5d)"],["#3b82f6","¡A por él! (6d+)"]].map(([c,l]) => (
+                <div key={l} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:"var(--text-muted)" }}>
+                  <div style={{ width:10, height:10, borderRadius:3, background:c, flexShrink:0 }}/>
+                  {l}
+                </div>
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Legend & stats */}
-          <div style={{ flex: 1, minWidth: 160 }}>
-            {sorted.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Sin sesiones en este período.</p>
-            ) : (
-              <>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>Músculos trabajados</div>
-                {sorted.map(([muscle, count]) => {
+        {/* Volume list */}
+        {view === "volume" && (
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>Músculos trabajados</div>
+            {sorted.length === 0
+              ? <p style={{ color:"var(--text-muted)", fontSize:13 }}>Sin sesiones en este período.</p>
+              : sorted.map(([muscle, count]) => {
                   const color = MUSCLE_GROUPS[muscle]?.fill || "#64748b";
                   return (
-                    <div key={muscle} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                      <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{muscle}</div>
-                      <div style={{ width: 80, height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ height: "100%", background: color, width: `${(count/maxCount)*100}%`, borderRadius: 3 }} />
+                    <div key={muscle} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:9, cursor:"pointer" }}
+                      onMouseEnter={() => setHover(muscle)} onMouseLeave={() => setHover(null)}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", background:color, flexShrink:0 }}/>
+                      <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{muscle}</div>
+                      <div style={{ width:90, height:6, background:"var(--border)", borderRadius:3, overflow:"hidden" }}>
+                        <div style={{ height:"100%", background:color, width:`${(count/maxCount)*100}%`, borderRadius:3, transition:"width 0.5s" }}/>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", width: 20, textAlign: "right" }}>{count}</div>
+                      <div style={{ fontSize:12, color:"var(--text-muted)", width:20, textAlign:"right", fontWeight:700 }}>{count}</div>
                     </div>
                   );
-                })}
-                {Object.keys(MUSCLE_GROUPS).filter(m => !muscleCounts[m]).length > 0 && (
-                  <div style={{ marginTop: 16, padding: "10px 12px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8, fontSize: 12, color: "#f87171" }}>
-                    💡 Sin trabajar: {Object.keys(MUSCLE_GROUPS).filter(m => !muscleCounts[m]).join(", ")}
-                  </div>
-                )}
-              </>
+                })
+            }
+            {Object.keys(MUSCLE_GROUPS).filter(m => !muscleCounts[m]).length > 0 && (
+              <div style={{ marginTop:12, padding:"10px 12px", background:"rgba(239,68,68,0.06)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:8, fontSize:12, color:"#f87171" }}>
+                💡 Sin trabajar: {Object.keys(MUSCLE_GROUPS).filter(m => !muscleCounts[m]).join(", ")}
+              </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* Recovery list */}
+        {view === "recovery" && (
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>Estado por músculo</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+              {Object.keys(MUSCLE_GROUPS).map(muscle => {
+                const d = daysSince(muscle);
+                const c = recoveryColor(muscle);
+                return (
+                  <div key={muscle}
+                    style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:`${c}10`, border:`1px solid ${c}30`, borderRadius:10, cursor:"pointer", transition:"all 0.2s" }}
+                    onMouseEnter={() => setHover(muscle)} onMouseLeave={() => setHover(null)}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:c, flexShrink:0 }}/>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:"var(--text)" }}>{muscle}</div>
+                      <div style={{ fontSize:10, color:c, fontWeight:600 }}>{d === 999 ? "Nunca" : `Hace ${d}d`}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2098,8 +2304,9 @@ function ExerciseEditor({ dayKey, exercises, isWeekly, removeExFromDay, addExToD
   );
 }
 // ─── Weekly Planner Modal ─────────────────────────────────────────────────────
-function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
+function WeeklyPlannerModal({ plan, onSave, onClose, sessions, weeklyGoal, onSaveGoal, initTab }) {
   const [mode, setMode] = useState(plan.mode || "weekly");
+  const [plannerTab, setPlannerTab] = useState(initTab === "goal" ? "goal" : "plan");
   // weekly: { 0: { name:"", exercises:[] }, ... }
   // Migrate old string format
   const migrateWeekly = (w) => {
@@ -2171,11 +2378,49 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="tab-row" style={{ marginBottom: 20 }}>
-          <button className={`tab-btn ${mode === "weekly" ? "active" : ""}`} onClick={() => setMode("weekly")}>7 días fijos</button>
-          <button className={`tab-btn ${mode === "cycle" ? "active" : ""}`} onClick={() => setMode("cycle")}>Ciclo personalizado</button>
+          <button className={`tab-btn ${plannerTab === "plan" && mode === "weekly" ? "active" : ""}`} onClick={() => { setPlannerTab("plan"); setMode("weekly"); }}>7 días fijos</button>
+          <button className={`tab-btn ${plannerTab === "plan" && mode === "cycle" ? "active" : ""}`} onClick={() => { setPlannerTab("plan"); setMode("cycle"); }}>Ciclo</button>
+          <button className={`tab-btn ${plannerTab === "goal" ? "active" : ""}`} onClick={() => setPlannerTab("goal")}>🎯 Meta</button>
         </div>
 
-        {mode === "weekly" && (
+        {/* ── Meta Semanal tab ── */}
+        {plannerTab === "goal" && (() => {
+          const target = weeklyGoal?.target || 4;
+          const thisWeek = sessions.filter(s => (new Date() - new Date(s.date+"T00:00:00"))/86400000 <= 7).length;
+          const pct = Math.min(thisWeek / target, 1);
+          const done = pct >= 1;
+          return (
+            <div>
+              <div style={{ textAlign:"center", marginBottom:24 }}>
+                <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:64, fontWeight:900, color: done?"#22c55e":"var(--accent)", lineHeight:1 }}>
+                  {thisWeek}<span style={{ fontSize:32, color:"var(--text-muted)" }}>/{target}</span>
+                </div>
+                <div style={{ fontSize:13, color:"var(--text-muted)", marginBottom:14 }}>sesiones esta semana</div>
+                <div style={{ background:"var(--border)", borderRadius:20, height:12, overflow:"hidden", marginBottom:10, maxWidth:300, margin:"0 auto 10px" }}>
+                  <div style={{ height:"100%", background:done?"#22c55e":"var(--accent)", width:`${pct*100}%`, borderRadius:20, transition:"width 0.5s ease" }}/>
+                </div>
+                {done && <div style={{ color:"#22c55e", fontWeight:700, fontSize:16 }}>🎉 ¡Meta cumplida esta semana!</div>}
+              </div>
+              <div className="field" style={{ marginBottom:20 }}>
+                <label className="field-label">Sesiones por semana (meta)</label>
+                <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
+                  {[2,3,4,5,6,7].map(n => (
+                    <button key={n}
+                      onClick={() => onSaveGoal({ target: n })}
+                      style={{ width:48, height:48, borderRadius:12, border:"2px solid", borderColor:(weeklyGoal?.target||4)===n?"var(--accent)":"var(--border)", background:(weeklyGoal?.target||4)===n?"var(--accent)":"var(--input-bg)", color:(weeklyGoal?.target||4)===n?"white":"var(--text)", fontFamily:"Barlow Condensed,sans-serif", fontSize:22, fontWeight:800, cursor:"pointer", transition:"all 0.2s" }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ padding:"12px 16px", background:"var(--input-bg)", borderRadius:12, fontSize:13, color:"var(--text-muted)", textAlign:"center" }}>
+                💡 La semana se cuenta desde hoy hacia los últimos 7 días
+              </div>
+            </div>
+          );
+        })()}
+
+        {plannerTab === "plan" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {DAYS_ES.map((day, i) => {
               const dayData = weekly[i] || { name: "", exercises: [] };
@@ -2197,7 +2442,7 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
           </div>
         )}
 
-        {mode === "cycle" && (
+        {plannerTab === "plan" && mode === "cycle" && (
           <div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {cycle.map((d, i) => {
@@ -2234,7 +2479,9 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
           </div>
         )}
 
-        <button className="btn-primary" style={{ width: "100%", marginTop: 16 }} onClick={saveCycle}>💾 Guardar planificador</button>
+        {plannerTab === "plan" && (
+          <button className="btn-primary" style={{ width: "100%", marginTop: 16 }} onClick={saveCycle}>💾 Guardar planificador</button>
+        )}
       </div>
     </div>
   );
@@ -2244,72 +2491,106 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions }) {
 // ─── Progress Modal ───────────────────────────────────────────────────────────
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
-function OnboardingModal({ user, onComplete }) {
+function OnboardingModal({ user, onComplete, onSetGoal }) {
   const [step, setStep] = useState(0);
+  const [selectedGoal, setSelectedGoal] = useState(4);
+  const firstName = user.name?.split(" ")[0] || "atleta";
+
   const steps = [
     {
-      emoji: "👋",
-      title: `¡Bienvenido, ${user.name?.split(" ")[0] || "atleta"}!`,
-      desc: "GymTracker es tu compañero de entrenamiento. Te ayuda a registrar sesiones, ver tu progreso y mejorar semana a semana.",
+      emoji: null, // Rex illustrated
+      title: `¡Hola, ${firstName}! 👋`,
+      desc: "Soy tu nueva mancuerna parlante 🏋️ Voy a acompañarte en cada entrenamiento, recordarte qué músculo te falta y celebrar tus logros.",
       content: (
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:16 }}>
-          {[
-            { icon:"🏋️", label:"Registra entrenamientos" },
-            { icon:"📈", label:"Ve tu progreso" },
-            { icon:"🏆", label:"Rompe récords personales" },
-            { icon:"👥", label:"Compite con amigos" },
-          ].map(f => (
-            <div key={f.label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 10px", textAlign:"center" }}>
-              <div style={{ fontSize:24, marginBottom:6 }}>{f.icon}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:"var(--text)" }}>{f.label}</div>
+        <div style={{ marginTop: 20 }}>
+          {/* Mini Rex */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <div style={{ position: "relative", width: 90, height: 90 }}>
+              <svg viewBox="0 0 68 68" width="90" height="90" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="34" cy="34" r="33" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.5)" strokeWidth="1.5"/>
+                <rect x="14" y="31" width="40" height="6" rx="3" fill="#3b82f6" opacity="0.9"/>
+                <rect x="8"  y="25" width="9" height="18" rx="4" fill="#3b82f6"/>
+                <rect x="5"  y="28" width="5" height="12" rx="2.5" fill="#3b82f6" opacity="0.7"/>
+                <rect x="51" y="25" width="9" height="18" rx="4" fill="#3b82f6"/>
+                <rect x="58" y="28" width="5" height="12" rx="2.5" fill="#3b82f6" opacity="0.7"/>
+                <circle cx="34" cy="34" r="10" fill="var(--surface)" stroke="rgba(59,130,246,0.5)" strokeWidth="1"/>
+                <circle cx="30.5" cy="32" r="1.8" fill="#3b82f6"/>
+                <circle cx="37.5" cy="32" r="1.8" fill="#3b82f6"/>
+                <circle cx="31.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
+                <circle cx="38.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
+                <path d="M30 36.5 Q34 40 38 36.5" stroke="#3b82f6" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+              </svg>
             </div>
-          ))}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            {[
+              { icon:"🏋️", label:"Registrá entrenamientos" },
+              { icon:"📈", label:"Seguí tu progreso" },
+              { icon:"🏆", label:"Rompé records personales" },
+              { icon:"👥", label:"Competí con amigos" },
+            ].map(f => (
+              <div key={f.label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 10px", textAlign:"center" }}>
+                <div style={{ fontSize:22, marginBottom:5 }}>{f.icon}</div>
+                <div style={{ fontSize:12, fontWeight:600, color:"var(--text)" }}>{f.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
-      )
+      ),
+    },
+    {
+      emoji: "🎯",
+      title: "¿Cuántos días por semana vas a entrenar?",
+      desc: "Voy a recordarte tu meta cada semana y celebrar cuando la cumplas. Sé honesto, ¡empezar con poco y cumplir es mejor que prometer mucho!",
+      content: (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: 20 }}>
+            {[2, 3, 4, 5, 6].map(n => {
+              const labels = { 2:"Principiante", 3:"Regular", 4:"Dedicado", 5:"Serio", 6:"Beast" };
+              const colors = { 2:"#22c55e", 3:"#3b82f6", 4:"#f59e0b", 5:"#f97316", 6:"#ef4444" };
+              const sel = selectedGoal === n;
+              return (
+                <button key={n} onClick={() => { setSelectedGoal(n); onSetGoal && onSetGoal({ target: n }); }}
+                  style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, width:70, padding:"12px 8px", borderRadius:14, border:"2px solid", borderColor: sel ? colors[n] : "var(--border)", background: sel ? `${colors[n]}18` : "var(--input-bg)", cursor:"pointer", transition:"all 0.2s" }}>
+                  <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:32, fontWeight:900, color: sel ? colors[n] : "var(--text-muted)", lineHeight:1 }}>{n}</span>
+                  <span style={{ fontSize:9, fontWeight:700, color: sel ? colors[n] : "var(--text-muted)", letterSpacing:0.5 }}>{labels[n]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"12px 16px", textAlign:"center", fontSize:13, color:"var(--text-muted)" }}>
+            {selectedGoal <= 2 && "💡 Perfecto para arrancar. ¡La consistencia es lo que importa!"}
+            {selectedGoal === 3 && "💡 3 días es ideal para recuperarse bien y progresar."}
+            {selectedGoal === 4 && "💡 El clásico. ¡4 días es el punto dulce para la mayoría!"}
+            {selectedGoal === 5 && "💡 ¡Ambicioso! Recordá descansar bien entre sesiones."}
+            {selectedGoal >= 6 && "💡 ¡Nivel beast! Asegurate de alternar grupos musculares."}
+          </div>
+        </div>
+      ),
     },
     {
       emoji: "📝",
-      title: "Registra tu primer entrenamiento",
-      desc: "Toca el botón + o ve a la pestaña Nuevo entrenamiento. Elige los ejercicios, agrega peso y repeticiones, y guarda.",
+      title: "¿Cómo registrar una sesión?",
+      desc: "Tenés dos modos según si querés registrar mientras entrenás o después.",
       content: (
         <div style={{ marginTop:16 }}>
-          <div style={{ background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:12, padding:14 }}>
-            <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.8 }}>
-              <div>1️⃣ Ve a <strong style={{ color:"var(--accent)" }}>Nuevo entrenamiento</strong></div>
-              <div>2️⃣ Elige el modo: <strong>⚡ En vivo</strong> (mientras entrenas) o <strong>📝 Registrar</strong> (después)</div>
-              <div>3️⃣ Agrega ejercicios con peso y repeticiones</div>
-              <div>4️⃣ Guarda tu sesión al terminar</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+            <div style={{ background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.25)", borderRadius:12, padding:14 }}>
+              <div style={{ fontSize:22, marginBottom:6 }}>⚡</div>
+              <div style={{ fontWeight:700, fontSize:13, color:"var(--accent)", marginBottom:4 }}>En vivo</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Timer de descanso automático, marcás cada serie mientras entrenás.</div>
+            </div>
+            <div style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:12, padding:14 }}>
+              <div style={{ fontSize:22, marginBottom:6 }}>📝</div>
+              <div style={{ fontWeight:700, fontSize:13, color:"#22c55e", marginBottom:4 }}>Registrar</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Completás los datos después de entrenar con calma.</div>
             </div>
           </div>
-          <div style={{ marginTop:12, background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.2)", borderRadius:10, padding:12 }}>
-            <div style={{ fontSize:12, color:"var(--text-muted)" }}>
-              💡 <strong style={{ color:"#22c55e" }}>Tip:</strong> En modo En vivo, el timer de descanso se activa automáticamente cuando marcas una serie como ✓ hecha.
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      emoji: "⚖️",
-      title: "Configura tu perfil",
-      desc: "Agrega tu peso, altura y objetivo para recibir recomendaciones personalizadas de calorías y proteínas.",
-      content: (
-        <div style={{ marginTop:16 }}>
-          <div style={{ background:"rgba(168,85,247,0.08)", border:"1px solid rgba(168,85,247,0.2)", borderRadius:12, padding:14 }}>
-            <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.8 }}>
-              <div>⚖️ Ve a <strong style={{ color:"#a855f7" }}>Peso & Estatura</strong> en el menú lateral</div>
-              <div>🎯 Elige tu objetivo: Déficit, Mantenimiento o Volumen</div>
-              <div>📊 El sistema calculará tus calorías y proteínas diarias</div>
-              <div>📸 Agrega fotos de progreso semanales para ver tu transformación</div>
-            </div>
-          </div>
-          <div style={{ marginTop:12, background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:10, padding:12 }}>
-            <div style={{ fontSize:12, color:"var(--text-muted)" }}>
-              🤖 <strong style={{ color:"#f59e0b" }}>IA integrada:</strong> Puedes analizar tus fotos de progreso con inteligencia artificial para ver cambios musculares.
-            </div>
+          <div style={{ background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:10, padding:12, fontSize:12, color:"var(--text-muted)" }}>
+            🤖 <strong style={{ color:"#f59e0b" }}>IA integrada:</strong> Podés analizar fotos de progreso y recibir recomendaciones personalizadas.
           </div>
         </div>
-      )
+      ),
     },
   ];
 
@@ -2318,7 +2599,7 @@ function OnboardingModal({ user, onComplete }) {
 
   return (
     <div className="overlay" style={{ zIndex:9999, background:"rgba(0,0,0,0.85)" }}>
-      <div className="modal" style={{ maxWidth:480, padding:28 }} onClick={e=>e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth:440, padding:28 }} onClick={e=>e.stopPropagation()}>
         {/* Progress dots */}
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:24 }}>
           {steps.map((_,i) => (
@@ -2327,8 +2608,8 @@ function OnboardingModal({ user, onComplete }) {
         </div>
 
         {/* Content */}
-        <div style={{ textAlign:"center", marginBottom:8 }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>{current.emoji}</div>
+        <div style={{ textAlign:"center", marginBottom:4 }}>
+          {current.emoji && <div style={{ fontSize:48, marginBottom:12 }}>{current.emoji}</div>}
           <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, marginBottom:8 }}>{current.title}</div>
           <div style={{ fontSize:14, color:"var(--text-muted)", lineHeight:1.6 }}>{current.desc}</div>
         </div>
@@ -2344,14 +2625,14 @@ function OnboardingModal({ user, onComplete }) {
           )}
           <button
             onClick={() => isLast ? onComplete() : setStep(s=>s+1)}
-            style={{ flex:2, padding:"11px 0", borderRadius:10, border:"none", background:"var(--accent)", color:"white", fontWeight:700, fontSize:15, cursor:"pointer" }}>
+            style={{ flex:2, padding:"12px 0", borderRadius:10, border:"none", background:"var(--accent)", color:"white", fontWeight:800, fontSize:15, cursor:"pointer" }}>
             {isLast ? "¡Empezar a entrenar! 💪" : "Siguiente →"}
           </button>
         </div>
 
         {!isLast && (
           <button onClick={onComplete} style={{ display:"block", width:"100%", marginTop:10, background:"none", border:"none", color:"var(--text-muted)", fontSize:12, cursor:"pointer", padding:4 }}>
-            Omitir tutorial
+            Omitir
           </button>
         )}
       </div>
@@ -5171,104 +5452,435 @@ function LoginScreen() {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 // ─── Músculo más descuidado ────────────────────────────────────────────────────
-function NeglectedMuscle({ sessions, onStartSession }) {
-  if (!sessions || sessions.length === 0) return null;
+// ─── REX — Mascota motivadora (Mancuerna) ────────────────────────────────────
+const REX_MOODS = {
+  hype:     { face: "💪", color: "#3b82f6", glow: "#3b82f620" },
+  happy:    { face: "🏋️", color: "#22c55e", glow: "#22c55e20" },
+  proud:    { face: "🥇", color: "#f59e0b", glow: "#f59e0b20" },
+  warning:  { face: "😬", color: "#f59e0b", glow: "#f59e0b20" },
+  shocked:  { face: "😱", color: "#ef4444", glow: "#ef444420" },
+  chill:    { face: "😎", color: "#8b5cf6", glow: "#8b5cf620" },
+  sleepy:   { face: "😴", color: "#6b7280", glow: "#6b728020" },
+  celebrate:{ face: "🎉", color: "#f97316", glow: "#f9731620" },
+};
 
-  // Para cada músculo, encontrar la fecha más reciente en que fue entrenado
+function DumbbellAvatar({ mood, bounce, size = 64 }) {
+  const color = mood.color;
+  // Different dumbbell expressions per mood face
+  const expressions = {
+    "💪": { eyes: "◕ ◕", mouth: "▽", extra: "💥" },
+    "🏋️": { eyes: "● ●", mouth: "‿", extra: "" },
+    "🥇": { eyes: "★ ★", mouth: "‿", extra: "✨" },
+    "😬": { eyes: "· ·", mouth: "ᗒ", extra: "⚡" },
+    "😱": { eyes: "O O", mouth: "○", extra: "!!" },
+    "😎": { eyes: "▬ ▬", mouth: "⌣", extra: "🕶" },
+    "😴": { eyes: "— —", mouth: "ᴗ", extra: "💤" },
+    "🎉": { eyes: "★ ★", mouth: "D", extra: "🎊" },
+  };
+  const expr = expressions[mood.face] || expressions["🏋️"];
+
+  return (
+    <div style={{
+      width: size, height: size,
+      flexShrink: 0, position: "relative",
+      transform: bounce ? "scale(1.2) rotate(-8deg)" : "scale(1) rotate(0deg)",
+      transition: "transform 0.35s cubic-bezier(.36,.07,.19,.97)",
+    }}>
+      <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: "block" }}>
+        {/* Glow */}
+        <defs>
+          <filter id={`glow-${mood.face}`}>
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        {/* Dumbbell body */}
+        <rect x="18" y="28" width="28" height="8" rx="4" fill={color} filter={`url(#glow-${mood.face})`} />
+        {/* Left weight stack */}
+        <rect x="6" y="20" width="14" height="24" rx="6" fill={color} opacity="0.9" />
+        <rect x="4" y="24" width="16" height="16" rx="5" fill={color} />
+        {/* Right weight stack */}
+        <rect x="44" y="20" width="14" height="24" rx="6" fill={color} opacity="0.9" />
+        <rect x="44" y="24" width="16" height="16" rx="5" fill={color} />
+        {/* Face on bar center */}
+        <circle cx="32" cy="32" r="10" fill="var(--card)" stroke={color} strokeWidth="1.5" />
+        {/* Eyes */}
+        <circle cx="28.5" cy="30" r="1.8" fill={color} />
+        <circle cx="35.5" cy="30" r="1.8" fill={color} />
+        {/* Mouth - changes by mood */}
+        {mood.face === "😱" ? (
+          <circle cx="32" cy="35" r="2.5" fill={color} />
+        ) : mood.face === "😎" ? (
+          <>
+            <rect x="26" y="28.5" width="5" height="2.5" rx="1" fill={color} />
+            <rect x="33" y="28.5" width="5" height="2.5" rx="1" fill={color} />
+            <path d="M28 35 Q32 37.5 36 35" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+          </>
+        ) : mood.face === "😴" ? (
+          <>
+            <line x1="26.5" y1="29.5" x2="30.5" y2="29.5" stroke={color} strokeWidth="2" strokeLinecap="round" />
+            <line x1="33.5" y1="29.5" x2="37.5" y2="29.5" stroke={color} strokeWidth="2" strokeLinecap="round" />
+            <path d="M28 35 Q32 33 36 35" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+          </>
+        ) : mood.face === "😬" ? (
+          <>
+            <path d="M28 34.5 Q32 36 36 34.5" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+            <line x1="28" y1="34.5" x2="36" y2="34.5" stroke={color} strokeWidth="1" opacity="0.5" />
+          </>
+        ) : (
+          <path d="M28 34 Q32 38 36 34" stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" />
+        )}
+      </svg>
+      {/* Floating extra icon */}
+      {expr.extra && (
+        <div style={{
+          position: "absolute", top: -8, right: -8, fontSize: 14, lineHeight: 1,
+          animation: bounce ? "none" : "floatBadge 2s ease-in-out infinite",
+        }}>
+          {expr.extra}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getRexContext(sessions, todayPlanned, streak, inNewSession = false) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr2 = today.toISOString().slice(0,10);
+
+  // Última sesión
+  const sorted = [...sessions].sort((a,b) => b.date.localeCompare(a.date));
+  const lastSession = sorted[0];
+  const daysSinceLast = lastSession
+    ? Math.round((today - new Date(lastSession.date + "T00:00:00")) / 86400000)
+    : 999;
+
+  // ¿Ya entrenó hoy? (la sesión fue GUARDADA/registrada con fecha de hoy)
+  const trainedToday = sessions.some(s => s.date === todayStr2);
+
+  // Músculo más descuidado
   const lastTrained = {};
   sessions.forEach(s => {
     (s.exercises || []).forEach(ex => {
       const db = EXERCISE_DB.find(e => e.name === ex.name);
-      if (db && db.muscle) {
-        const d = s.date;
-        if (!lastTrained[db.muscle] || d > lastTrained[db.muscle]) {
-          lastTrained[db.muscle] = d;
-        }
+      if (db?.muscle) {
+        if (!lastTrained[db.muscle] || s.date > lastTrained[db.muscle]) lastTrained[db.muscle] = s.date;
       }
     });
   });
-
-  const today = new Date(); today.setHours(0,0,0,0);
-
-  // Calcular días desde último entrenamiento por músculo
-  const muscleAge = MUSCLES.map(m => {
+  const muscleAge = MUSCLES.filter(m => m !== "Cardio").map(m => {
     if (!lastTrained[m]) return { muscle: m, days: 999, never: true };
-    const last = new Date(lastTrained[m] + "T00:00:00");
-    const days = Math.round((today - last) / 86400000);
+    const days = Math.round((today - new Date(lastTrained[m] + "T00:00:00")) / 86400000);
     return { muscle: m, days, never: false };
+  }).sort((a,b) => b.days - a.days);
+  const neglected = muscleAge[0];
+
+  // Músculo más entrenado esta semana
+  const weekSessions = sessions.filter(s => {
+    const d = new Date(s.date + "T00:00:00");
+    return (today - d) / 86400000 <= 7;
   });
+  const weekMuscles = {};
+  weekSessions.forEach(s => (s.exercises||[]).forEach(ex => {
+    const db = EXERCISE_DB.find(e => e.name === ex.name);
+    if (db?.muscle) weekMuscles[db.muscle] = (weekMuscles[db.muscle] || 0) + 1;
+  }));
+  const mostThisWeek = Object.entries(weekMuscles).sort((a,b)=>b[1]-a[1])[0]?.[0];
 
-  // Ignorar Cardio para la alerta principal
-  const ranked = muscleAge
-    .filter(m => m.muscle !== "Cardio")
-    .sort((a, b) => b.days - a.days);
+  // Hora del día
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "¡Buenos días" : hour < 19 ? "¡Buenas tardes" : "¡Buenas noches";
 
-  const worst = ranked[0];
-  if (!worst) return null;
+  // ── Árbol de decisiones para el mensaje ──────────────────────────────────
+  // 1. Sin sesiones aún → bienvenida
+  if (sessions.length === 0) {
+    return {
+      mood: "hype",
+      title: "¡Hora de empezar!",
+      message: `¡Hola! Soy tu compañero de gym 💪 Registrá tu primera sesión y comenzamos juntos.`,
+      cta: null,
+    };
+  }
 
-  const urgency = worst.days >= 14 ? "high"
-    : worst.days >= 7  ? "mid"
-    : null;
+  // 2. Ya entrenó hoy → solo en dashboard (no en nueva sesión)
+  if (trainedToday && !inNewSession) {
+    const todaySession = sorted.find(s => s.date === todayStr2);
+    const workoutName = todaySession?.workout || null;
+    const muscle = todaySession?.exercises?.[0]?.name
+      ? EXERCISE_DB.find(e => e.name === todaySession.exercises[0].name)?.muscle
+      : null;
+    const msgs = muscle ? [
+      `Esos ${muscle.toLowerCase()} te lo van a agradecer mañana. ¡Bien hecho!`,
+      `${muscle} trabajado ✅ ¡Descansá bien!`,
+      `¡${muscle} destruido en buena onda! Mañana volvemos.`,
+    ] : [
+      "¡Lo diste todo hoy! Descansá bien, que mañana volvemos.",
+      "Sesión registrada. ¡Bien hecho! 💪",
+    ];
+    const msg = msgs[Math.floor(Date.now() / 86400000) % msgs.length];
+    return {
+      mood: "proud",
+      title: workoutName ? `✅ ${workoutName} — ¡listo!` : "✅ ¡Entrenamiento registrado!",
+      message: msg,
+      cta: null,
+    };
+  }
 
-  if (!urgency) return null; // Todo bien, no mostrar nada
+  // 2b. Ya entrenó hoy y está en nueva sesión → animar segunda sesión o músculo diferente
+  if (trainedToday && inNewSession) {
+    const todaySession = sorted.find(s => s.date === todayStr2);
+    const muscle = todaySession?.exercises?.[0]?.name
+      ? EXERCISE_DB.find(e => e.name === todaySession.exercises[0].name)?.muscle
+      : null;
+    const otros = MUSCLES.filter(m => m !== muscle && m !== "Cardio");
+    const sugerido = otros[Math.floor(new Date().getHours()) % otros.length];
+    return {
+      mood: "happy",
+      title: `¿Doble sesión hoy? 💪`,
+      message: muscle && sugerido
+        ? `Ya hiciste ${muscle.toLowerCase()} hoy. ¿Y si le das a ${sugerido.toLowerCase()} también? ¡Rex te apoya!`
+        : `¡Viniste por más! Rex está orgulloso. ¿Qué entrenamos?`,
+      cta: sugerido || null,
+      neglectedMuscle: sugerido || null,
+    };
+  }
 
-  const colors = { high: { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.3)", text: "#ef4444" },
-                   mid:  { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", text: "#f59e0b" } };
-  const c = colors[urgency];
+  // 3. Hay plan de hoy
+  if (todayPlanned) {
+    const muscleNames = { Pecho: "pechito", Espalda: "espalda", Piernas: "piernas", Hombros: "hombros", Bíceps: "bíceps", Tríceps: "tríceps", Abdomen: "abdomen", Glúteos: "glúteos" };
+    const friendly = muscleNames[todayPlanned] || todayPlanned.toLowerCase();
+    return {
+      mood: "hype",
+      title: `¡Hoy toca ${friendly}! 📅`,
+      message: `Tenés ${todayPlanned} en el plan de hoy. ¿Qué esperás? ¡Rex ya está calentando!`,
+      cta: todayPlanned,
+    };
+  }
 
-  // Sugerir 3 ejercicios para ese músculo
-  const suggestions = EXERCISE_DB.filter(e => e.muscle === worst.muscle).slice(0, 3);
+  // 4. Lleva muchos días sin entrenar
+  if (daysSinceLast >= 7) {
+    return {
+      mood: "shocked",
+      title: `¡${daysSinceLast} días sin verte! 😱`,
+      message: `Rex te extrañó... pero más tus músculos. ¡Volvé hoy y olvidemos que esto pasó!`,
+      cta: null,
+    };
+  }
+  if (daysSinceLast >= 3) {
+    return {
+      mood: "warning",
+      title: `${daysSinceLast} días sin entrenar...`,
+      message: `Rex está un poco preocupado. No mucho. Bueno, sí. ¡Andá a mover el cuerpo!`,
+      cta: null,
+    };
+  }
+
+  // 5. Músculo muy descuidado (>10 días)
+  if (neglected && neglected.days >= 10) {
+    const muscleNames2 = { Pecho: "el pecho", Espalda: "la espalda", Piernas: "las piernas", Hombros: "los hombros", Bíceps: "el bíceps", Tríceps: "el tríceps", Abdomen: "el abdomen", Glúteos: "los glúteos" };
+    const friendly2 = muscleNames2[neglected.muscle] || neglected.muscle.toLowerCase();
+    const msgs = [
+      `¡${neglected.days} días sin trabajar ${friendly2}! Rex opina que se está poniendo celoso.`,
+      `¿${friendly2}? Nunca oí hablar de eso... ah espera, ¡tenés ${neglected.days} días sin entrenarlo!`,
+      `Rex dice: "${friendly2} llamó. Quiere saber si te olvidaste de él." 📞`,
+    ];
+    return {
+      mood: "warning",
+      title: `¡${neglected.muscle} te necesita! ⚠️`,
+      message: msgs[neglected.days % msgs.length],
+      cta: neglected.muscle,
+      neglectedMuscle: neglected.muscle,
+      neglectedDays: neglected.days,
+    };
+  }
+
+  // 6. Entrenó ayer → animar continuidad + recordar registrar
+  if (daysSinceLast === 1 && streak >= 2) {
+    const fireMsg = streak >= 7
+      ? `¡${streak} días seguidos! Rex no puede más de la emoción. 🔥🔥🔥`
+      : `¡${streak} días seguidos! Registrá el de hoy para no perder la racha.`;
+    return {
+      mood: "happy",
+      title: `¡Racha de ${streak} días! 🔥`,
+      message: fireMsg,
+      cta: null,
+    };
+  }
+
+  // 7. Mismo músculo mucho esta semana → variar
+  if (mostThisWeek && (weekMuscles[mostThisWeek] || 0) >= 3) {
+    const muscleNames3 = { Pecho: "el pecho", Espalda: "la espalda", Piernas: "las piernas" };
+    const friendly3 = muscleNames3[mostThisWeek] || mostThisWeek.toLowerCase();
+    return {
+      mood: "chill",
+      title: `Ojo con ${mostThisWeek}... 😎`,
+      message: `Esta semana entrenaste ${friendly3} ${weekMuscles[mostThisWeek]} veces. Rex sugiere darle amor a otro músculo hoy.`,
+      cta: null,
+    };
+  }
+
+  // 8. Mensaje motivador genérico según hora
+  const genericMsgs = hour < 7
+    ? { mood: "sleepy", title: `¡Madrugador! 🌅`, message: `Rex todavía está dormido pero igual te aplaude. ¡Vamos!` }
+    : hour < 12
+    ? { mood: "hype",   title: `${greeting}! ⚡`,  message: `Rex está listo. ¿Vos? ¡A entrenar!` }
+    : hour < 19
+    ? { mood: "happy",  title: `¡A romperla hoy! 💪`, message: `Otro día, otra oportunidad. ¡Rex confía en vos!` }
+    : { mood: "chill",  title: `¡Entreno nocturno! 🌙`, message: `Rex ama los nocturnos. Más tranqui, más enfoque. ¡Dale!` };
+  return { ...genericMsgs, cta: null };
+}
+
+function RexMascot({ sessions, todayPlanned, streak, onStartSession, inNewSession = false }) {
+  const [bounce, setBounce] = useState(false);
+  const ctx = getRexContext(sessions, todayPlanned, streak, inNewSession);
+  const mood = REX_MOODS[ctx.mood] || REX_MOODS.happy;
+
+  // Bounce animation on mount
+  useEffect(() => {
+    setBounce(true);
+    const t = setTimeout(() => setBounce(false), 600);
+    return () => clearTimeout(t);
+  }, [ctx.mood]);
+
+  const suggestions = ctx.neglectedMuscle
+    ? EXERCISE_DB.filter(e => e.muscle === ctx.neglectedMuscle).slice(0, 3)
+    : [];
 
   return (
-    <div style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: c.text, textTransform: "uppercase", marginBottom: 6 }}>
-            {urgency === "high" ? "🚨 Músculo muy descuidado" : "⚠️ Músculo descuidado"}
+    <div style={{
+      background: `linear-gradient(135deg, ${mood.glow}, transparent)`,
+      border: `1.5px solid ${mood.color}40`,
+      borderRadius: 20,
+      padding: "16px 18px",
+      marginBottom: 20,
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* Fondo decorativo — mancuerna grande */}
+      <div style={{ position:"absolute", right:-16, top:-10, fontSize:80, opacity:0.04, userSelect:"none", pointerEvents:"none", transform:"rotate(25deg)" }}>🏋️</div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        {/* Avatar — Mancuerna SVG con cara */}
+        <div
+          style={{
+            width: 68, height: 68, flexShrink: 0, position: "relative",
+            transform: bounce ? "scale(1.18) rotate(-6deg)" : "scale(1)",
+            transition: "transform 0.35s cubic-bezier(.36,.07,.19,.97)",
+            filter: `drop-shadow(0 0 10px ${mood.color}50)`,
+          }}
+        >
+          <svg viewBox="0 0 68 68" width="68" height="68" xmlns="http://www.w3.org/2000/svg">
+            {/* Círculo fondo */}
+            <circle cx="34" cy="34" r="33" fill={`${mood.color}18`} stroke={`${mood.color}60`} strokeWidth="1.5"/>
+            {/* Mancuerna — barra */}
+            <rect x="14" y="31" width="40" height="6" rx="3" fill={mood.color} opacity="0.9"/>
+            {/* Pesas izquierda */}
+            <rect x="8"  y="25" width="9" height="18" rx="4" fill={mood.color}/>
+            <rect x="5"  y="28" width="5" height="12" rx="2.5" fill={mood.color} opacity="0.7"/>
+            {/* Pesas derecha */}
+            <rect x="51" y="25" width="9" height="18" rx="4" fill={mood.color}/>
+            <rect x="58" y="28" width="5" height="12" rx="2.5" fill={mood.color} opacity="0.7"/>
+            {/* Cara en el centro de la barra */}
+            <circle cx="34" cy="34" r="10" fill="var(--surface)" stroke={`${mood.color}80`} strokeWidth="1"/>
+            {/* Ojos */}
+            {mood.face === "😴" ? (
+              <>
+                <path d="M29 32 Q31 30 33 32" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                <path d="M35 32 Q37 30 39 32" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+              </>
+            ) : mood.face === "😱" ? (
+              <>
+                <circle cx="30.5" cy="32" r="2" fill={mood.color}/>
+                <circle cx="37.5" cy="32" r="2" fill={mood.color}/>
+              </>
+            ) : (
+              <>
+                <circle cx="30.5" cy="32" r="1.8" fill={mood.color}/>
+                <circle cx="37.5" cy="32" r="1.8" fill={mood.color}/>
+                {/* Brillo ojos */}
+                <circle cx="31.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
+                <circle cx="38.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
+              </>
+            )}
+            {/* Boca según estado */}
+            {(mood.face === "😁" || mood.face === "🤩" || mood.face === "😤") && (
+              <path d="M30 36.5 Q34 40 38 36.5" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            )}
+            {mood.face === "😬" && (
+              <path d="M30 37 Q34 35 38 37" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            )}
+            {mood.face === "😱" && (
+              <ellipse cx="34" cy="38" rx="3" ry="2.5" fill={mood.color} opacity="0.8"/>
+            )}
+            {mood.face === "😎" && (
+              <>
+                <path d="M30 36.5 Q34 40 38 36.5" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                {/* Gafas */}
+                <rect x="27.5" y="30" width="6" height="4" rx="2" fill="none" stroke={mood.color} strokeWidth="1"/>
+                <rect x="34.5" y="30" width="6" height="4" rx="2" fill="none" stroke={mood.color} strokeWidth="1"/>
+                <line x1="33.5" y1="32" x2="34.5" y2="32" stroke={mood.color} strokeWidth="1"/>
+              </>
+            )}
+            {mood.face === "😴" && (
+              <path d="M31 37 Q34 36 37 37" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            )}
+            {(mood.face !== "😁" && mood.face !== "🤩" && mood.face !== "😤" && mood.face !== "😬" && mood.face !== "😱" && mood.face !== "😎" && mood.face !== "😴") && (
+              <path d="M30 36.5 Q34 40 38 36.5" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            )}
+          </svg>
+        </div>
+
+        {/* Burbuja de texto */}
+        <div style={{ flex:1, minWidth:0 }}>
+          {/* Nombre de Rex */}
+          <div style={{ fontSize:9, fontWeight:800, letterSpacing:2, color: mood.color, textTransform:"uppercase", marginBottom:2 }}>
+            🏋️ tu compañero de gym
           </div>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, color: "var(--text)", marginBottom: 4 }}>
-            {worst.muscle}
-            <span style={{ fontSize: 13, fontWeight: 400, color: c.text, marginLeft: 10 }}>
-              {worst.never ? "Nunca entrenado" : `${worst.days} días sin entrenar`}
-            </span>
+          {/* Título */}
+          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color:"var(--text)", lineHeight:1.1, marginBottom:4 }}>
+            {ctx.title}
           </div>
-          {/* Línea de tiempo de todos los músculos */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-            {ranked.slice(0, 6).map(m => (
-              <div key={m.muscle} style={{
-                fontSize: 11, padding: "2px 8px", borderRadius: 20,
-                background: m.muscle === worst.muscle ? `${c.text}22` : "var(--input-bg)",
-                border: `1px solid ${m.muscle === worst.muscle ? c.border : "var(--border)"}`,
-                color: m.muscle === worst.muscle ? c.text : "var(--text-muted)",
-                fontWeight: m.muscle === worst.muscle ? 700 : 400,
-              }}>
-                {m.muscle} · {m.never ? "nunca" : `${m.days}d`}
-              </div>
-            ))}
+          {/* Mensaje */}
+          <div style={{ fontSize:13, color:"var(--text-muted)", lineHeight:1.5 }}>
+            {ctx.message}
           </div>
-          {/* Sugerencias de ejercicios */}
+
+          {/* Ejercicios sugeridos si hay músculo descuidado */}
           {suggestions.length > 0 && (
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-muted)" }}>
-              Ejercicios sugeridos:{" "}
-              {suggestions.map((e, i) => (
-                <span key={e.name}>
-                  <strong style={{ color: "var(--text)" }}>{e.name}</strong>
-                  {i < suggestions.length - 1 ? ", " : ""}
+            <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:4 }}>
+              {suggestions.map(e => (
+                <span key={e.name} style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:`${mood.color}15`, border:`1px solid ${mood.color}30`, color:"var(--text)", fontWeight:600 }}>
+                  {e.name}
                 </span>
               ))}
             </div>
           )}
         </div>
-        {onStartSession && (
-          <button
-            onClick={() => onStartSession(worst.muscle)}
-            style={{ background: c.text, border: "none", color: "white", borderRadius: 10, padding: "10px 16px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
-            💪 Entrenar ahora
-          </button>
-        )}
       </div>
+
+      {/* CTA button */}
+      {onStartSession && ctx.neglectedMuscle && (
+        <button
+          onClick={() => onStartSession(ctx.neglectedMuscle)}
+          style={{
+            marginTop:14, width:"100%",
+            background:`linear-gradient(135deg, ${mood.color}, ${mood.color}cc)`,
+            border:"none", color:"white", borderRadius:12,
+            padding:"10px 16px", fontFamily:"Barlow Condensed,sans-serif",
+            fontSize:16, fontWeight:800, cursor:"pointer",
+            letterSpacing:0.5,
+          }}
+        >
+          💪 Entrenar {ctx.neglectedMuscle} ahora
+        </button>
+      )}
     </div>
   );
+}
+
+function NeglectedMuscle({ sessions, onStartSession }) {
+  // Mantenido por compatibilidad pero ya no se usa directamente — Rex lo reemplaza
+  return null;
 }
 
 
@@ -5434,7 +6046,7 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
         ))}
       </div>
 
-      <NeglectedMuscle sessions={sessions} onStartSession={onStartSession} />
+      <RexMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
       <StreakBanner sessions={sessions} />
       <WeeklyChart sessions={sessions} />
       <WeekComparison sessions={sessions} />
@@ -5820,6 +6432,19 @@ function LiveTrainMode({
       acc + ex.sets.filter(s => s.done)
         .reduce((a, s) => a + (parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 1), 0), 0);
     const completedSets = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+    const completionPct = exData.length > 0 ? Math.round(completedSets / exData.reduce((a,e)=>a+e.sets.length,0) * 100) : 0;
+
+    // Pick celebration mood based on performance
+    const celebMood = completionPct >= 90 ? REX_MOODS.celebrate
+      : completionPct >= 60 ? REX_MOODS.proud
+      : REX_MOODS.happy;
+
+    const celebMessages = completionPct >= 90
+      ? ["¡Lo completaste todo! Eso es nivel élite 🔥", "¡100%! Sos una bestia del gym 🏆", "¡Brutal! Rex está sin palabras. Buenas, claro. 💪"]
+      : completionPct >= 60
+      ? ["¡Buen trabajo! Cada serie cuenta 👊", "¡Sesión cumplida! Mañana más 💪", "¡Eso! Consistencia es la clave 🗝️"]
+      : ["Algo es algo. Lo importante es aparecer 💯", "¡Viniste y eso ya es una victoria! 🌟", "El primer paso siempre es el más difícil. ¡Seguí! 🚀"];
+    const celebMsg = celebMessages[Math.floor(Date.now()/86400000) % celebMessages.length];
 
     return (
       <div style={{
@@ -5827,18 +6452,82 @@ function LiveTrainMode({
         display: "flex", flexDirection: "column", padding: "28px 20px",
         animation: "fadeIn 0.4s ease",
       }}>
-        {/* Trophy header */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 64, marginBottom: 8 }}>🏆</div>
-          <div style={{
-            fontFamily: "Barlow Condensed, sans-serif",
-            fontSize: 40, fontWeight: 900, letterSpacing: 1, marginBottom: 4,
-          }}>
+        {/* Mascota celebrando — animada */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <style>{`
+            @keyframes dumbbellCelebrate {
+              0%   { transform: scale(1) rotate(0deg); }
+              15%  { transform: scale(1.3) rotate(-15deg); }
+              30%  { transform: scale(1.2) rotate(12deg); }
+              45%  { transform: scale(1.25) rotate(-10deg); }
+              60%  { transform: scale(1.15) rotate(8deg); }
+              75%  { transform: scale(1.1) rotate(-5deg); }
+              100% { transform: scale(1) rotate(0deg); }
+            }
+            @keyframes confettiFall {
+              0%   { transform: translateY(-20px) rotate(0deg); opacity:1; }
+              100% { transform: translateY(60px) rotate(360deg); opacity:0; }
+            }
+          `}</style>
+
+          {/* Confetti particles */}
+          <div style={{ position: "relative", display: "inline-block" }}>
+            {["🎊","✨","🌟","💥","🎉","⭐","🔥","💫"].map((e, i) => (
+              <div key={i} style={{
+                position: "absolute",
+                left: `${10 + (i * 11) % 80}%`,
+                top: `${(i * 17) % 40}%`,
+                fontSize: 16 + (i % 3) * 4,
+                animation: `confettiFall ${0.8 + (i % 4) * 0.3}s ease-out ${i * 0.1}s forwards`,
+                pointerEvents: "none",
+              }}>{e}</div>
+            ))}
+
+            {/* Mancuerna celebrando */}
+            <div style={{ animation: "dumbbellCelebrate 1s ease-out 0.2s both", display: "inline-block" }}>
+              <svg viewBox="0 0 68 68" width="100" height="100">
+                <defs>
+                  <filter id="glowCelebrate">
+                    <feGaussianBlur stdDeviation="4" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                <circle cx="34" cy="34" r="33" fill={`${celebMood.color}25`} stroke={`${celebMood.color}80`} strokeWidth="2"/>
+                <rect x="14" y="31" width="40" height="6" rx="3" fill={celebMood.color} filter="url(#glowCelebrate)" opacity="0.95"/>
+                <rect x="8"  y="25" width="9" height="18" rx="4" fill={celebMood.color}/>
+                <rect x="5"  y="28" width="5" height="12" rx="2.5" fill={celebMood.color} opacity="0.7"/>
+                <rect x="51" y="25" width="9" height="18" rx="4" fill={celebMood.color}/>
+                <rect x="58" y="28" width="5" height="12" rx="2.5" fill={celebMood.color} opacity="0.7"/>
+                {/* Cara feliz */}
+                <circle cx="34" cy="34" r="10" fill="var(--surface)" stroke={`${celebMood.color}80`} strokeWidth="1"/>
+                <circle cx="30.5" cy="32" r="1.8" fill={celebMood.color}/>
+                <circle cx="37.5" cy="32" r="1.8" fill={celebMood.color}/>
+                {/* Sonrisa grande */}
+                <path d="M28 36 Q34 41 40 36" stroke={celebMood.color} strokeWidth="2" fill="none" strokeLinecap="round"/>
+                {/* Estrellas en los ojos para celebrate */}
+                {completionPct >= 90 && (
+                  <>
+                    <text x="28" y="33.5" fontSize="4.5" textAnchor="middle" fill={celebMood.color}>★</text>
+                    <text x="37" y="33.5" fontSize="4.5" textAnchor="middle" fill={celebMood.color}>★</text>
+                  </>
+                )}
+              </svg>
+            </div>
+          </div>
+
+          {/* Mensaje de celebración */}
+          <div style={{ marginTop: 12, padding: "10px 20px", background: `${celebMood.color}15`, border: `1px solid ${celebMood.color}40`, borderRadius: 14, display: "inline-block", maxWidth: 320 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: celebMood.color, textTransform: "uppercase", marginBottom: 2 }}>🏋️ tu compañero de gym</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{celebMsg}</div>
+          </div>
+        </div>
+
+        {/* Título */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 38, fontWeight: 900, letterSpacing: 1, marginBottom: 4 }}>
             ¡Sesión completada!
           </div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
-            {workout} · {fmt(elapsed)}
-          </div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{workout} · {fmt(elapsed)}</div>
         </div>
 
         {/* Stats grid */}
@@ -6269,21 +6958,43 @@ function StreakBanner({ sessions }) {
   if (streak < 1) return null;
   const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
   const msg   = streak >= 365 ? "¡LEYENDA VIVIENTE!" : streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡INCENDIO TOTAL!" : streak >= 14 ? "¡En llamas!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!";
+  // Next milestone
+  const milestones = [3,7,14,30,90,365];
+  const nextMilestone = milestones.find(m => m > streak) || null;
+  const prevMilestone = [...milestones].reverse().find(m => m <= streak) || 0;
+  const pct = nextMilestone ? ((streak - prevMilestone) / (nextMilestone - prevMilestone)) * 100 : 100;
+
   return (
-    <div style={{ background:`linear-gradient(135deg,${color}18,${color}08)`, border:`1px solid ${color}50`, borderRadius:14, padding:"12px 18px", display:"flex", alignItems:"center", gap:14, marginBottom:20, boxShadow:`0 4px 20px ${color}18` }}>
-      <div style={{ fontSize:34, lineHeight:1 }}>🔥</div>
-      <div style={{ flex:1 }}>
-        <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:11, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:2 }}>{msg}</div>
-        <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
-          <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:34, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
-          <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>días seguidos</span>
+    <div style={{ background:`linear-gradient(135deg,${color}15,${color}05)`, border:`1px solid ${color}40`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:`0 4px 24px ${color}15` }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ fontSize:36, lineHeight:1, filter:`drop-shadow(0 0 8px ${color}80)` }}>🔥</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:10, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:1 }}>{msg}</div>
+          <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
+            <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:38, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
+            <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>días seguidos</span>
+          </div>
         </div>
+        {nextMilestone && (
+          <div style={{ textAlign:"center", flexShrink:0 }}>
+            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, marginBottom:4 }}>Próximo hito</div>
+            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}d</div>
+            <div style={{ fontSize:9, color:"var(--text-muted)" }}>faltan {nextMilestone-streak}</div>
+          </div>
+        )}
       </div>
-      <div style={{ display:"flex", gap:3 }}>
-        {[3,7,14,30,90].map(t => (
-          <div key={t} style={{ width:8, height:8, borderRadius:"50%", background: streak>=t ? color : "var(--border)", transition:"background 0.3s" }} title={`${t}d`} />
-        ))}
-      </div>
+      {/* Progress bar toward next milestone */}
+      {nextMilestone && (
+        <div style={{ marginTop:10 }}>
+          <div style={{ background:"var(--border)", borderRadius:20, height:5, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${color}80,${color})`, borderRadius:20, transition:"width 0.6s ease", boxShadow:`0 0 6px ${color}60` }} />
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{prevMilestone}d</span>
+            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{nextMilestone}d</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -6298,6 +7009,258 @@ function StreakChip({ sessions, compact = false }) {
     </span>
   );
 }
+// ─── Streak Modal ─────────────────────────────────────────────────────────────
+function StreakModal({ sessions, user, onClose }) {
+  const [teamStreaks, setTeamStreaks] = useState([]);
+  const [loadingTeam, setLoadingTeam] = useState(true);
+
+  const streak = getStreak(sessions);
+  const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
+  const milestones = [3, 7, 14, 30, 90, 180, 365];
+  const nextMilestone = milestones.find(m => m > streak) || null;
+  const prevMilestone = [...milestones].reverse().find(m => m <= streak) || 0;
+  const pct = nextMilestone ? ((streak - prevMilestone) / (nextMilestone - prevMilestone)) * 100 : 100;
+
+  // Build last 12 weeks calendar (84 days)
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const sessionDates = new Set(sessions.map(s => s.date));
+
+  // Build 12 weeks grid starting from monday 11 weeks ago
+  const startDay = new Date(today);
+  const dow = (today.getDay() + 6) % 7; // 0=Mon
+  startDay.setDate(startDay.getDate() - dow - 77); // go back 11 full weeks + current week
+
+  const weeks = [];
+  for (let w = 0; w < 12; w++) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(startDay);
+      day.setDate(startDay.getDate() + w * 7 + d);
+      const ds = day.toISOString().slice(0, 10);
+      const isToday = ds === today.toISOString().slice(0, 10);
+      const trained = sessionDates.has(ds);
+      const isFuture = day > today;
+      week.push({ ds, trained, isToday, isFuture, dayNum: day.getDate(), month: day.getMonth() });
+    }
+    weeks.push(week);
+  }
+
+  // Month labels
+  const monthNames = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const monthLabels = weeks.map((week, wi) => {
+    const firstDay = week[0];
+    if (wi === 0 || firstDay.dayNum <= 7) return { wi, label: monthNames[firstDay.month] };
+    return null;
+  }).filter(Boolean);
+
+  // Count active days & best streak
+  const totalActiveDays = sessions.length;
+  function calcBestStreak(sessions) {
+    const dates = [...new Set(sessions.map(s => s.date))].sort();
+    let best = 0, cur = 0;
+    let prev = null;
+    for (const d of dates) {
+      if (prev) {
+        const diff = Math.round((new Date(d + "T00:00:00") - new Date(prev + "T00:00:00")) / 86400000);
+        cur = diff === 1 ? cur + 1 : 1;
+      } else { cur = 1; }
+      best = Math.max(best, cur);
+      prev = d;
+    }
+    return best;
+  }
+  const bestStreak = calcBestStreak(sessions);
+
+  // Load team streaks
+  useEffect(() => {
+    async function load() {
+      setLoadingTeam(true);
+      try {
+        const raw = localStorage.getItem("gym_my_teams");
+        const myTeams = raw ? JSON.parse(raw) : [];
+        const allMembers = [];
+        for (const t of myTeams.slice(0, 2)) {
+          const data = await teamsGet(`team_${t.code}`);
+          if (data?.members) {
+            Object.values(data.members).forEach(m => {
+              if (m.email !== user.email && m.streak != null) {
+                if (!allMembers.find(x => x.email === m.email)) {
+                  allMembers.push({ name: m.name || m.email.split("@")[0], streak: m.streak, email: m.email });
+                }
+              }
+            });
+          }
+        }
+        // Add self
+        const all = [{ name: "Tú", streak, email: user.email, isMe: true }, ...allMembers]
+          .sort((a, b) => b.streak - a.streak);
+        setTeamStreaks(all);
+      } catch(e) { setTeamStreaks([{ name: "Tú", streak, isMe: true }]); }
+      setLoadingTeam(false);
+    }
+    load();
+  }, []);
+
+  const DAY_LABELS = ["L","M","X","J","V","S","D"];
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480, width: "100%" }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3 className="modal-title">🔥 Mi Racha</h3>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Hero streak */}
+        <div style={{ textAlign: "center", padding: "10px 0 20px", borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color, textTransform: "uppercase", marginBottom: 4 }}>
+            {streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡EN LLAMAS!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!"}
+          </div>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 72, fontWeight: 900, color, lineHeight: 1, filter: `drop-shadow(0 0 20px ${color}60)` }}>
+            {streak}
+          </div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 12 }}>días seguidos</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", background: "var(--input-bg)", borderRadius: 8, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
+            ℹ️ La racha se mantiene registrando una sesión por día
+          </div>
+
+          {/* Progress toward next milestone */}
+          {nextMilestone && (
+            <div style={{ maxWidth: 280, margin: "0 auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
+                <span>{prevMilestone}d</span>
+                <span style={{ color, fontWeight: 700 }}>→ {nextMilestone}d</span>
+              </div>
+              <div style={{ background: "var(--border)", borderRadius: 20, height: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: 20, boxShadow: `0 0 10px ${color}60`, transition: "width 0.8s ease" }} />
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
+                {nextMilestone - streak === 1 ? "¡Mañana llegás al hito! 🎯" : `Faltan ${nextMilestone - streak} días para el próximo hito`}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 22 }}>
+          {[
+            { label: "Racha actual", value: `${streak}d`, color },
+            { label: "Mejor racha", value: `${bestStreak}d`, color: "#f59e0b" },
+            { label: "Días activos", value: totalActiveDays, color: "#3b82f6" },
+          ].map(s => (
+            <div key={s.label} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
+              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar heatmap */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>
+            📅 Últimas 12 semanas
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 280 }}>
+              {/* Day labels */}
+              <div style={{ display: "flex", gap: 3, marginBottom: 4, paddingLeft: 28 }}>
+                {DAY_LABELS.map(d => (
+                  <div key={d} style={{ width: 20, fontSize: 9, color: "var(--text-muted)", textAlign: "center", fontWeight: 600, flexShrink: 0 }}>{d}</div>
+                ))}
+              </div>
+              {/* Weeks as rows */}
+              {weeks.map((week, wi) => {
+                const monthLabel = monthLabels.find(m => m.wi === wi);
+                return (
+                  <div key={wi} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 3 }}>
+                    {/* Month label col */}
+                    <div style={{ width: 24, fontSize: 8, color: "var(--text-muted)", fontWeight: 700, flexShrink: 0, textAlign: "right", paddingRight: 4 }}>
+                      {monthLabel ? monthLabel.label : ""}
+                    </div>
+                    {week.map(day => (
+                      <div
+                        key={day.ds}
+                        title={day.ds}
+                        style={{
+                          width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                          background: day.isFuture
+                            ? "transparent"
+                            : day.trained
+                              ? color
+                              : "var(--border)",
+                          opacity: day.isFuture ? 0.2 : 1,
+                          border: day.isToday ? `2px solid ${color}` : "2px solid transparent",
+                          boxShadow: day.trained && !day.isFuture ? `0 0 6px ${color}60` : undefined,
+                          transition: "all 0.2s",
+                          cursor: "default",
+                        }}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+              {/* Legend */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, paddingLeft: 28, fontSize: 10, color: "var(--text-muted)" }}>
+                <div style={{ width: 12, height: 12, borderRadius: 3, background: "var(--border)" }} />
+                <span>Sin entreno</span>
+                <div style={{ width: 12, height: 12, borderRadius: 3, background: color, boxShadow: `0 0 6px ${color}60` }} />
+                <span>Entrenado</span>
+                <div style={{ width: 12, height: 12, borderRadius: 3, border: `2px solid ${color}`, background: "transparent" }} />
+                <span>Hoy</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Team streaks leaderboard */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>
+            👥 Racha entre amigos
+          </div>
+          {loadingTeam ? (
+            <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>Cargando equipo...</div>
+          ) : teamStreaks.length <= 1 && !teamStreaks[0]?.isMe ? (
+            <div style={{ textAlign: "center", padding: "16px", background: "var(--input-bg)", borderRadius: 12, fontSize: 13, color: "var(--text-muted)" }}>
+              Únete a un GymTeam para comparar rachas con amigos 💪
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {teamStreaks.map((m, i) => {
+                const mColor = m.streak >= 30 ? "#f97316" : m.streak >= 14 ? "#a855f7" : m.streak >= 7 ? "#3b82f6" : m.streak >= 3 ? "#22c55e" : "#6b7280";
+                const maxStreak = Math.max(...teamStreaks.map(x => x.streak), 1);
+                const barPct = (m.streak / maxStreak) * 100;
+                const medals = ["🥇","🥈","🥉"];
+                return (
+                  <div key={m.email || i} style={{
+                    background: m.isMe ? `${color}10` : "var(--input-bg)",
+                    border: `1px solid ${m.isMe ? color + "40" : "var(--border)"}`,
+                    borderRadius: 12, padding: "12px 14px",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{medals[i] || "🔥"}</span>
+                      <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: m.isMe ? color : "var(--text)" }}>
+                        {m.name} {m.isMe && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)" }}>(tú)</span>}
+                      </div>
+                      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: mColor }}>
+                        {m.streak}d
+                      </div>
+                    </div>
+                    {/* Mini bar */}
+                    <div style={{ background: "var(--border)", borderRadius: 20, height: 5, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${barPct}%`, background: mColor, borderRadius: 20, transition: "width 0.8s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 function GymApp() {
   const { dark, toggleDark } = useTheme();
   const { user, logout } = useAuth();
@@ -6341,6 +7304,8 @@ function GymApp() {
   const plannerKey = `gym_planner_${user.email}`;
   const [weeklyPlan, setWeeklyPlan] = useState(() => load(plannerKey, { mode: "weekly", weekly: {}, cycle: [], cyclePos: 0 }));
   const [showPlanner, setShowPlanner] = useState(false);
+  const [plannerInitTab, setPlannerInitTab] = useState("plan");
+  function openPlanner(tab) { setPlannerInitTab(tab || "plan"); setShowPlanner(true); }
   const goalKey = `gym_goal_${user.email}`;
   const [weeklyGoal, setWeeklyGoal] = useState(() => load(goalKey, { target: 4 }));
 
@@ -6402,6 +7367,7 @@ const [histPage, setHistPage] = useState(0);
   const accentRef = useRef();
   const [prConfetti, setPrConfetti] = useState(null); // { prs: [...] }
   const [showProfile, setShowProfile] = useState(false);
+  const [showStreakModal, setShowStreakModal] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
 const [showAthleteCoach, setShowAthleteCoach] = useState(false);
@@ -6672,8 +7638,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
   {[
       { label: "📅 PLANIFICACIÓN", items: [
-        { icon: "📅", label: "Planificador", action: () => setShowPlanner(true) },
-        { icon: "🎯", label: "Meta semanal", action: () => setShowWeeklyGoal(true) },
+        { icon: "📅", label: "Planificador", action: () => openPlanner("plan") },
         { icon: "📋", label: "Plantillas", action: () => setShowTemplates(true) },
       ]},
       { label: "👥 SOCIAL", items: [
@@ -6757,6 +7722,22 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </h1>
           </div>
           <div className="topbar-actions">
+            {/* Streak chip */}
+            {getStreak(sessions) >= 1 && (() => {
+              const s = getStreak(sessions);
+              const color = s >= 90 ? "#f97316" : s >= 30 ? "#a855f7" : s >= 14 ? "#3b82f6" : s >= 7 ? "#22c55e" : "#f59e0b";
+              return (
+                <button
+                  onClick={() => setShowStreakModal(true)}
+                  className="topbar-btn"
+                  style={{ borderColor: `${color}50`, background: `${color}12`, color }}
+                  title="Ver racha"
+                >
+                  <span className="topbar-btn-icon">🔥</span>
+                  <span className="topbar-btn-label" style={{ color, fontWeight: 800 }}>{s}</span>
+                </button>
+              );
+            })()}
             <button className="topbar-btn" onClick={toggleDark}>
               <span className="topbar-btn-icon">{dark ? "☀️" : "🌙"}</span>
               <span className="topbar-btn-label">{dark ? "Claro" : "Oscuro"}</span>
@@ -6796,9 +7777,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 ))}
                 <div style={{ height: 1, background: "var(--border)", margin: "8px 12px" }} />
                 {[
-                  { icon: "📅", label: "Planificador", action: () => { setShowPlanner(true); setMobileNavOpen(false); } },
+                  { icon: "📅", label: "Planificador", action: () => { openPlanner("plan"); setMobileNavOpen(false); } },
                   { icon: "⚖️", label: "Peso & Estatura", action: () => { setShowBodyStats(true); setMobileNavOpen(false); } },
-                  { icon: "🎯", label: "Meta semanal", action: () => { setShowWeeklyGoal(true); setMobileNavOpen(false); } },
                   { icon: "👥", label: "GymTeams", action: () => { setShowTeams(true); setMobileNavOpen(false); } },
                   { icon: "⚔️", label: "Reto semanal", action: () => { setShowChallenge(true); setMobileNavOpen(false); } },
                   ...(user.isCoach ? [{ icon: "🏅", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
@@ -6984,7 +7964,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             const ok = p >= 1;
             return (
               <div
-                onClick={() => setShowWeeklyGoal(true)}
+                onClick={() => openPlanner("goal")}
                 style={{
                   cursor: "pointer",
                   background: ok ? "rgba(34,197,94,0.08)" : "rgba(59,130,246,0.06)",
@@ -7003,7 +7983,15 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             );
           })()}
 
-          {/* ── LAS DOS TARJETAS PRINCIPALES ── */}
+          {/* ── REX + LAS DOS TARJETAS PRINCIPALES ── */}
+          <RexMascot
+            sessions={sessions}
+            todayPlanned={todayPlanned}
+            streak={getStreak(sessions)}
+            onStartSession={(muscle) => { setExMuscle(muscle); setSessionMode("register"); }}
+            inNewSession={true}
+          />
+
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14 }}>
             ¿Qué querés hacer?
           </div>
@@ -7054,7 +8042,6 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
           </div>
 
-          <StreakBanner sessions={sessions} />
           {/* Herramientas rápidas */}
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>
             Herramientas
@@ -7064,7 +8051,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               { icon: "🧮", label: "Calc. 1RM",    action: () => setShowOneRM(true) },
               { icon: "📚", label: "Biblioteca",    action: () => setShowLibrary(true) },
               { icon: "📋", label: "Plantillas",    action: () => setShowTemplates(true) },
-              { icon: "📅", label: "Planificador",  action: () => setShowPlanner(true) },
+              { icon: "📅", label: "Planificador",  action: () => openPlanner("plan") },
             ].map(btn => (
               <button
                 key={btn.label}
@@ -7592,7 +8579,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 <span>💪</span> Mapa muscular
               </button>
             </div>
-            <Dashboard sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal} onGoalClick={() => setShowWeeklyGoal(true)} onBadgesClick={() => setShowBadges(true)}
+            <Dashboard sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal} onGoalClick={() => openPlanner("goal")} onBadgesClick={() => setShowBadges(true)}
               onStartSession={(muscle) => {
                 setExMuscle(muscle);
                 setActiveTab("new");
@@ -7614,12 +8601,28 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>{item.label}</span>
           </button>
         ))}
+        {/* Streak chip en mobile nav */}
+        {(() => {
+          const s = getStreak(sessions);
+          if (s < 1) return null;
+          const color = s >= 90 ? "#f97316" : s >= 30 ? "#a855f7" : s >= 14 ? "#3b82f6" : s >= 7 ? "#22c55e" : "#f59e0b";
+          return (
+            <button
+              className="mobile-nav-btn"
+              onClick={() => setShowStreakModal(true)}
+              style={{ color }}
+            >
+              <span style={{ fontSize: 20 }}>🔥</span>
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.3, color }}>{s}</span>
+            </button>
+          );
+        })()}
         <button
-          className="mobile-nav-btn"
+          className={`mobile-nav-btn ${mobileNavOpen ? "active" : ""}`}
           onClick={() => setMobileNavOpen(v => !v)}
         >
           <span style={{ fontSize: 20 }}>☰</span>
-          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>Más</span>
+          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>Menú</span>
         </button>
       </div>
 
@@ -7630,6 +8633,9 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           sessions={sessions}
           onSave={p => setWeeklyPlan(p)}
           onClose={() => setShowPlanner(false)}
+          weeklyGoal={weeklyGoal}
+          onSaveGoal={g => setWeeklyGoal(g)}
+          initTab={plannerInitTab}
         />
       )}
       {showWeeklyGoal && (
@@ -7666,7 +8672,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         />
       )}
       {showOnboarding && (
-        <OnboardingModal user={user} onComplete={completeOnboarding} />
+        <OnboardingModal user={user} onComplete={completeOnboarding} onSetGoal={(g) => setWeeklyGoal(g)} />
       )}
 
       {showChallenge && (
@@ -7707,6 +8713,13 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         <MuscleMapModal
           sessions={sessions}
           onClose={() => setShowMuscleMap(false)}
+        />
+      )}
+      {showStreakModal && (
+        <StreakModal
+          sessions={sessions}
+          user={user}
+          onClose={() => setShowStreakModal(false)}
         />
       )}
       {showProfile && (
@@ -8094,6 +9107,7 @@ input[type="date"].input { color-scheme: dark; }
 @media (max-width: 768px) { .history-sidebar { display: none !important; } }
 
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes floatBadge { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-6px) rotate(5deg); } }
 @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
