@@ -438,8 +438,8 @@ function ActiveWorkoutModal({ exercises, onClose, onSave, unit }) {
             {exData[currentEx].sets.map((s, j) => (
               <div key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, padding: "10px 4px", background: s.done ? "rgba(34,197,94,0.08)" : "var(--card)", border: `1px solid ${s.done ? "rgba(34,197,94,0.3)" : "var(--border)"}`, borderRadius: 10 }}>
                 <div style={{ width: 36, textAlign: "center", fontWeight: 800, fontSize: 15, fontFamily: "Barlow Condensed, sans-serif", color: s.done ? "#22c55e" : "var(--text-muted)" }}>S{j+1}</div>
-                <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 15, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder="0" />
-                <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 15, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder="0" />
+                <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} inputMode="decimal" style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 15, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder="0" />
+                <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} inputMode="decimal" style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 15, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder="0" />
                 <button onClick={() => toggleSet(currentEx, j)} style={{ width: 64, height: 40, background: s.done ? "#22c55e" : "var(--input-bg)", border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`, borderRadius: 10, cursor: "pointer", fontSize: 18, transition: "all 0.2s" }}>
                   {s.done ? "✓" : "○"}
                 </button>
@@ -670,15 +670,15 @@ const [newWeight, setNewWeight] = useState("");
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:8 }}>
                   <div className="field">
                     <label className="field-label">Peso (kg)</label>
-                    <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" />
+                    <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" inputMode="decimal" />
                   </div>
                   <div className="field">
                     <label className="field-label">Reps</label>
-                    <input className="input" placeholder="0" value={newReps} onChange={e => setNewReps(e.target.value)} type="number" />
+                    <input className="input" placeholder="0" value={newReps} onChange={e => setNewReps(e.target.value)} type="number" inputMode="decimal" />
                   </div>
                   <div className="field">
                     <label className="field-label">Series</label>
-                    <input className="input" placeholder="3" value={newSeries} onChange={e => setNewSeries(e.target.value)} type="number" />
+                    <input className="input" placeholder="3" value={newSeries} onChange={e => setNewSeries(e.target.value)} type="number" inputMode="decimal" />
                   </div>
                 </div>
               </div>
@@ -687,15 +687,15 @@ const [newWeight, setNewWeight] = useState("");
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:8, marginBottom:10 }}>
               <div className="field">
                 <label className="field-label">Peso (kg)</label>
-                <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" />
+                <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" inputMode="decimal" />
               </div>
               <div className="field">
                 <label className="field-label">Reps</label>
-                <input className="input" placeholder="0" value={newReps} onChange={e => setNewReps(e.target.value)} type="number" />
+                <input className="input" placeholder="0" value={newReps} onChange={e => setNewReps(e.target.value)} type="number" inputMode="decimal" />
               </div>
               <div className="field">
                 <label className="field-label">Series</label>
-                <input className="input" placeholder="3" value={newSeries} onChange={e => setNewSeries(e.target.value)} type="number" />
+                <input className="input" placeholder="3" value={newSeries} onChange={e => setNewSeries(e.target.value)} type="number" inputMode="decimal" />
               </div>
             </div>
           )}
@@ -1272,7 +1272,7 @@ function CustomTimerInput({ onApply }) {
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
       <input
-        type="number" min={5} max={600} placeholder="ej: 150 seg"
+        type="number" inputMode="decimal" min={5} max={600} placeholder="ej: 150 seg"
         value={val}
         onChange={e => setVal(e.target.value)}
         onKeyDown={e => e.key === "Enter" && apply()}
@@ -1387,11 +1387,11 @@ function OneRMModal({ onClose }) {
         <div className="form-row">
           <div className="field">
             <label className="field-label">Peso (kg)</label>
-            <input className="input" placeholder="0" value={weight} onChange={e => setWeight(numDot(e.target.value))} />
+            <input className="input" placeholder="0" value={weight} onChange={e => setWeight(numDot(e.target.value))} inputMode="decimal" />
           </div>
           <div className="field">
             <label className="field-label">Repeticiones</label>
-            <input className="input" placeholder="0" value={reps} onChange={e => setReps(numDot(e.target.value))} />
+            <input className="input" placeholder="0" value={reps} onChange={e => setReps(numDot(e.target.value))} inputMode="decimal" />
           </div>
         </div>
         {result > 0 && (
@@ -1696,7 +1696,7 @@ const [age, setAge] = useState(stats.age || "25");
         <div className="form-row" style={{ marginBottom: 10 }}>
           <div className="field">
             <label className="field-label">Estatura (cm)</label>
-            <input className="input" placeholder="170" value={height} onChange={e => setHeight(numDot(e.target.value))} />
+            <input className="input" placeholder="170" value={height} onChange={e => setHeight(numDot(e.target.value))} inputMode="decimal" />
           </div>
           <div className="field">
             <label className="field-label">Peso hoy (kg)</label>
@@ -1886,7 +1886,7 @@ const [age, setAge] = useState(stats.age || "25");
                   </label>
                   <input
                     className="input"
-                    type="number"
+                    type="number" inputMode="decimal"
                     placeholder={String(suggestedGoal)}
                     value={goalWeight}
                     onChange={e => setGoalWeight(e.target.value)}
@@ -2075,10 +2075,10 @@ function ExerciseEditor({ dayKey, exercises, isWeekly, removeExFromDay, addExToD
           {exName === "__custom__" && <input className="input" style={{ marginTop: 4, fontSize: 12 }} placeholder="Nombre..." value={exCustomInput} onChange={e => setExCustomInput(e.target.value)} />}
         </div>
         <div style={{ flex: 1, minWidth: 70 }}>
-          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Peso kg" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} />
+          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Peso kg" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} inputMode="decimal" />
         </div>
         <div style={{ flex: 1, minWidth: 60 }}>
-          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Reps" value={exReps} onChange={e => setExReps(numDot(e.target.value))} />
+          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Reps" value={exReps} onChange={e => setExReps(numDot(e.target.value))} inputMode="decimal" />
         </div>
         <button className="btn-ghost small" onClick={addSet}>+ Serie</button>
       </div>
@@ -3492,10 +3492,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                       )}
                     </div>
                     <div className="field">
-                      <input className="input" style={{ fontSize: 13 }} placeholder="Peso kg" value={rExWeight} onChange={e => setRExWeight(numDot(e.target.value))} />
+                      <input className="input" style={{ fontSize: 13 }} placeholder="Peso kg" value={rExWeight} onChange={e => setRExWeight(numDot(e.target.value))} inputMode="decimal" />
                     </div>
                     <div className="field">
-                      <input className="input" style={{ fontSize: 13 }} placeholder="Reps" value={rExReps} onChange={e => setRExReps(numDot(e.target.value))} />
+                      <input className="input" style={{ fontSize: 13 }} placeholder="Reps" value={rExReps} onChange={e => setRExReps(numDot(e.target.value))} inputMode="decimal" />
                     </div>
                     <button className="btn-ghost small" onClick={addRSet}>+ Serie</button>
                   </div>
@@ -3846,9 +3846,9 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
               {ex.sets.map((s, j) => (
                 <div key={s.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 8, padding: "8px 12px", alignItems: "center", background: s.done ? "rgba(34,197,94,0.07)" : "transparent", borderBottom: "1px solid var(--border)" }}>
                   <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: s.done ? "#22c55e" : "var(--text-muted)" }}>S{j+1}</div>
-                  <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))}
+                  <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} inputMode="decimal"
                     style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
-                  <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))}
+                  <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} inputMode="decimal"
                     style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
                   <button onClick={() => toggleSet(currentEx, j)} style={{ width: 44, height: 40, background: s.done ? "#22c55e" : "var(--input-bg)", border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`, borderRadius: 10, cursor: "pointer", fontSize: 18, margin: "0 auto" }}>
                     {s.done ? "✓" : "○"}
@@ -7542,6 +7542,27 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         )}
       </main>
 
+      {/* ── MOBILE BOTTOM NAV ── */}
+      <div className="mobile-bottom-nav mobile-only">
+        {NAV.map(item => (
+          <button
+            key={item.id}
+            className={`mobile-nav-btn ${activeTab === item.id ? "active" : ""}`}
+            onClick={() => navClick(item.id)}
+          >
+            <span style={{ fontSize: 20 }}>{item.icon}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>{item.label}</span>
+          </button>
+        ))}
+        <button
+          className="mobile-nav-btn"
+          onClick={() => setMobileNavOpen(v => !v)}
+        >
+          <span style={{ fontSize: 20 }}>☰</span>
+          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>Más</span>
+        </button>
+      </div>
+
       {/* ── MODALES GLOBALES ── */}
       {showPlanner && (
         <WeeklyPlannerModal
@@ -7569,6 +7590,12 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             setSessionMode("register");
           }}
           onClose={() => setShowTemplates(false)}
+        />
+      )}
+      {showLibrary && (
+        <ExerciseLibrary
+          onSelect={null}
+          onClose={() => setShowLibrary(false)}
         />
       )}
       {showTeams && (
@@ -7859,7 +7886,10 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--te
 
 /* ── Mobile bottom nav ── */
 .mobile-bottom-nav {
-  position: fixed; bottom: 0; left: 0; right: 0; height: 60px; z-index: 100;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: calc(60px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 100;
   background: var(--surface); border-top: 1px solid var(--border);
   display: flex; align-items: stretch;
 }
@@ -7873,12 +7903,16 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--te
 @media (max-width: 768px) {
   .desktop-only { display: none !important; }
   .mobile-only { display: flex !important; }
-  .main-content { margin-left: 0 !important; padding-bottom: 60px; }
+  .main-content { margin-left: 0 !important; padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
   .sidebar { display: none !important; }
   .content-area { padding: 16px; }
-  .topbar { padding: 12px 16px; }
+  .topbar { padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
   .form-row { flex-direction: column; }
   .topbar-actions .topbar-btn { min-width: 38px; padding: 5px 8px; }
+  .modal { padding: 20px 16px; max-height: 85vh; }
+  .modal-wide { max-width: 100%; }
+  .overlay { padding: 12px; align-items: flex-end; }
+  .modal, .modal-wide { border-bottom-left-radius: 0; border-bottom-right-radius: 0; max-height: 92vh; }
 }
 
 /* ── Content ── */
@@ -7995,7 +8029,7 @@ input[type="date"].input { color-scheme: dark; }
 .text-muted { color: var(--text-muted); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .upgrade-banner { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 12px; padding: 12px 18px; font-size: 13px; margin-bottom: 16px; }
-.toast { position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 9999; white-space: nowrap; box-shadow: var(--shadow); animation: toastIn 0.3s ease; }
+.toast { position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 9999; white-space: nowrap; box-shadow: var(--shadow); animation: toastIn 0.3s ease; }
 @media (min-width: 769px) { .toast { bottom: 28px; } }
 @media (max-width: 768px) { .history-sidebar { display: none !important; } }
 
