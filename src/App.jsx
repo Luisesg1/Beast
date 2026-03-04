@@ -300,172 +300,6 @@ function PRConfetti({ prs, onDone }) {
 }
 
 // ─── Active Workout Mode ──────────────────────────────────────────────────────
-function ActiveWorkoutModal({ exercises, onClose, onSave, unit }) {
-  const [elapsed, setElapsed] = useState(0);
-  const [running, setRunning] = useState(true);
-  const [restSecs, setRestSecs] = useState(0);
-  const [restRunning, setRestRunning] = useState(false);
-  const [currentEx, setCurrentEx] = useState(0);
-  const [exData, setExData] = useState(
-    exercises.map(ex => ({ ...ex, sets: ex.sets?.length ? ex.sets.map(s => ({...s})) : [{ id: uid(), weight: "", reps: "", done: false }] }))
-  );
-  const [notes, setNotes] = useState({});
-  const mainRef = useRef();
-  const restRef = useRef();
-
-  useEffect(() => {
-    if (running) { mainRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
-    else clearInterval(mainRef.current);
-    return () => clearInterval(mainRef.current);
-  }, [running]);
-
-  function playBeep() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [0, 0.2, 0.4].forEach((t, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.frequency.value = i === 2 ? 880 : 660;
-        osc.type = "sine";
-        gain.gain.setValueAtTime(0.4, ctx.currentTime + t);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.18);
-        osc.start(ctx.currentTime + t);
-        osc.stop(ctx.currentTime + t + 0.18);
-      });
-    } catch(e) {}
-  }
-
-  useEffect(() => {
-    if (restRunning && restSecs > 0) {
-      restRef.current = setInterval(() => setRestSecs(s => {
-        if (s <= 1) {
-          clearInterval(restRef.current);
-          setRestRunning(false);
-          playBeep();
-          return 0;
-        }
-        return s - 1;
-      }), 1000);
-    } else clearInterval(restRef.current);
-    return () => clearInterval(restRef.current);
-  }, [restRunning, restSecs]);
-
-  const fmt = s => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
-  const totalSets = exData.reduce((a, e) => a + e.sets.length, 0);
-  const doneSets = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-  const pct = totalSets > 0 ? doneSets / totalSets : 0;
-
-  function toggleSet(exIdx, setIdx) {
-    setExData(prev => prev.map((ex, i) => i !== exIdx ? ex : {
-      ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, done: !s.done })
-    }));
-    if (!exData[exIdx].sets[setIdx].done) {
-      setRestSecs(90); setRestRunning(true);
-    }
-  }
-  function updateSet(exIdx, setIdx, field, val) {
-    setExData(prev => prev.map((ex, i) => i !== exIdx ? ex : {
-      ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val })
-    }));
-  }
-  function addSet(exIdx) {
-    setExData(prev => prev.map((ex, i) => i !== exIdx ? ex : {
-      ...ex, sets: [...ex.sets, { id: uid(), weight: ex.sets[ex.sets.length-1]?.weight || "", reps: ex.sets[ex.sets.length-1]?.reps || "", done: false }]
-    }));
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 2000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: 1 }}>⚡ Entrenando</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series completadas</div>
-        </div>
-        {/* Big timer */}
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 800, color: running ? "var(--accent)" : "var(--text-muted)", letterSpacing: 2 }}>{fmt(elapsed)}</div>
-          <button onClick={() => setRunning(r => !r)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 11, cursor: "pointer", fontFamily: "Barlow, sans-serif" }}>{running ? "⏸ Pausar" : "▶ Reanudar"}</button>
-        </div>
-        <button onClick={() => { setRunning(false); onSave(exData); }} style={{ background: "var(--accent)", border: "none", color: "white", borderRadius: 10, padding: "10px 16px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-          💾 Finalizar
-        </button>
-        <button onClick={onClose} style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 13 }}>✕</button>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ height: 4, background: "var(--border)", flexShrink: 0 }}>
-        <div style={{ height: "100%", background: "linear-gradient(90deg, var(--accent), #22c55e)", width: `${pct * 100}%`, transition: "width 0.4s ease", borderRadius: 2 }} />
-      </div>
-
-      {/* Rest timer banner */}
-      {restRunning && restSecs > 0 && (
-        <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", margin: "8px 16px 0", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          <span style={{ fontSize: 20 }}>⏱️</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>Descanso</div>
-            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 800, color: "#22c55e" }}>{fmt(restSecs)}</div>
-          </div>
-          <button onClick={() => { setRestRunning(false); setRestSecs(0); }} style={{ background: "none", border: "1px solid #22c55e", color: "#22c55e", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12 }}>Saltar</button>
-        </div>
-      )}
-
-      {/* Exercise tabs */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", overflowX: "auto", flexShrink: 0 }}>
-        {exData.map((ex, i) => {
-          const done = ex.sets.every(s => s.done) && ex.sets.length > 0;
-          return (
-            <button key={i} onClick={() => setCurrentEx(i)} style={{ background: currentEx === i ? "var(--accent)" : done ? "rgba(34,197,94,0.15)" : "var(--card)", border: `1px solid ${currentEx === i ? "var(--accent)" : done ? "#22c55e" : "var(--border)"}`, color: currentEx === i ? "white" : done ? "#22c55e" : "var(--text-muted)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {done ? "✓ " : ""}{ex.name}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Current exercise */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {exData[currentEx] && (
-          <div>
-            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{exData[currentEx].name}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>{exData[currentEx].sets.filter(s=>s.done).length}/{exData[currentEx].sets.length} series</div>
-
-            {/* Sets */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "0 4px" }}>
-              <div style={{ width: 36, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Serie</div>
-              <div style={{ flex: 1, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Peso ({unit})</div>
-              <div style={{ flex: 1, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Reps</div>
-              <div style={{ width: 64, fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>Hecho</div>
-            </div>
-            {exData[currentEx].sets.map((s, j) => (
-              <div key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, padding: "10px 4px", background: s.done ? "rgba(34,197,94,0.08)" : "var(--card)", border: `1px solid ${s.done ? "rgba(34,197,94,0.3)" : "var(--border)"}`, borderRadius: 10 }}>
-                <div style={{ width: 36, textAlign: "center", fontWeight: 800, fontSize: 15, fontFamily: "Barlow Condensed, sans-serif", color: s.done ? "#22c55e" : "var(--text-muted)" }}>S{j+1}</div>
-                <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} inputMode="decimal" style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 15, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder="0" />
-                <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} inputMode="decimal" style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 15, fontWeight: 700, textAlign: "center", outline: "none" }} placeholder="0" />
-                <button onClick={() => toggleSet(currentEx, j)} style={{ width: 64, height: 40, background: s.done ? "#22c55e" : "var(--input-bg)", border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`, borderRadius: 10, cursor: "pointer", fontSize: 18, transition: "all 0.2s" }}>
-                  {s.done ? "✓" : "○"}
-                </button>
-              </div>
-            ))}
-            <button onClick={() => addSet(currentEx)} style={{ width: "100%", background: "none", border: "1px dashed var(--border)", color: "var(--text-muted)", borderRadius: 10, padding: 10, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 13, marginTop: 4 }}>+ Serie</button>
-
-            {/* Note for exercise */}
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 6 }}>Nota del ejercicio</div>
-              <textarea value={notes[exData[currentEx].name] || ""} onChange={e => setNotes(n => ({...n, [exData[currentEx].name]: e.target.value}))} style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 13, resize: "none", minHeight: 60, outline: "none" }} placeholder="Observaciones, sensaciones, técnica..." />
-            </div>
-
-            {/* Next/Prev */}
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              {currentEx > 0 && <button onClick={() => setCurrentEx(i => i-1)} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 10, padding: "10px", cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 13 }}>← Anterior</button>}
-              {currentEx < exData.length - 1 && <button onClick={() => setCurrentEx(i => i+1)} style={{ flex: 1, background: "var(--accent)", border: "none", color: "white", borderRadius: 10, padding: "10px", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700 }}>Siguiente →</button>}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 
@@ -1633,68 +1467,11 @@ const [age, setAge] = useState(stats.age || "25");
   const [goal, setGoal] = useState(stats.goal || "maintain");
   const [goalWeight, setGoalWeight] = useState(stats.goalWeight || "");
   const [saved, setSaved] = useState(false);
-  const [photos, setPhotos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("gym_progress_photos") || "[]"); } catch { return []; }
-  });
   const [photoTab, setPhotoTab] = useState(false);
-  const photoInputRef = useRef();
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [analyzeError, setAnalyzeError] = useState(null);
-
-  async function analyzePhotos() {
-    if (photos.length === 0) return;
-    setAnalyzing(true); setAnalysisResult(null); setAnalyzeError(null);
-    try {
-      const latest = photos[photos.length - 1];
-      const previous = photos.length >= 2 ? photos[photos.length - 2] : null;
-      const userContent = previous ? [
-        { type:"text", text:`Eres un entrenador personal experto. Compara estas dos fotos de progreso físico (anterior: ${fmtDate(previous.date)}, actual: ${fmtDate(latest.date)}). Analiza: 1) Cambios en masa muscular por zona 2) Cambios en definición/grasa 3) Postura y simetría 4) Mensaje motivador 5) 2-3 recomendaciones. Sé específico, positivo y usa emojis. Español latino neutro.` },
-        { type:"image", source:{ type:"base64", media_type: previous.dataUrl.split(";")[0].split(":")[1], data: previous.dataUrl.split(",")[1] }},
-        { type:"image", source:{ type:"base64", media_type: latest.dataUrl.split(";")[0].split(":")[1], data: latest.dataUrl.split(",")[1] }}
-      ] : [
-        { type:"text", text:`Eres un entrenador personal experto. Analiza esta foto de progreso físico (${fmtDate(latest.date)}). Incluye: 1) Composición corporal visible 2) Músculos más desarrollados 3) Áreas a trabajar 4) Mensaje motivador 5) 2-3 recomendaciones concretas. Usa emojis. Español latino neutro.` },
-        { type:"image", source:{ type:"base64", media_type: latest.dataUrl.split(";")[0].split(":")[1], data: latest.dataUrl.split(",")[1] }}
-      ];
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{"Content-Type":"application/json", "anthropic-dangerous-direct-browser-access":"true"},
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, messages:[{ role:"user", content: userContent }] })
-      });
-      const data = await res.json();
-      const text = data.content?.map(c=>c.text||"").join("\n").trim();
-      if (text) {
-        setAnalysisResult({ text, date: todayStr(), compared: !!previous });
-        const updated = photos.map((p,i) => i===photos.length-1 ? {...p, analysis:text, analysisDate:todayStr()} : p);
-        setPhotos(updated);
-        try { localStorage.setItem("gym_progress_photos", JSON.stringify(updated)); } catch {}
-      } else setAnalyzeError("No se pudo obtener el análisis. Intenta de nuevo.");
-    } catch { setAnalyzeError("Error al conectar. Verifica tu conexión."); }
-    finally { setAnalyzing(false); }
-  }
-
-  function savePhoto(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const newPhoto = { id: uid(), date: todayStr(), dataUrl: e.target.result, note: "" };
-      const updated = [...photos, newPhoto];
-      setPhotos(updated);
-      try { localStorage.setItem("gym_progress_photos", JSON.stringify(updated)); } catch {}
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function deletePhoto(id) {
-    if (!window.confirm("¿Eliminar esta foto?")) return;
-    const updated = photos.filter(p => p.id !== id);
-    setPhotos(updated);
-    try { localStorage.setItem("gym_progress_photos", JSON.stringify(updated)); } catch {}
-  }
-
-  function updatePhotoNote(id, note) {
-    const updated = photos.map(p => p.id === id ? { ...p, note } : p);
-    setPhotos(updated);
-    try { localStorage.setItem("gym_progress_photos", JSON.stringify(updated)); } catch {}
-  }
+  const [measureEntries, setMeasureEntries] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("gym_measure_entries") || "[]"); } catch { return []; }
+  });
+  const [measureForm, setMeasureForm] = useState({});
 
   function save() {
     if (!weight) return;
@@ -1802,100 +1579,139 @@ const [age, setAge] = useState(stats.age || "25");
             📊 Stats & Peso
           </button>
           <button onClick={() => setPhotoTab(true)} style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: photoTab ? "var(--accent)" : "transparent", color: photoTab ? "white" : "var(--text-muted)", fontWeight:700, fontSize:13, cursor:"pointer", transition:"all 0.2s" }}>
-            📸 Fotos de progreso {photos.length > 0 ? `(${photos.length})` : ""}
+            📐 Medidas corporales
           </button>
         </div>
 
-        {/* FOTOS TAB */}
-        {photoTab && (
-          <div>
-            <input ref={photoInputRef} type="file" accept="image/*" style={{ display:"none" }}
-              onChange={e => { if (e.target.files[0]) savePhoto(e.target.files[0]); e.target.value = ""; }} />
-            <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-              <button className="btn-primary" style={{ flex:1, fontSize:14 }} onClick={() => photoInputRef.current?.click()}>
-                📸 Agregar foto
-              </button>
-              {photos.length > 0 && (
-                <button onClick={analyzePhotos} disabled={analyzing} style={{
-                  flex:1, fontSize:13, padding:"10px 12px", border:"none", color:"white", borderRadius:10,
-                  cursor: analyzing?"not-allowed":"pointer", fontWeight:700,
-                  background: analyzing ? "var(--input-bg)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
-                  opacity: analyzing ? 0.7 : 1, display:"flex", alignItems:"center", justifyContent:"center", gap:6
-                }}>
-                  {analyzing ? "⏳ Analizando..." : `🤖 ${photos.length>=2?"Comparar fotos":"Analizar foto"}`}
-                </button>
-              )}
-            </div>
+        {/* MEDIDAS TAB */}
+        {photoTab && (() => {
+          const FIELDS = [
+            { key:"bodyFat", label:"% Grasa",  unit:"%",  color:"#f97316" },
+            { key:"chest",   label:"Pecho",    unit:"cm", color:"#3b82f6" },
+            { key:"waist",   label:"Cintura",  unit:"cm", color:"#22c55e" },
+            { key:"hip",     label:"Cadera",   unit:"cm", color:"#a855f7" },
+            { key:"arm",     label:"Brazo",    unit:"cm", color:"#ec4899" },
+            { key:"thigh",   label:"Muslo",    unit:"cm", color:"#06b6d4" },
+          ];
+          const last  = measureEntries[measureEntries.length - 1] || {};
+          const first = measureEntries[0] || {};
 
-            {analysisResult && (
-              <div style={{ background:"linear-gradient(135deg,rgba(168,85,247,0.1),rgba(124,58,237,0.05))", border:"1px solid rgba(168,85,247,0.35)", borderRadius:14, padding:16, marginBottom:16 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                  <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"#a855f7", textTransform:"uppercase" }}>🤖 Análisis IA · {fmtDate(analysisResult.date)}</span>
-                  {analysisResult.compared && <span style={{ fontSize:10, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", color:"#a855f7", borderRadius:6, padding:"2px 8px", fontWeight:700 }}>Comparación</span>}
+          function MiniChart({ field, color }) {
+            const pts = measureEntries.map(e => parseFloat(e[field.key])).filter(v => !isNaN(v));
+            if (pts.length < 2) return <div style={{ fontSize:11, color:"var(--text-muted)", textAlign:"center", padding:"8px 0" }}>Más registros necesarios</div>;
+            const W=220, H=55, pad=8;
+            const min=Math.min(...pts), max=Math.max(...pts), range=max-min||1;
+            const coords = pts.map((v,i) => {
+              const x = pad + (i/(pts.length-1))*(W-pad*2);
+              const y = H - pad - ((v-min)/range)*(H-pad*2);
+              return `${x},${y}`;
+            });
+            return (
+              <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display:"block" }}>
+                <polyline points={coords.join(" ")} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round"/>
+                {coords.map((c,i) => { const [x,y]=c.split(","); return <circle key={i} cx={x} cy={y} r="3" fill={color}/>; })}
+              </svg>
+            );
+          }
+
+          return (
+            <div>
+              <div style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:14, marginBottom:16 }}>
+                <div style={{ fontSize:11, fontWeight:700, letterSpacing:1.5, color:"var(--accent)", textTransform:"uppercase", marginBottom:12 }}>
+                  ➕ Nuevo registro · {fmtDate(todayStr())}
                 </div>
-                <div style={{ fontSize:13, color:"var(--text)", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{analysisResult.text}</div>
-                <button onClick={() => setAnalysisResult(null)} style={{ marginTop:10, background:"none", border:"none", color:"var(--text-muted)", fontSize:11, cursor:"pointer", padding:0 }}>Cerrar análisis</button>
-              </div>
-            )}
-            {analyzeError && (
-              <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#ef4444" }}>{analyzeError}</div>
-            )}
-            {!analysisResult && photos.length > 0 && photos[photos.length-1].analysis && (
-              <div style={{ background:"rgba(168,85,247,0.07)", border:"1px solid rgba(168,85,247,0.2)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
-                <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"#a855f7", textTransform:"uppercase", marginBottom:8 }}>🤖 Último análisis · {fmtDate(photos[photos.length-1].analysisDate)}</div>
-                <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{photos[photos.length-1].analysis}</div>
-              </div>
-            )}
-
-            {photos.length === 0 ? (
-              <div style={{ textAlign:"center", padding:"40px 0", color:"var(--text-muted)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>📷</div>
-                <p style={{ fontSize:14 }}>Aún no hay fotos de progreso.<br/>Agrega una foto semanal para ver tu transformación.</p>
-              </div>
-            ) : (
-              <div>
-                {/* Comparación lado a lado si hay 2+ fotos */}
-                {photos.length >= 2 && (
-                  <div style={{ marginBottom:20 }}>
-                    <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--accent)", textTransform:"uppercase", marginBottom:8 }}>Comparación: primera vs última</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      {[photos[0], photos[photos.length-1]].map((p, i) => (
-                        <div key={p.id} style={{ textAlign:"center" }}>
-                          <img src={p.dataUrl} alt="" style={{ width:"100%", borderRadius:10, objectFit:"cover", aspectRatio:"3/4", border:"2px solid var(--border)" }} />
-                          <div style={{ fontSize:11, color: i===0 ? "var(--text-muted)" : "var(--accent)", fontWeight:700, marginTop:4 }}>
-                            {i===0 ? "Inicio" : "Ahora"} · {fmtDate(p.date)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Galería completa */}
-                <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Historial de fotos</div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
-                  {[...photos].reverse().map(p => (
-                    <div key={p.id} style={{ position:"relative" }}>
-                      <img src={p.dataUrl} alt="" style={{ width:"100%", borderRadius:10, objectFit:"cover", aspectRatio:"3/4", border:"1px solid var(--border)", display:"block" }} />
-                      <div style={{ position:"absolute", top:6, right:6 }}>
-                        <button onClick={() => deletePhoto(p.id)} style={{ background:"rgba(0,0,0,0.7)", border:"none", color:"white", borderRadius:6, padding:"3px 7px", cursor:"pointer", fontSize:13 }}>🗑️</button>
-                      </div>
-                      <div style={{ padding:"6px 2px" }}>
-                        <div style={{ fontSize:11, color:"var(--text-muted)", marginBottom:3 }}>{fmtDate(p.date)}</div>
-                        <input
-                          value={p.note || ""}
-                          onChange={e => updatePhotoNote(p.id, e.target.value)}
-                          placeholder="Nota (opcional)..."
-                          style={{ width:"100%", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:6, padding:"4px 8px", color:"var(--text)", fontSize:11, outline:"none", boxSizing:"border-box" }}
-                        />
-                      </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:10 }}>
+                  {FIELDS.map(f => (
+                    <div key={f.key}>
+                      <label style={{ fontSize:10, color:"var(--text-muted)", display:"block", marginBottom:3 }}>{f.label} ({f.unit})</label>
+                      <input className="input" placeholder="—" inputMode="decimal"
+                        value={measureForm[f.key]||""}
+                        onChange={e => setMeasureForm(p => ({...p, [f.key]: e.target.value.replace(/[^0-9.]/g,"")}))}
+                        style={{ textAlign:"center", fontSize:14, fontWeight:700 }}
+                      />
                     </div>
                   ))}
                 </div>
+                <button className="btn-primary" style={{ width:"100%", fontSize:14 }} onClick={() => {
+                  const entry = { date: todayStr(), ...measureForm };
+                  const updated = [...measureEntries.filter(e => e.date !== todayStr()), entry].sort((a,b)=>a.date.localeCompare(b.date));
+                  setMeasureEntries(updated);
+                  setMeasureForm({});
+                  try { localStorage.setItem("gym_measure_entries", JSON.stringify(updated)); } catch {}
+                }}>Guardar medidas</button>
               </div>
-            )}
-          </div>
-        )}
+
+              {measureEntries.length > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:16 }}>
+                  {FIELDS.map(f => {
+                    const val = parseFloat(last[f.key]);
+                    const ini = parseFloat(first[f.key]);
+                    const delta = !isNaN(val) && !isNaN(ini) && measureEntries.length > 1 ? (val-ini).toFixed(1) : null;
+                    return (
+                      <div key={f.key} style={{ background:"var(--card)", border:`1px solid ${f.color}40`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
+                        <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:2 }}>{f.label}</div>
+                        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800, color:isNaN(val)?"var(--text-muted)":f.color }}>
+                          {isNaN(val) ? "—" : `${val}${f.unit}`}
+                        </div>
+                        {delta !== null && (
+                          <div style={{ fontSize:10, fontWeight:700, color:parseFloat(delta)<0?"#22c55e":parseFloat(delta)>0?"#f97316":"var(--text-muted)" }}>
+                            {parseFloat(delta)>0?"+":""}{delta}{f.unit}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {measureEntries.length >= 2 && (
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>Evolución</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                    {FIELDS.map(f => (
+                      <div key={f.key} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px 12px" }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:f.color, marginBottom:6 }}>{f.label}</div>
+                        <MiniChart field={f} color={f.color}/>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {measureEntries.length > 0 && (
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Historial</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {[...measureEntries].reverse().map((e,i) => (
+                      <div key={e.date} style={{ display:"flex", alignItems:"center", gap:8, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px" }}>
+                        <div style={{ fontSize:11, color:"var(--accent)", fontWeight:700, minWidth:70 }}>{fmtDate(e.date)}</div>
+                        <div style={{ display:"flex", gap:8, flex:1, flexWrap:"wrap" }}>
+                          {FIELDS.map(f => e[f.key] ? (
+                            <span key={f.key} style={{ fontSize:11, color:"var(--text-muted)" }}>
+                              <span style={{ color:f.color, fontWeight:700 }}>{e[f.key]}{f.unit}</span> {f.label}
+                            </span>
+                          ) : null)}
+                        </div>
+                        <button onClick={() => {
+                          const updated = [...measureEntries].reverse().filter((_,j)=>j!==i).reverse();
+                          setMeasureEntries(updated);
+                          try { localStorage.setItem("gym_measure_entries", JSON.stringify(updated)); } catch {}
+                        }} style={{ background:"none", border:"none", color:"var(--text-muted)", cursor:"pointer", fontSize:13, padding:"0 4px" }}>🗑️</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {measureEntries.length === 0 && (
+                <div style={{ textAlign:"center", padding:"30px 0", color:"var(--text-muted)" }}>
+                  <div style={{ fontSize:40, marginBottom:10 }}>📐</div>
+                  <p style={{ fontSize:13 }}>Registra tus medidas semanalmente<br/>para ver tu progreso real.</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* STATS TAB */}
         {!photoTab && (<>
@@ -2788,30 +2604,6 @@ function ProgressModal({ exName, sessions, onClose }) {
 }
 
 // ─── Plans Modal ──────────────────────────────────────────────────────────────
-function PlansModal({ currentPlan, onSelect, onClose }) {
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">⚡ Elige tu plan</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
-        <div className="plans-grid">
-          {Object.entries(PLANS).map(([key, plan]) => (
-            <div key={key} className={`plan-card ${currentPlan === key ? "plan-active" : ""}`} style={{ "--pc": plan.color }}>
-              <div className="plan-name">{plan.name}</div>
-              <div className="plan-price" style={{ color: plan.color }}>{plan.price}</div>
-              <ul className="plan-features">{plan.features.map(f => <li key={f}>✓ {f}</li>)}</ul>
-              <button className="plan-btn" style={{ borderColor: plan.color, background: currentPlan === key ? plan.color : "transparent", color: currentPlan === key ? "white" : plan.color }} onClick={() => { onSelect(key); onClose(); }}>
-                {currentPlan === key ? "Plan actual" : "Seleccionar"}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Exercise Library ─────────────────────────────────────────────────────────
 function ExerciseLibrary({ onSelect, onClose }) {
@@ -5964,7 +5756,169 @@ function WeekComparison({ sessions }) {
   );
 }
 
-function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession }) {
+// ─── Progresión Automática Inteligente ────────────────────────────────────────
+function getProgressionSuggestion(exName, sessions) {
+  if (!exName || exName === "__custom__") return null;
+  const history = sessions
+    .flatMap(s => (s.exercises||[]).filter(e=>e.name===exName).map(e=>({date:s.date,...e})))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  if (history.length === 0) return null;
+  const last = history[0];
+  const lastWeight = parseFloat(last.sets?.length ? Math.max(...last.sets.map(st=>parseFloat(st.weight)||0)) : last.weight)||0;
+  const lastReps   = parseFloat(last.sets?.length ? Math.max(...last.sets.map(st=>parseFloat(st.reps)||0)) : last.reps)||0;
+  const lastSeries = last.sets?.length||3;
+  const targetReps = 12;
+  if (!lastWeight||!lastReps) return null;
+  let sugWeight=lastWeight, sugReps=lastReps, reason="", type="maintain";
+  if (history.length >= 2) {
+    const prev=history[1];
+    const prevWeight=parseFloat(prev.sets?.length?Math.max(...prev.sets.map(st=>parseFloat(st.weight)||0)):prev.weight)||0;
+    const prevReps  =parseFloat(prev.sets?.length?Math.max(...prev.sets.map(st=>parseFloat(st.reps)||0)):prev.reps)||0;
+    if (history.length>=3) {
+      const third=history[2];
+      const thirdWeight=parseFloat(third.sets?.length?Math.max(...third.sets.map(st=>parseFloat(st.weight)||0)):third.weight)||0;
+      if (lastWeight<prevWeight && prevWeight<thirdWeight) {
+        sugWeight=prevWeight; sugReps=Math.max(lastReps-1,6);
+        reason="Rendimiento bajando — prueba un peso intermedio"; type="deload";
+      }
+    }
+    if (type!=="deload") {
+      if (lastReps>=targetReps) {
+        const inc=lastWeight>=60?5:lastWeight>=30?2.5:1.25;
+        sugWeight=lastWeight+inc; sugReps=Math.max(lastReps-4,6);
+        reason=`Llegaste a ${lastReps} reps — hora de subir peso`; type="up_weight";
+      } else if (lastWeight>prevWeight||lastReps>prevReps) {
+        sugWeight=lastWeight; sugReps=Math.min(lastReps+1,targetReps);
+        reason="Buen progreso — sube 1 rep más"; type="up_reps";
+      } else {
+        sugWeight=lastWeight; sugReps=Math.min(lastReps+1,targetReps);
+        reason="Estancado — intenta 1 rep extra"; type="up_reps";
+      }
+    }
+  } else {
+    sugReps=lastReps<targetReps?lastReps+1:lastReps;
+    reason="Basado en tu último registro"; type="up_reps";
+  }
+  const colors={up_weight:"#22c55e",up_reps:"#3b82f6",maintain:"#a855f7",deload:"#f97316"};
+  const icons ={up_weight:"⬆️",up_reps:"🔁",maintain:"✅",deload:"⚠️"};
+  return {sugWeight,sugReps,lastSeries,reason,type,color:colors[type],icon:icons[type]};
+}
+
+// ─── Insights Engine ──────────────────────────────────────────────────────────
+function generateInsights(sessions, bodyStats) {
+  const insights = [];
+  if (sessions.length < 3) return insights;
+  const now = new Date();
+  const daysSince = d => Math.round((now - new Date(d+"T00:00:00"))/86400000);
+  const volByMuscle = (d1,d2) => {
+    const out={};
+    sessions.filter(s=>{const d=daysSince(s.date);return d>=d1&&d<d2;})
+      .forEach(s=>(s.exercises||[]).forEach(ex=>{
+        const m=EXERCISE_DB.find(e=>e.name===ex.name)?.muscle||"Otro";
+        const vol=(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1);
+        out[m]=(out[m]||0)+vol;
+      }));
+    return out;
+  };
+  const recent=volByMuscle(0,14), prev=volByMuscle(14,28);
+  const lastByMuscle={};
+  sessions.forEach(s=>(s.exercises||[]).forEach(ex=>{
+    const m=EXERCISE_DB.find(e=>e.name===ex.name)?.muscle||"Otro";
+    if(!lastByMuscle[m]||s.date>lastByMuscle[m]) lastByMuscle[m]=s.date;
+  }));
+  Object.entries(lastByMuscle).forEach(([muscle,date])=>{
+    const d=daysSince(date);
+    if(d>=10) insights.push({id:`neglect_${muscle}`,category:"frecuencia",icon:"😴",color:"#f97316",
+      title:`${muscle} sin entrenar`,msg:`Llevas ${d} días sin trabajar ${muscle}.`,priority:d>=14?3:2});
+  });
+  Object.entries(prev).forEach(([muscle,prevVol])=>{
+    const recVol=recent[muscle]||0;
+    const drop=((prevVol-recVol)/prevVol)*100;
+    if(drop>30&&prevVol>0) insights.push({id:`vol_drop_${muscle}`,category:"volumen",icon:"📉",color:"#ef4444",
+      title:`Volumen de ${muscle} bajó`,msg:`Cayó un ${Math.round(drop)}% vs las 2 semanas anteriores.`,priority:2});
+  });
+  Object.entries(recent).forEach(([muscle,recVol])=>{
+    const prevVol=prev[muscle]||0;
+    if(prevVol>0){const rise=((recVol-prevVol)/prevVol)*100;
+      if(rise>20) insights.push({id:`vol_rise_${muscle}`,category:"volumen",icon:"📈",color:"#22c55e",
+        title:`${muscle} en racha`,msg:`Volumen subió ${Math.round(rise)}% esta quincena.`,priority:1});}
+  });
+  const recentSessions=sessions.filter(s=>daysSince(s.date)<=14).length;
+  if(recentSessions<=2&&sessions.length>=5) insights.push({id:"low_freq",category:"hábitos",icon:"⚠️",color:"#f59e0b",
+    title:"Frecuencia baja",msg:`Solo ${recentSessions} sesión${recentSessions===1?"":"es"} en 14 días.`,priority:3});
+  const byDay=[0,0,0,0,0,0,0];
+  sessions.forEach(s=>{byDay[new Date(s.date+"T00:00:00").getDay()]++;});
+  const bestDayIdx=byDay.indexOf(Math.max(...byDay));
+  const DIAS=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  if(Math.max(...byDay)>=3) insights.push({id:"best_day",category:"hábitos",icon:"📅",color:"#3b82f6",
+    title:"Tu mejor día",msg:`El ${DIAS[bestDayIdx]} es cuando más entrenas.`,priority:1});
+  const prs=getPRs(sessions);
+  const recentPRs=sessions.filter(s=>daysSince(s.date)<=7)
+    .flatMap(s=>(s.exercises||[]).filter(ex=>{
+      const rm=calc1RM(ex.sets?.length?Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)):parseFloat(ex.weight)||0,
+        ex.sets?.length?Math.max(...ex.sets.map(st=>parseFloat(st.reps)||0)):parseFloat(ex.reps)||0);
+      return prs[ex.name]&&rm>=prs[ex.name].rm;
+    }));
+  if(recentPRs.length>0) insights.push({id:"recent_pr",category:"rendimiento",icon:"🏆",color:"#a855f7",
+    title:`${recentPRs.length} PR${recentPRs.length>1?"s":""}  esta semana`,
+    msg:`Récord en: ${recentPRs.slice(0,3).map(e=>e.name).join(", ")}.`,priority:1});
+  const entries=bodyStats?.entries||[];
+  if(entries.length>=3){
+    const diff=(entries[entries.length-1].weight-entries[entries.length-3].weight).toFixed(1);
+    if(Math.abs(diff)>=0.5) insights.push({id:"weight_trend",category:"cuerpo",
+      icon:parseFloat(diff)<0?"⬇️":"⬆️",color:parseFloat(diff)<0?"#22c55e":"#f97316",
+      title:parseFloat(diff)<0?"Bajando de peso":"Subiendo de peso",
+      msg:`${parseFloat(diff)<0?"Perdiste":"Ganaste"} ${Math.abs(diff)} kg en los últimos registros.`,priority:1});
+  }
+  return insights.sort((a,b)=>b.priority-a.priority);
+}
+
+function InsightsModal({ sessions, bodyStats, onClose }) {
+  const insights = generateInsights(sessions, bodyStats);
+  const categories = ["rendimiento","volumen","frecuencia","hábitos","cuerpo"];
+  const catLabels = {rendimiento:"🏋️ Rendimiento",volumen:"📊 Volumen",frecuencia:"🔁 Frecuencia",hábitos:"📅 Hábitos",cuerpo:"⚖️ Cuerpo"};
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal modal-wide" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <h3 className="modal-title">💡 Insights Premium</h3>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+        {insights.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"40px 0", color:"var(--text-muted)" }}>
+            <div style={{ fontSize:48, marginBottom:12 }}>📊</div>
+            <p style={{ fontSize:14 }}>Registra al menos 5 sesiones para ver tus insights.</p>
+          </div>
+        ) : (
+          <div>
+            {categories.map(cat=>{
+              const items=insights.filter(i=>i.category===cat);
+              if(!items.length) return null;
+              return (
+                <div key={cat} style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:11, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>{catLabels[cat]}</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {items.map(ins=>(
+                      <div key={ins.id} style={{ display:"flex", gap:12, alignItems:"flex-start", background:`${ins.color}0d`, border:`1px solid ${ins.color}30`, borderRadius:12, padding:"12px 14px" }}>
+                        <div style={{ fontSize:22, flexShrink:0 }}>{ins.icon}</div>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700, color:ins.color, marginBottom:3 }}>{ins.title}</div>
+                          <div style={{ fontSize:13, color:"var(--text)", lineHeight:1.5 }}>{ins.msg}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick }) {
   const total = sessions.length;
   const thisWeek = sessions.filter(s => (new Date() - new Date(s.date + "T00:00:00")) / 86400000 <= 7).length;
   const exCount = {};
@@ -6048,6 +6002,32 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
 
       <RexMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
       <StreakBanner sessions={sessions} />
+      {(() => {
+        const ins = generateInsights(sessions, bodyStats);
+        if (!ins.length) return null;
+        const top = ins.slice(0,3);
+        return (
+          <div className="card" style={{ marginBottom:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div className="card-label" style={{ margin:0 }}>💡 Insights</div>
+              <button onClick={onInsightsClick} style={{ background:"none", border:"none", color:"var(--accent)", fontSize:12, fontWeight:700, cursor:"pointer", padding:0 }}>
+                Ver todos ({ins.length}) →
+              </button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {top.map(i => (
+                <div key={i.id} onClick={onInsightsClick} style={{ display:"flex", gap:10, alignItems:"center", background:`${i.color}0d`, border:`1px solid ${i.color}30`, borderRadius:10, padding:"10px 12px", cursor:"pointer" }}>
+                  <span style={{ fontSize:18, flexShrink:0 }}>{i.icon}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:i.color }}>{i.title}</div>
+                    <div style={{ fontSize:12, color:"var(--text-muted)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{i.msg}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       <WeeklyChart sessions={sessions} />
       <WeekComparison sessions={sessions} />
       <ProgressPrediction sessions={sessions} />
@@ -7348,12 +7328,10 @@ const [histPage, setHistPage] = useState(0);
   const [suggestions, setSuggestions] = useState([]);
   const [showSugg, setShowSugg] = useState(false);
   const [progressEx, setProgressEx] = useState(null);
-  const [showPlans, setShowPlans] = useState(false); // kept for guest only
   const [showTimer, setShowTimer] = useState(false);
   const [showOneRM, setShowOneRM] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
   const [showMuscleMap, setShowMuscleMap] = useState(false);
-  const [showActiveWorkout, setShowActiveWorkout] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showWeeklyGoal, setShowWeeklyGoal] = useState(false);
   const [showTeams, setShowTeams] = useState(false);
@@ -7368,6 +7346,7 @@ const [histPage, setHistPage] = useState(0);
   const [prConfetti, setPrConfetti] = useState(null); // { prs: [...] }
   const [showProfile, setShowProfile] = useState(false);
   const [showStreakModal, setShowStreakModal] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
 const [showAthleteCoach, setShowAthleteCoach] = useState(false);
@@ -8152,6 +8131,37 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     <ExerciseGif exName={exName} size={110} />
     <div style={{ flex:1, display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
+      {/* Chip progresión inteligente */}
+      {(() => {
+        const sug = getProgressionSuggestion(exName, sessions);
+        if (!sug) return null;
+        return (
+          <div onClick={() => { setExWeight(String(sug.sugWeight)); setExReps(String(sug.sugReps)); setExSeriesCount(String(sug.lastSeries)); }}
+            style={{ display:"flex", alignItems:"center", gap:8, background:`${sug.color}15`, border:`1px solid ${sug.color}40`, borderRadius:8, padding:"7px 10px", cursor:"pointer" }}>
+            <span style={{ fontSize:15 }}>{sug.icon}</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:sug.color }}>{sug.sugWeight}kg × {sug.sugReps} reps</div>
+              <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sug.reason}</div>
+            </div>
+            <span style={{ fontSize:10, color:sug.color, fontWeight:700, flexShrink:0 }}>Aplicar →</span>
+          </div>
+        );
+      })()}
+      {(() => {
+        const sug = getProgressionSuggestion(exName, sessions);
+        if (!sug) return null;
+        return (
+          <div onClick={() => { setExWeight(String(sug.sugWeight)); setExReps(String(sug.sugReps)); setExSeriesCount(String(sug.lastSeries)); }}
+            style={{ display:"flex", alignItems:"center", gap:8, background:`${sug.color}15`, border:`1px solid ${sug.color}40`, borderRadius:8, padding:"7px 10px", cursor:"pointer" }}>
+            <span style={{ fontSize:15 }}>{sug.icon}</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:sug.color }}>{sug.sugWeight}kg × {sug.sugReps} reps</div>
+              <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sug.reason}</div>
+            </div>
+            <span style={{ fontSize:10, color:sug.color, fontWeight:700, flexShrink:0 }}>Aplicar →</span>
+          </div>
+        );
+      })()}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:10 }}>
         <div className="field">
           <label className="field-label">Peso ({unit})</label>
@@ -8580,6 +8590,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               </button>
             </div>
             <Dashboard sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal} onGoalClick={() => openPlanner("goal")} onBadgesClick={() => setShowBadges(true)}
+              onInsightsClick={() => setShowInsights(true)}
               onStartSession={(muscle) => {
                 setExMuscle(muscle);
                 setActiveTab("new");
@@ -8740,6 +8751,9 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       )}
       {showTimer && (
         <RestTimer onClose={() => setShowTimer(false)} />
+      )}
+      {showInsights && (
+        <InsightsModal sessions={sessions} bodyStats={bodyStats} onClose={() => setShowInsights(false)} />
       )}
       {showOneRM && (
         <OneRMModal onClose={() => setShowOneRM(false)} />
