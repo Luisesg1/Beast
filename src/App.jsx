@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import GIF_MAP from './assets/gif/gifMap.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, getRedirectResult } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc, enableIndexedDbPersistence } from "firebase/firestore";
 const firebaseConfig = {
   apiKey: "AIzaSyAh3pfGv0vEpKmGtNKKRvAhma1pGtA7Alc",
   authDomain: "gymtracker-app-2c603.firebaseapp.com",
@@ -15,6 +15,8 @@ const ADMIN_EMAILS = ["luiseduardooo2000@gmail.com"]; // reemplaza con tu email 
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+// Offline persistence — cachea datos en IndexedDB para funcionar sin conexión
+enableIndexedDbPersistence(db).catch(() => {});
 const googleProvider = new GoogleAuthProvider();
 
 const ThemeCtx = createContext();
@@ -1449,7 +1451,7 @@ const [age, setAge] = useState(stats.age || "25");
         { type:"image", source:{ type:"base64", media_type: latest.dataUrl.split(";")[0].split(":")[1], data: latest.dataUrl.split(",")[1] }}
       ];
       const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{"Content-Type":"application/json"},
+        method:"POST", headers:{"Content-Type":"application/json", "anthropic-dangerous-direct-browser-access":"true"},
         body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, messages:[{ role:"user", content: userContent }] })
       });
       const data = await res.json();
@@ -6313,6 +6315,22 @@ function GymApp() {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem("gym_onboarding_done"); } catch { return false; }
   });
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   function completeOnboarding() {
     try { localStorage.setItem("gym_onboarding_done", "1"); } catch {}
@@ -6682,6 +6700,28 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     ))}
 </nav>
         <div className="sidebar-bottom">
+          {/* Offline indicator */}
+          {!isOnline && (
+            <div style={{ margin:"0 8px 8px", padding:"7px 12px", background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:8, fontSize:11, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>
+              📵 Sin conexión — modo offline
+            </div>
+          )}
+          {/* Install PWA */}
+          {installPrompt && (
+            <button className="nav-item" style={{ marginBottom:2, color:"#22c55e" }} onClick={async () => {
+              installPrompt.prompt();
+              const { outcome } = await installPrompt.userChoice;
+              if (outcome === "accepted") setInstallPrompt(null);
+            }}>
+              <span className="nav-icon">📲</span>
+              <span className="nav-label">Instalar app</span>
+            </button>
+          )}
+          {/* Re-trigger tutorial */}
+          <button className="nav-item" style={{ marginBottom:2 }} onClick={() => setShowOnboarding(true)}>
+            <span className="nav-icon">❓</span>
+            <span className="nav-label">Ver tutorial</span>
+          </button>
           <div className="user-card">
             <div className="user-avatar" style={{cursor:"pointer", overflow:"hidden", padding:0}} onClick={() => setShowProfile(true)}>
   {user.photoURL
@@ -6772,6 +6812,26 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               </nav>
 
               <div style={{ padding: "12px 8px", borderTop: "1px solid var(--border)" }}>
+                {!isOnline && (
+                  <div style={{ margin:"0 4px 8px", padding:"7px 12px", background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:8, fontSize:11, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>
+                    📵 Sin conexión — modo offline
+                  </div>
+                )}
+                {installPrompt && (
+                  <button className="nav-item" style={{ marginBottom:2, color:"#22c55e" }} onClick={async () => {
+                    installPrompt.prompt();
+                    const { outcome } = await installPrompt.userChoice;
+                    if (outcome === "accepted") setInstallPrompt(null);
+                    setMobileNavOpen(false);
+                  }}>
+                    <span className="nav-icon">📲</span>
+                    <span className="nav-label">Instalar app</span>
+                  </button>
+                )}
+                <button className="nav-item" style={{ marginBottom:2 }} onClick={() => { setShowOnboarding(true); setMobileNavOpen(false); }}>
+                  <span className="nav-icon">❓</span>
+                  <span className="nav-label">Ver tutorial</span>
+                </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4 }}>
                   <div className="user-avatar">{user.name?.[0]?.toUpperCase() || "U"}</div>
                   <div>
