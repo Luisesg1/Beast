@@ -499,28 +499,28 @@ const [newWeight, setNewWeight] = useState("");
 
           {/* GIF preview + peso/reps/series */}
           {newExercise && newExercise !== "__custom__" ? (
-            <div style={{ display:"flex", gap:16, alignItems:"center", padding:14, background:"var(--card)", border:"1px solid var(--border)", borderRadius:14, marginBottom:10 }}>
-              <ExerciseGif exName={newExercise} size={100} />
-              <div style={{ flex:1, display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ padding:14, background:"var(--card)", border:"1px solid var(--border)", borderRadius:14, marginBottom:10 }}>
+              <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10 }}>
+                <ExerciseGif exName={newExercise} size={72} />
                 <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800 }}>{newExercise}</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:8 }}>
-                  <div className="field">
-                    <label className="field-label">Peso (kg)</label>
-                    <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" inputMode="decimal" />
-                  </div>
-                  <div className="field">
-                    <label className="field-label">Reps</label>
-                    <input className="input" placeholder="0" value={newReps} onChange={e => setNewReps(e.target.value)} type="number" inputMode="decimal" />
-                  </div>
-                  <div className="field">
-                    <label className="field-label">Series</label>
-                    <input className="input" placeholder="3" value={newSeries} onChange={e => setNewSeries(e.target.value)} type="number" inputMode="decimal" />
-                  </div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                <div className="field">
+                  <label className="field-label">Peso (kg)</label>
+                  <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" inputMode="decimal" />
+                </div>
+                <div className="field">
+                  <label className="field-label">Reps</label>
+                  <input className="input" placeholder="0" value={newReps} onChange={e => setNewReps(e.target.value)} type="number" inputMode="decimal" />
+                </div>
+                <div className="field">
+                  <label className="field-label">Series</label>
+                  <input className="input" placeholder="3" value={newSeries} onChange={e => setNewSeries(e.target.value)} type="number" inputMode="decimal" />
                 </div>
               </div>
             </div>
           ) : (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:8, marginBottom:10 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:10 }}>
               <div className="field">
                 <label className="field-label">Peso (kg)</label>
                 <input className="input" placeholder="0" value={newWeight} onChange={e => setNewWeight(e.target.value)} type="number" inputMode="decimal" />
@@ -4465,7 +4465,7 @@ function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose 
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e=>e.stopPropagation()} style={{maxHeight:"90vh",overflowY:"auto"}}>
+      <div className="modal modal-wide modal-profile" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">👤 Mi perfil</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
@@ -4475,7 +4475,7 @@ function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose 
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:800}}>{user.name}</div>
           <div style={{fontSize:12,color:"var(--text-muted)"}}>{user.email}</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10,marginBottom:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(85px,1fr))",gap:8,marginBottom:20}}>
           {[
             {icon:"⚖️",label:"Peso",value:lastEntry?`${lastEntry.weight}kg`:"—"},
             {icon:"📏",label:"Estatura",value:bodyStats.height?`${bodyStats.height}cm`:"—"},
@@ -7701,22 +7701,6 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </h1>
           </div>
           <div className="topbar-actions">
-            {/* Streak chip */}
-            {getStreak(sessions) >= 1 && (() => {
-              const s = getStreak(sessions);
-              const color = s >= 90 ? "#f97316" : s >= 30 ? "#a855f7" : s >= 14 ? "#3b82f6" : s >= 7 ? "#22c55e" : "#f59e0b";
-              return (
-                <button
-                  onClick={() => setShowStreakModal(true)}
-                  className="topbar-btn"
-                  style={{ borderColor: `${color}50`, background: `${color}12`, color }}
-                  title="Ver racha"
-                >
-                  <span className="topbar-btn-icon">🔥</span>
-                  <span className="topbar-btn-label" style={{ color, fontWeight: 800 }}>{s}</span>
-                </button>
-              );
-            })()}
             <button className="topbar-btn" onClick={toggleDark}>
               <span className="topbar-btn-icon">{dark ? "☀️" : "🌙"}</span>
               <span className="topbar-btn-label">{dark ? "Claro" : "Oscuro"}</span>
@@ -7791,11 +7775,15 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                   <span className="nav-icon">❓</span>
                   <span className="nav-label">Ver tutorial</span>
                 </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4 }}>
-                  <div className="user-avatar">{user.name?.[0]?.toUpperCase() || "U"}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, cursor: "pointer" }} onClick={() => { setShowProfile(true); setMobileNavOpen(false); }}>
+                  <div className="user-avatar" style={{ overflow:"hidden", padding:0 }}>
+                    {user.photoURL
+                      ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}} referrerPolicy="no-referrer" />
+                      : user.name?.[0]?.toUpperCase() || "U"}
+                  </div>
                   <div>
                     <div className="user-name">{user.name}</div>
-                    {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>✓ Cuenta activa</span>}
+                    {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>✓ Cuenta activa · Ver perfil →</span>}
                   </div>
                 </div>
                 <button className="nav-item" onClick={logout}>
@@ -8029,8 +8017,6 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             {[
               { icon: "🧮", label: "Calc. 1RM",    action: () => setShowOneRM(true) },
               { icon: "📚", label: "Biblioteca",    action: () => setShowLibrary(true) },
-              { icon: "📋", label: "Plantillas",    action: () => setShowTemplates(true) },
-              { icon: "📅", label: "Planificador",  action: () => openPlanner("plan") },
             ].map(btn => (
               <button
                 key={btn.label}
@@ -8127,64 +8113,51 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 </div>
 
 {exName && exName !== "__custom__" ? (
-  <div style={{ display:"flex", gap:20, alignItems:"center", margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16 }}>
-    <ExerciseGif exName={exName} size={110} />
-    <div style={{ flex:1, display:"flex", flexDirection:"column", gap:12 }}>
+  <div style={{ margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16, display:"flex", flexDirection:"column", gap:12 }}>
+    {/* GIF + nombre arriba */}
+    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+      <ExerciseGif exName={exName} size={72} />
       <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
-      {/* Chip progresión inteligente */}
-      {(() => {
-        const sug = getProgressionSuggestion(exName, sessions);
-        if (!sug) return null;
-        return (
-          <div onClick={() => { setExWeight(String(sug.sugWeight)); setExReps(String(sug.sugReps)); setExSeriesCount(String(sug.lastSeries)); }}
-            style={{ display:"flex", alignItems:"center", gap:8, background:`${sug.color}15`, border:`1px solid ${sug.color}40`, borderRadius:8, padding:"7px 10px", cursor:"pointer" }}>
-            <span style={{ fontSize:15 }}>{sug.icon}</span>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:sug.color }}>{sug.sugWeight}kg × {sug.sugReps} reps</div>
-              <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sug.reason}</div>
-            </div>
-            <span style={{ fontSize:10, color:sug.color, fontWeight:700, flexShrink:0 }}>Aplicar →</span>
-          </div>
-        );
-      })()}
-      {(() => {
-        const sug = getProgressionSuggestion(exName, sessions);
-        if (!sug) return null;
-        return (
-          <div onClick={() => { setExWeight(String(sug.sugWeight)); setExReps(String(sug.sugReps)); setExSeriesCount(String(sug.lastSeries)); }}
-            style={{ display:"flex", alignItems:"center", gap:8, background:`${sug.color}15`, border:`1px solid ${sug.color}40`, borderRadius:8, padding:"7px 10px", cursor:"pointer" }}>
-            <span style={{ fontSize:15 }}>{sug.icon}</span>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:sug.color }}>{sug.sugWeight}kg × {sug.sugReps} reps</div>
-              <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sug.reason}</div>
-            </div>
-            <span style={{ fontSize:10, color:sug.color, fontWeight:700, flexShrink:0 }}>Aplicar →</span>
-          </div>
-        );
-      })()}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:10 }}>
-        <div className="field">
-          <label className="field-label">Peso ({unit})</label>
-          <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
-        </div>
-        <div className="field">
-          <label className="field-label">Reps</label>
-          <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
-        </div>
-        <div className="field">
-          <label className="field-label">Series</label>
-          <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g, ""))} className="input" />
-        </div>
-      </div>
-      {exWeight && exReps && (
-        <div style={{ fontSize:12, color:"var(--text-muted)" }}>
-          1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
-        </div>
-      )}
     </div>
+    {/* Sugerencias a ancho completo */}
+    {(() => {
+      const sug = getProgressionSuggestion(exName, sessions);
+      if (!sug) return null;
+      return (
+        <div onClick={() => { setExWeight(String(sug.sugWeight)); setExReps(String(sug.sugReps)); setExSeriesCount(String(sug.lastSeries)); }}
+          style={{ display:"flex", alignItems:"center", gap:8, background:`${sug.color}15`, border:`1px solid ${sug.color}40`, borderRadius:8, padding:"7px 10px", cursor:"pointer" }}>
+          <span style={{ fontSize:15 }}>{sug.icon}</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:sug.color }}>{sug.sugWeight}kg × {sug.sugReps} reps</div>
+            <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sug.reason}</div>
+          </div>
+          <span style={{ fontSize:10, color:sug.color, fontWeight:700, flexShrink:0 }}>Aplicar →</span>
+        </div>
+      );
+    })()}
+    {/* Inputs a ancho completo */}
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+      <div className="field">
+        <label className="field-label">Peso ({unit})</label>
+        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+      </div>
+      <div className="field">
+        <label className="field-label">Reps</label>
+        <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+      </div>
+      <div className="field">
+        <label className="field-label">Series</label>
+        <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g, ""))} className="input" />
+      </div>
+    </div>
+    {exWeight && exReps && (
+      <div style={{ fontSize:12, color:"var(--text-muted)" }}>
+        1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
+      </div>
+    )}
   </div>
 ) : (
-  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:10, marginBottom:10 }}>
+  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
     <div className="field">
       <label className="field-label">Peso ({unit})</label>
       <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
@@ -8341,33 +8314,33 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 </div>
 
 {exName && exName !== "__custom__" ? (
-  <div style={{ display:"flex", gap:20, alignItems:"center", margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16 }}>
-    <ExerciseGif exName={exName} size={110} />
-    <div style={{ flex:1, display:"flex", flexDirection:"column", gap:12 }}>
+  <div style={{ margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16, display:"flex", flexDirection:"column", gap:12 }}>
+    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+      <ExerciseGif exName={exName} size={72} />
       <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:10 }}>
-        <div className="field">
-          <label className="field-label">Peso ({unit})</label>
-          <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
-        </div>
-        <div className="field">
-          <label className="field-label">Reps</label>
-          <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
-        </div>
-        <div className="field">
-          <label className="field-label">Series</label>
-          <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g, ""))} className="input" />
-        </div>
-      </div>
-      {exWeight && exReps && (
-        <div style={{ fontSize:12, color:"var(--text-muted)" }}>
-          1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
-        </div>
-      )}
     </div>
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+      <div className="field">
+        <label className="field-label">Peso ({unit})</label>
+        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+      </div>
+      <div className="field">
+        <label className="field-label">Reps</label>
+        <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+      </div>
+      <div className="field">
+        <label className="field-label">Series</label>
+        <input placeholder="3" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value.replace(/[^0-9]/g, ""))} className="input" />
+      </div>
+    </div>
+    {exWeight && exReps && (
+      <div style={{ fontSize:12, color:"var(--text-muted)" }}>
+        1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
+      </div>
+    )}
   </div>
 ) : (
-  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 80px", gap:10, marginBottom:10 }}>
+  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
     <div className="field">
       <label className="field-label">Peso ({unit})</label>
       <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
@@ -8599,43 +8572,6 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           </div>
         )}
       </main>
-
-      {/* ── MOBILE BOTTOM NAV ── */}
-      <div className="mobile-bottom-nav mobile-only">
-        {NAV.map(item => (
-          <button
-            key={item.id}
-            className={`mobile-nav-btn ${activeTab === item.id ? "active" : ""}`}
-            onClick={() => navClick(item.id)}
-          >
-            <span style={{ fontSize: 20 }}>{item.icon}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>{item.label}</span>
-          </button>
-        ))}
-        {/* Streak chip en mobile nav */}
-        {(() => {
-          const s = getStreak(sessions);
-          if (s < 1) return null;
-          const color = s >= 90 ? "#f97316" : s >= 30 ? "#a855f7" : s >= 14 ? "#3b82f6" : s >= 7 ? "#22c55e" : "#f59e0b";
-          return (
-            <button
-              className="mobile-nav-btn"
-              onClick={() => setShowStreakModal(true)}
-              style={{ color }}
-            >
-              <span style={{ fontSize: 20 }}>🔥</span>
-              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.3, color }}>{s}</span>
-            </button>
-          );
-        })()}
-        <button
-          className={`mobile-nav-btn ${mobileNavOpen ? "active" : ""}`}
-          onClick={() => setMobileNavOpen(v => !v)}
-        >
-          <span style={{ fontSize: 20 }}>☰</span>
-          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>Menú</span>
-        </button>
-      </div>
 
       {/* ── MODALES GLOBALES ── */}
       {showPlanner && (
@@ -8990,7 +8926,7 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--te
 @media (max-width: 768px) {
   .desktop-only { display: none !important; }
   .mobile-only { display: flex !important; }
-  .main-content { margin-left: 0 !important; padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .main-content { margin-left: 0 !important; padding-bottom: env(safe-area-inset-bottom); }
   .sidebar { display: none !important; }
   .content-area { padding: 16px; }
   .topbar { padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
@@ -9000,6 +8936,8 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--te
   .modal-wide { max-width: 100%; }
   .overlay { padding: 12px; align-items: flex-end; }
   .modal, .modal-wide { border-bottom-left-radius: 0; border-bottom-right-radius: 0; max-height: 92vh; }
+  .modal-profile { position: fixed !important; inset: 0 !important; border-radius: 0 !important; max-height: 100vh !important; height: 100dvh !important; margin: 0 !important; overflow-y: auto !important; }
+  .overlay:has(.modal-profile) { padding: 0 !important; align-items: stretch !important; }
 }
 
 /* ── Content ── */
@@ -9116,7 +9054,7 @@ input[type="date"].input { color-scheme: dark; }
 .text-muted { color: var(--text-muted); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .upgrade-banner { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 12px; padding: 12px 18px; font-size: 13px; margin-bottom: 16px; }
-.toast { position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 9999; white-space: nowrap; box-shadow: var(--shadow); animation: toastIn 0.3s ease; }
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 9999; white-space: nowrap; box-shadow: var(--shadow); animation: toastIn 0.3s ease; }
 @media (min-width: 769px) { .toast { bottom: 28px; } }
 @media (max-width: 768px) { .history-sidebar { display: none !important; } }
 
