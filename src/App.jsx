@@ -43,10 +43,7 @@ const ACCENT_COLORS = [
   { name: "Cyan",    value: "#06b6d4", dim: "#083344" },
 ];
 
-const PLANS = {
-  guest: { name: "Invitado", price: "Sin cuenta", color: "#f59e0b", features: ["3 sesiones", "Sin historial guardado", "Herramientas básicas"] },
-  free:  { name: "GymTracker", price: "Gratis", color: "#3b82f6", features: ["Todo incluido"] },
-};
+
 
 const PRESETS = {
   "Push Day":  ["Press Banca", "Press Hombro", "Fondos", "Tríceps Polea", "Elevaciones Laterales"],
@@ -360,7 +357,7 @@ function TemplatesModal({ sessions, onLoad, onClose }) {
   }
 
   function saveEdit() {
-    if (!editName.trim()) return alert("Agrégale un nombre a la plantilla");
+    if (!editName.trim()) return alert("Agrega un nombre a la plantilla");
     const updated = { ...editingTemplate, name: editName, workout: editName, day: editDay, exercises: editExercises };
     const exists = templates.find(t => t.id === updated.id);
     if (exists) saveTemplates(templates.map(t => t.id === updated.id ? updated : t));
@@ -390,6 +387,7 @@ const [newWeight, setNewWeight] = useState("");
     const finalName = newExercise === "__custom__" ? exCustomInput.trim() : newExercise.trim();
     if (!finalName) return;
     if (newExercise === "__custom__" && exCustomMuscleTpl && !EXERCISE_DB.find(e => e.name === finalName)) {
+      saveCustomExercise(finalName, exCustomMuscleTpl);
       EXERCISE_DB.push({ name: finalName, muscle: exCustomMuscleTpl, machine: false, equipment: "Personalizado" });
     }
     setEditExercises(prev => [...prev, { id: uid(), name: finalName, sets: [], weight: newWeight || "0", reps: newReps || "0", series: newSeries || "3" }]);
@@ -655,6 +653,46 @@ const [newWeight, setNewWeight] = useState("");
 }
 
 // ─── Weekly Chart ─────────────────────────────────────────────────────────────
+
+function TrainingCalendar({ sessions }) {
+  const today=new Date();today.setHours(0,0,0,0);
+  const year=today.getFullYear(),month=today.getMonth();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const startOffset=(new Date(year,month,1).getDay()+6)%7;
+  const trainedDates=new Set(sessions.map(s=>s.date));
+  const monthName=today.toLocaleString("es",{month:"long",year:"numeric"});
+  const cells=[...Array(startOffset).fill(null),...Array.from({length:daysInMonth},(_,i)=>i+1)];
+  const todayDay=today.getDate();
+  return (
+    <div className="card" style={{marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div className="card-label" style={{margin:0}}>📅 Calendario de entrenos</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",textTransform:"capitalize"}}>{monthName}</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
+        {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,color:"var(--text-muted)"}}>{d}</div>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+        {cells.map((day,i)=>{
+          if (!day) return <div key={`e${i}`}/>;
+          const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+          const trained=trainedDates.has(ds);
+          const isToday=day===todayDay,isFuture=day>todayDay;
+          return (<div key={day} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,fontSize:10,fontWeight:trained||isToday?800:400,background:trained?(isToday?"var(--accent)":"rgba(59,130,246,0.3)"):(isToday?"rgba(59,130,246,0.15)":"transparent"),border:isToday?"1.5px solid var(--accent)":trained?"1px solid rgba(59,130,246,0.5)":"1px solid transparent",color:trained?(isToday?"white":"var(--accent)"):isFuture?"var(--text-muted)":"var(--text)",opacity:isFuture?0.4:1,position:"relative"}}>
+            {trained&&!isToday&&<span style={{position:"absolute",top:1,right:1,fontSize:6}}>🔥</span>}
+            {day}
+          </div>);
+        })}
+      </div>
+      <div style={{display:"flex",gap:12,marginTop:10,fontSize:10,color:"var(--text-muted)",alignItems:"center"}}>
+        <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:3,background:"rgba(59,130,246,0.3)",border:"1px solid rgba(59,130,246,0.5)",display:"inline-block"}}/>Entrenado</span>
+        <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:3,background:"var(--accent)",display:"inline-block"}}/>Hoy</span>
+        <span style={{marginLeft:"auto",fontWeight:700,color:"var(--accent)"}}>{sessions.filter(s=>s.date.startsWith(`${year}-${String(month+1).padStart(2,"0")}`)).length} este mes</span>
+      </div>
+    </div>
+  );
+}
+
 function WeeklyChart({ sessions }) {
   const [period, setPeriod] = useState("week");
   const [metric, setMetric] = useState("count");
@@ -1092,7 +1130,7 @@ function MuscleMapModal({ sessions, onClose }) {
     if (d <= 1)    return "Necesita descanso";
     if (d <= 2)    return "Recuperando";
     if (d <= 5)    return "Listo para entrenar";
-    return "¡A por él!";
+    return "¡Listo!";
   };
 
   const maxCount = Math.max(...Object.values(muscleCounts), 1);
@@ -1236,7 +1274,7 @@ function MuscleMapModal({ sessions, onClose }) {
           <div style={{ marginBottom:16 }}>
             <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Leyenda de recuperación</div>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {[["#ef4444","Descansando (≤1d)"],["#f59e0b","Recuperando (2d)"],["#22c55e","Listo (3-5d)"],["#3b82f6","¡A por él! (6d+)"]].map(([c,l]) => (
+              {[["#ef4444","Descansando (≤1d)"],["#f59e0b","Recuperando (2d)"],["#22c55e","Listo (3-5d)"],["#3b82f6","¡Listo! (6d+)"]].map(([c,l]) => (
                 <div key={l} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:"var(--text-muted)" }}>
                   <div style={{ width:10, height:10, borderRadius:3, background:c, flexShrink:0 }}/>
                   {l}
@@ -1458,6 +1496,16 @@ function OneRMModal({ onClose }) {
 }
 
 // ─── Body Stats Modal ─────────────────────────────────────────────────────────
+function InfoPill({ title, lines, color = "var(--accent)" }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={e=>{e.preventDefault();e.stopPropagation();setOpen(true);}} style={{ background:"rgba(255,255,255,0.1)", border:"none", cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", width:16, height:16, borderRadius:"50%", color:"var(--text-muted)", fontSize:10, fontWeight:800, verticalAlign:"middle", marginLeft:5, flexShrink:0, lineHeight:1 }}>?</button>
+      {open && (<div className="overlay" style={{zIndex:99999}} onClick={e=>{e.stopPropagation();setOpen(false);}}><div className="modal" style={{maxWidth:320,padding:20}} onClick={e=>e.stopPropagation()}><div style={{fontSize:13,fontWeight:800,color,marginBottom:10}}>{title}</div>{lines.map((l,i)=><div key={i} style={{fontSize:12,color:"var(--text-muted)",lineHeight:1.6,marginBottom:4}}>{l}</div>)}<button className="btn-primary" style={{width:"100%",marginTop:12,fontSize:13}} onClick={e=>{e.stopPropagation();setOpen(false);}}>Entendido</button></div></div>)}
+    </>
+  );
+}
+
 function BodyStatsModal({ stats, onSave, onClose }) {
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState(stats.height || "170");
@@ -1586,7 +1634,7 @@ const [age, setAge] = useState(stats.age || "25");
         {/* MEDIDAS TAB */}
         {photoTab && (() => {
           const FIELDS = [
-            { key:"bodyFat", label:"% Grasa",  unit:"%",  color:"#f97316" },
+            { key:"bodyFat", label:"% Grasa",  unit:"%",  color:"#f97316", info:true },
             { key:"chest",   label:"Pecho",    unit:"cm", color:"#3b82f6" },
             { key:"waist",   label:"Cintura",  unit:"cm", color:"#22c55e" },
             { key:"hip",     label:"Cadera",   unit:"cm", color:"#a855f7" },
@@ -1623,7 +1671,7 @@ const [age, setAge] = useState(stats.age || "25");
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:10 }}>
                   {FIELDS.map(f => (
                     <div key={f.key}>
-                      <label style={{ fontSize:10, color:"var(--text-muted)", display:"block", marginBottom:3 }}>{f.label} ({f.unit})</label>
+                      <label style={{ fontSize:10, color:"var(--text-muted)", display:"flex", alignItems:"center", marginBottom:3 }}>{f.label} ({f.unit}){f.info && <InfoPill title="¿Cómo medir la grasa corporal?" color="#f97316" lines={["El % de grasa indica qué parte de tu peso es grasa.","📏 Pliegues cutáneos: mide el grosor de la piel en puntos clave.","⚖️ Bioimpedancia: báscula eléctrica, menos precisa pero fácil.","🔬 DEXA scan: el más preciso, disponible en clínicas.","📊 Hombre: Atlético 6–13% · Fitness 14–17% · Promedio 18–24%","  Mujer: Atlético 14–20% · Fitness 21–24% · Promedio 25–31%"]} />}</label>
                       <input className="input" placeholder="—" inputMode="decimal"
                         value={measureForm[f.key]||""}
                         onChange={e => setMeasureForm(p => ({...p, [f.key]: e.target.value.replace(/[^0-9.]/g,"")}))}
@@ -1787,16 +1835,18 @@ const [age, setAge] = useState(stats.age || "25");
         {/* Stats row */}
         {bmi && (
           <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-            {[
-              ["Peso", `${currentWeight} kg`, "var(--accent)"],
-              ["IMC",  bmi,                    bmiFeedback?.color],
-              ["Estado", bmiFeedback?.label||"—", bmiFeedback?.color],
-            ].map(([l,v,c]) => (
-              <div key={l} style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
-                <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3 }}>{l}</div>
-                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:c }}>{v}</div>
-              </div>
-            ))}
+            <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3 }}>Peso</div>
+              <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:"var(--accent)" }}>{currentWeight} kg</div>
+            </div>
+            <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3, display:"flex", alignItems:"center", justifyContent:"center" }}>IMC<InfoPill title="¿Qué es el IMC?" color="#3b82f6" lines={["El IMC relaciona peso y estatura para estimar si estás en un rango saludable.","📊 Fórmula: peso (kg) ÷ estatura² (m)","🔵 < 18.5 → Bajo peso","🟢 18.5–24.9 → Normal","🟠 25–29.9 → Sobrepeso","🔴 ≥ 30 → Obesidad","⚠️ No distingue músculo de grasa — atletas pueden tener IMC alto sin sobrepeso."]} /></div>
+              <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:bmiFeedback?.color }}>{bmi}</div>
+            </div>
+            <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3 }}>Estado</div>
+              <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:bmiFeedback?.color }}>{bmiFeedback?.label||"—"}</div>
+            </div>
           </div>
         )}
 
@@ -1817,7 +1867,7 @@ const [age, setAge] = useState(stats.age || "25");
               </div>
               <div style={{ flex:1, textAlign:"center" }}>
                 <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:28, fontWeight:800, color:"var(--text)" }}>{tdee}</div>
-                <div style={{ fontSize:11, color:"var(--text-muted)" }}>TDEE base</div>
+                <div style={{ fontSize:11, color:"var(--text-muted)", display:"flex", alignItems:"center", justifyContent:"center", gap:2 }}>TDEE base<InfoPill title="¿Qué es el TDEE?" color="#f59e0b" lines={["TDEE es el total de calorías que quemas en un día, incluyendo ejercicio y actividad diaria.","📉 Déficit: Come menos que tu TDEE para perder grasa.","⚖️ Mantenimiento: Come igual para mantener el peso.","📈 Volumen: Come más para ganar músculo.","Calculado con la fórmula Mifflin-St Jeor (peso, estatura, edad, actividad)."]} /></div>
               </div>
             </div>
             {gc.kcalAdj !== 0 && (
@@ -2059,11 +2109,17 @@ function ExerciseEditor({ dayKey, exercises, isWeekly, removeExFromDay, addExToD
   const [exCustomInput, setExCustomInput] = useState("");
   const [exWeight, setExWeight] = useState("");
   const [exReps, setExReps] = useState("");
-  const [exSets, setExSets] = useState([]);
-
-  function addSet() { if (!exReps) return; setExSets(p => [...p, { id: uid(), weight: exWeight, reps: exReps }]); setExWeight(""); setExReps(""); }
-
-  const filteredDB = exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle);
+  const [exSeriesCount,setExSeriesCount]=useState("3");
+  const filteredDB=exMuscle==="Todos"?EXERCISE_DB:EXERCISE_DB.filter(e=>e.muscle===exMuscle);
+  const selectedExName=exName==="__custom__"?exCustomInput:exName;
+  const gifSrc=GIF_MAP[selectedExName];
+  function handleAdd(){
+    if (!selectedExName) return;
+    const count=Math.max(1,parseInt(exSeriesCount)||3);
+    const sets=Array.from({length:count},()=>({id:uid(),weight:exWeight,reps:exReps}));
+    addExToDay(dayKey,isWeekly,exName,exCustomInput,exWeight,exReps,sets);
+    setExName("");setExCustomInput("");setExWeight("");setExReps("");setExSeriesCount("3");
+  }
 
   return (
     <div style={{ marginTop: 12, padding: "12px 14px", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)" }}>
@@ -2159,17 +2215,13 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions, weeklyGoal, onSav
 )];
   const todayDow = (new Date().getDay() + 6) % 7;
 
-  function addExToDay(dayKey, isWeekly) {
-    const finalName = exName === "__custom__" ? exCustomInput : exName;
+  function addExToDay(dayKey,isWeekly,exNameVal,exCustomVal,exWeightVal,exRepsVal,exSetsVal) {
+    const finalName=exNameVal==="__custom__"?exCustomVal:exNameVal;
     if (!finalName) return;
-    const sets = exSets.length > 0 ? exSets : (exWeight || exReps ? [{ id: uid(), weight: exWeight, reps: exReps }] : []);
-    const newEx = { id: uid(), name: finalName, sets, weight: exWeight, reps: exReps };
-    if (isWeekly) {
-      setWeekly(w => ({ ...w, [dayKey]: { ...w[dayKey], exercises: [...(w[dayKey]?.exercises||[]), newEx] } }));
-    } else {
-      setCycle(c => c.map((d, i) => i !== dayKey ? d : { ...d, exercises: [...(d.exercises||[]), newEx] }));
-    }
-    setExName(""); setExWeight(""); setExReps(""); setExSets([]);
+    const sets=exSetsVal&&exSetsVal.length>0?exSetsVal:(exWeightVal||exRepsVal?[{id:uid(),weight:exWeightVal,reps:exRepsVal}]:[]);
+    const newEx={id:uid(),name:finalName,sets,weight:exWeightVal,reps:exRepsVal};
+    if (isWeekly) setWeekly(w=>({...w,[dayKey]:{...w[dayKey],exercises:[...(w[dayKey]?.exercises||[]),newEx]}}))
+    else setCycle(c=>c.map((d,i)=>i!==dayKey?d:{...d,exercises:[...(d.exercises||[]),newEx]}));
   }
 
   function removeExFromDay(dayKey, exId, isWeekly) {
@@ -2195,7 +2247,7 @@ function WeeklyPlannerModal({ plan, onSave, onClose, sessions, weeklyGoal, onSav
         </div>
         <div className="tab-row" style={{ marginBottom: 20 }}>
           <button className={`tab-btn ${plannerTab === "plan" && mode === "weekly" ? "active" : ""}`} onClick={() => { setPlannerTab("plan"); setMode("weekly"); }}>7 días fijos</button>
-          <button className={`tab-btn ${plannerTab === "plan" && mode === "cycle" ? "active" : ""}`} onClick={() => { setPlannerTab("plan"); setMode("cycle"); }}>Ciclo</button>
+          <button className={`tab-btn ${plannerTab === "plan" && mode === "cycle" ? "active" : ""}`} onClick={() => { setPlannerTab("plan"); setMode("cycle"); }}>Ciclo Personalizado</button>
           <button className={`tab-btn ${plannerTab === "goal" ? "active" : ""}`} onClick={() => setPlannerTab("goal")}>🎯 Meta</button>
         </div>
 
@@ -2314,12 +2366,12 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
 
   const steps = [
     {
-      emoji: null, // Rex illustrated
+      emoji: null, // Brux illustrated
       title: `¡Hola, ${firstName}! 👋`,
       desc: "Soy tu nueva mancuerna parlante 🏋️ Voy a acompañarte en cada entrenamiento, recordarte qué músculo te falta y celebrar tus logros.",
       content: (
         <div style={{ marginTop: 20 }}>
-          {/* Mini Rex */}
+          {/* Mini Brux */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             <div style={{ position: "relative", width: 90, height: 90 }}>
               <svg viewBox="0 0 68 68" width="90" height="90" xmlns="http://www.w3.org/2000/svg">
@@ -2340,8 +2392,8 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
             {[
-              { icon:"🏋️", label:"Registrá entrenamientos" },
-              { icon:"📈", label:"Seguí tu progreso" },
+              { icon:"🏋️", label:"Registra entrenamientos" },
+              { icon:"📈", label:"Sigue tu progreso" },
               { icon:"🏆", label:"Rompé records personales" },
               { icon:"👥", label:"Competí con amigos" },
             ].map(f => (
@@ -2387,24 +2439,22 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
     {
       emoji: "📝",
       title: "¿Cómo registrar una sesión?",
-      desc: "Tenés dos modos según si querés registrar mientras entrenás o después.",
+      desc: "Tienes dos modos según si quieres registrar mientras entrenas o después.",
       content: (
         <div style={{ marginTop:16 }}>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
             <div style={{ background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.25)", borderRadius:12, padding:14 }}>
               <div style={{ fontSize:22, marginBottom:6 }}>⚡</div>
               <div style={{ fontWeight:700, fontSize:13, color:"var(--accent)", marginBottom:4 }}>En vivo</div>
-              <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Timer de descanso automático, marcás cada serie mientras entrenás.</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Timer de descanso automático, marca cada serie mientras entrenas.</div>
             </div>
             <div style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:12, padding:14 }}>
               <div style={{ fontSize:22, marginBottom:6 }}>📝</div>
               <div style={{ fontWeight:700, fontSize:13, color:"#22c55e", marginBottom:4 }}>Registrar</div>
-              <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Completás los datos después de entrenar con calma.</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Completa los datos después de entrenar con calma.</div>
             </div>
           </div>
-          <div style={{ background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:10, padding:12, fontSize:12, color:"var(--text-muted)" }}>
-            🤖 <strong style={{ color:"#f59e0b" }}>IA integrada:</strong> Podés analizar fotos de progreso y recibir recomendaciones personalizadas.
-          </div>
+
         </div>
       ),
     },
@@ -3295,6 +3345,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     const finalName = rExName === "__custom__" ? rExCustom.trim() : rExName;
     if (!finalName) return;
     if (rExName === "__custom__" && rExCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
+      saveCustomExercise(finalName, rExCustomMuscle);
       EXERCISE_DB.push({ name: finalName, muscle: rExCustomMuscle, machine: false, equipment: "Personalizado" });
     }
     const sets = rExSets.length > 0 ? rExSets : (rExWeight || rExReps ? [{ id: uid(), weight: rExWeight, reps: rExReps }] : []);
@@ -3303,7 +3354,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
 
   async function saveRoutine() {
-    if (!routineName.trim()) { setErr("Ponle nombre a la rutina"); return; }
+    if (!routineName.trim()) { setErr("Dale un nombre a la rutina"); return; }
     if (routineExercises.length === 0) { setErr("Agrega al menos un ejercicio"); return; }
     setErr("");
     const routine = {
@@ -3333,12 +3384,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
   async function handleAddAthlete() {
     if (!addAthleteEmail) return;
-    const result = await assignRoutineToAthlete(user.uid, addAthleteEmail, "", "");
-    if (result.ok) {
-      setAddAthleteMsg("✅ Atleta agregado");
-      const profile = await getCoachProfile(user.uid);
-      setCoachProfile(profile);
-    } else setAddAthleteMsg(`❌ ${result.msg}`);
+    if (athletes.some(a=>a.email?.toLowerCase()===addAthleteEmail.trim().toLowerCase())){setAddAthleteMsg("⚠️ Este atleta ya está en tu lista");return;}
+    const result=await assignRoutineToAthlete(user.uid,addAthleteEmail.trim(),"","");
+    if (result.ok){setAddAthleteMsg("✅ Atleta agregado");setAddAthleteEmail("");const p=await getCoachProfile(user.uid);setCoachProfile(p);}
+    else setAddAthleteMsg(`❌ ${result.msg}`);
   }
   async function removeAthlete(athleteUid) {
     if (!window.confirm("¿Eliminar este atleta de tu lista?")) return;
@@ -3364,7 +3413,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000);
   }
 
-  const athletes = coachProfile ? Object.values(coachProfile.athletes || {}) : [];
+  const athletes=coachProfile?Object.values(Object.values(coachProfile.athletes||{}).reduce((acc,a)=>{const k=a.email?.toLowerCase()||a.uid;if(!acc[k]||(a.addedAt||"")>(acc[k].addedAt||""))acc[k]=a;return acc;},{})):[];
 
   // ── Athlete stats helpers ──
   function getAthletePRs(sessions) { return getPRs(sessions); }
@@ -3451,10 +3500,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                         <div style={{ width: 38, height: 38, borderRadius: "50%", background: veryInactive ? "#ef4444" : inactive ? "#f59e0b" : "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "white", fontSize: 15 }}>
                           {a.name?.[0]?.toUpperCase()}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{a.email}</div>
-                        </div>
+                        <div><div style={{fontWeight:700,fontSize:14}}>{a.name}</div></div>
                       </div>
                       <button className="btn-ghost small" onClick={() => loadAthleteData(a)}>Ver detalle →</button>
                     </div>
@@ -3628,18 +3674,15 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                 {athletes.length === 0 ? (
                   <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: 20 }}>Sin atletas aún.</p>
                 ) : athletes.map(a => (
-                  <div key={a.uid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "white" }}>{a.name?.[0]?.toUpperCase()}</div>
-                      <div>
-                        <div style={{ fontWeight: 700 }}>{a.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{a.email} · desde {fmtDate(a.addedAt)}</div>
-                      </div>
+                  <div key={a.uid} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:"var(--input-bg)",border:"1px solid var(--border)",borderRadius:12,marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:36,height:36,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"white"}}>{a.name?.[0]?.toUpperCase()}</div>
+                      <div style={{fontWeight:700}}>{a.name}</div>
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-  <button className="btn-ghost small" onClick={() => loadAthleteData(a)}>Ver progreso →</button>
-  <button className="btn-ghost small danger" onClick={() => removeAthlete(a.uid)}>🗑️</button>
-</div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <button className="btn-ghost small" onClick={()=>loadAthleteData(a)}>Ver progreso →</button>
+                      <button className="btn-ghost small" style={{color:"#ef4444",borderColor:"rgba(239,68,68,0.3)"}} onClick={()=>removeAthlete(a.uid)}>🗑️</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -3982,7 +4025,7 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
 }
 
 // ─── Athlete Coach Panel ──────────────────────────────────────────────────────
-function AthleteCoachPanel({ user, onClose }) {
+function AthleteCoachPanel({ user, onClose, initialRoutine = null }) {
   const [tab, setTab] = useState("routines");
   const [coaches, setCoaches] = useState([]);
   const [assignedRoutines, setAssignedRoutines] = useState([]);
@@ -3991,7 +4034,7 @@ function AthleteCoachPanel({ user, onClose }) {
   const [joinCode, setJoinCode] = useState("");
   const [joinMsg, setJoinMsg] = useState("");
   const [joining, setJoining] = useState(false);
-  const [activeWorkout, setActiveWorkout] = useState(null);
+  const [activeWorkout, setActiveWorkout] = useState(initialRoutine);
   const [workoutSummary, setWorkoutSummary] = useState(null);
 
   useEffect(() => { loadData(); }, []);
@@ -4233,9 +4276,12 @@ function AthleteCoachPanel({ user, onClose }) {
 // ─── Coach/Athlete Functions ──────────────────────────────────────────────────
 async function getCoachProfile(uid) {
   try {
-    const snap = await getDoc(doc(db, "coaches", uid));
-    return snap.exists() ? snap.data() : null;
-  } catch(e) { return null; }
+    const snap=await getDoc(doc(db,"coaches",uid));
+    if (!snap.exists()) return null;
+    const data=snap.data();
+    if (data.athletes){data.athletes=Object.values(data.athletes).reduce((acc,a)=>{const k=a.email?.toLowerCase()||a.uid;if(!acc[k]||(a.addedAt||"")>(acc[k].addedAt||""))acc[k]=a;return acc;},{});}
+    return data;
+  } catch(e){return null;}
 }
 
 async function createCoachProfile(uid, name, email) {
@@ -4376,10 +4422,43 @@ async function getMyCoaches(athleteUid) {
   } catch(e) { return []; }
 }
 
+async function saveCustomExercise(name, muscle) {
+  try {
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    await setDoc(doc(db, "custom_exercises", id), {
+      name, muscle, equipment: "Personalizado", machine: false,
+      gifUrl: "", createdAt: new Date().toISOString().slice(0,10)
+    }, { merge: true });
+  } catch(e) {}
+}
+
+async function loadCustomExercises() {
+  try {
+    const snap = await getDocs(collection(db, "custom_exercises"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch(e) { return []; }
+}
+
+async function updateCustomExerciseGif(id, gifUrl) {
+  try {
+    await setDoc(doc(db, "custom_exercises", id), { gifUrl }, { merge: true });
+    return true;
+  } catch(e) { return false; }
+}
+
+async function deleteCustomExercise(id) {
+  try {
+    await deleteDoc(doc(db, "custom_exercises", id));
+    return true;
+  } catch(e) { return false; }
+}
+
 async function getFullRoutine(coachUid, routineId) {
   try {
+    if (!coachUid || !routineId) return null;
     const snap = await getDoc(doc(db, "coaches", coachUid, "routines", routineId));
-    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data(), coachUid, routineId };
   } catch(e) { return null; }
 }
 
@@ -4615,7 +4694,7 @@ function TeamsModal({ user, sessions, onClose }) {
   }
 
   async function createTeam() {
-    if (!createName.trim()) { setErr("Ponle nombre al team"); return; }
+    if (!createName.trim()) { setErr("Dale un nombre al team"); return; }
     if (myTeams.length >= 3) { setErr("Puedes estar en un máximo de 3 teams."); return; }
     const code = Math.random().toString(36).slice(2,8).toUpperCase();
     const team = { code, name: createName.trim(), createdBy: user.name, members: { [user.email]: myStats }, createdAt: todayStr() };
@@ -5100,6 +5179,101 @@ function PasswordStrength({ pass }) {
   );
 }
 
+function AdminExercisesModal({ onClose }) {
+  const [exercises, setExercises] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [gifInputs, setGifInputs] = useState({});
+  const [saving, setSaving] = useState({});
+  const [filter, setFilter] = useState("");
+
+  useEffect(() => {
+    loadCustomExercises().then(list => {
+      setExercises(list);
+      const inputs = {};
+      list.forEach(e => { inputs[e.id] = e.gifUrl || ""; });
+      setGifInputs(inputs);
+      setLoading(false);
+    });
+  }, []);
+
+  async function handleSaveGif(ex) {
+    setSaving(s => ({ ...s, [ex.id]: true }));
+    const url = gifInputs[ex.id] || "";
+    await updateCustomExerciseGif(ex.id, url);
+    setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, gifUrl: url } : e));
+    setSaving(s => ({ ...s, [ex.id]: false }));
+  }
+
+  async function handleDelete(ex) {
+    if (!window.confirm(`¿Eliminar "${ex.name}"?`)) return;
+    await deleteCustomExercise(ex.id);
+    setExercises(prev => prev.filter(e => e.id !== ex.id));
+  }
+
+  const filtered = exercises.filter(e =>
+    e.name?.toLowerCase().includes(filter.toLowerCase()) ||
+    e.muscle?.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+        <div className="modal-header">
+          <h3 className="modal-title">⚙️ Ejercicios personalizados</h3>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 14 }}>
+          Ejercicios creados por usuarios. Pega la URL del GIF para que aparezca en la app.
+        </div>
+        <input className="input" placeholder="🔍 Filtrar por nombre o músculo..."
+          value={filter} onChange={e => setFilter(e.target.value)} style={{ marginBottom: 14 }} />
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>⏳ Cargando...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+            {exercises.length === 0 ? "Aún no hay ejercicios personalizados." : "Sin resultados."}
+          </div>
+        ) : filtered.map(ex => (
+          <div key={ex.id} style={{ background: "var(--input-bg)", border: `1px solid ${ex.gifUrl ? "rgba(34,197,94,0.4)" : "var(--border)"}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>💪 {ex.muscle} · {ex.createdAt}</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {ex.gifUrl && (
+                  <img src={ex.gifUrl} alt={ex.name}
+                    style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: "1px solid var(--border)" }}
+                    onError={e => { e.target.style.display = "none"; }} />
+                )}
+                <button onClick={() => handleDelete(ex)}
+                  style={{ background: "none", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444",
+                    borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 11 }}>🗑️</button>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="input" style={{ flex: 1, fontSize: 12 }}
+                placeholder="URL del GIF (https://...gif)"
+                value={gifInputs[ex.id] || ""}
+                onChange={e => setGifInputs(p => ({ ...p, [ex.id]: e.target.value }))} />
+              <button onClick={() => handleSaveGif(ex)} disabled={saving[ex.id]}
+                className="btn-primary" style={{ fontSize: 12, padding: "8px 14px", flexShrink: 0 }}>
+                {saving[ex.id] ? "⏳" : ex.gifUrl ? "✏️ Actualizar" : "💾 Guardar"}
+              </button>
+            </div>
+            {ex.gifUrl && gifInputs[ex.id] === ex.gifUrl && (
+              <div style={{ fontSize: 11, color: "#22c55e", marginTop: 6 }}>✅ GIF asignado</div>
+            )}
+          </div>
+        ))}
+        <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(59,130,246,0.08)", borderRadius: 10, fontSize: 12, color: "var(--text-muted)" }}>
+          💡 GIFs gratis en <a href="https://giphy.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>giphy.com</a> o <a href="https://tenor.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>tenor.com</a> — copia el enlace directo al .gif
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen() {
   const { loginWithFirebase, registerWithFirebase, loginAsGuest, resetPassword, loginWithGoogle } = useAuth();
   const [mode, setMode] = useState("login");
@@ -5244,295 +5418,390 @@ function LoginScreen() {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 // ─── Músculo más descuidado ────────────────────────────────────────────────────
-// ─── REX — Mascota motivadora (Mancuerna) ────────────────────────────────────
-const REX_MOODS = {
-  hype:     { face: "💪", color: "#3b82f6", glow: "#3b82f620" },
-  happy:    { face: "🏋️", color: "#22c55e", glow: "#22c55e20" },
-  proud:    { face: "🥇", color: "#f59e0b", glow: "#f59e0b20" },
-  warning:  { face: "😬", color: "#f59e0b", glow: "#f59e0b20" },
-  shocked:  { face: "😱", color: "#ef4444", glow: "#ef444420" },
-  chill:    { face: "😎", color: "#8b5cf6", glow: "#8b5cf620" },
-  sleepy:   { face: "😴", color: "#6b7280", glow: "#6b728020" },
-  celebrate:{ face: "🎉", color: "#f97316", glow: "#f9731620" },
+// ─── BRUX — Mascota motivadora (Mancuerna) ────────────────────────────────────
+const BRUX_MOODS = {
+  hype:     { face: "hype",     color: "#3b82f6", glow: "#3b82f625", label: "¡Listo!" },
+  happy:    { face: "happy",    color: "#22c55e", glow: "#22c55e25", label: "Contento" },
+  proud:    { face: "proud",    color: "#f59e0b", glow: "#f59e0b25", label: "Orgulloso" },
+  warning:  { face: "warning",  color: "#f97316", glow: "#f9731625", label: "Alerta" },
+  shocked:  { face: "shocked",  color: "#ef4444", glow: "#ef444425", label: "¡Qué!" },
+  chill:    { face: "chill",    color: "#8b5cf6", glow: "#8b5cf625", label: "Relajado" },
+  sleepy:   { face: "sleepy",   color: "#6b7280", glow: "#6b728025", label: "Dormido" },
+  celebrate:{ face: "celebrate",color: "#f97316", glow: "#f9731625", label: "Celebrando" },
+  fire:     { face: "fire",     color: "#ef4444", glow: "#ef444425", label: "¡En llamas!" },
+  coach:    { face: "coach",    color: "#06b6d4", glow: "#06b6d425", label: "Modo coach" },
+  sarcastic:{ face: "sarcastic",color: "#a855f7", glow: "#a855f725", label: "Sarcástico" },
 };
 
-function DumbbellAvatar({ mood, bounce, size = 64 }) {
-  const color = mood.color;
-  // Different dumbbell expressions per mood face
-  const expressions = {
-    "💪": { eyes: "◕ ◕", mouth: "▽", extra: "💥" },
-    "🏋️": { eyes: "● ●", mouth: "‿", extra: "" },
-    "🥇": { eyes: "★ ★", mouth: "‿", extra: "✨" },
-    "😬": { eyes: "· ·", mouth: "ᗒ", extra: "⚡" },
-    "😱": { eyes: "O O", mouth: "○", extra: "!!" },
-    "😎": { eyes: "▬ ▬", mouth: "⌣", extra: "🕶" },
-    "😴": { eyes: "— —", mouth: "ᴗ", extra: "💤" },
-    "🎉": { eyes: "★ ★", mouth: "D", extra: "🎊" },
+function DumbbellAvatar({ mood, bounce, size = 68, pulse = false }) {
+  const c = mood.color;
+  const f = mood.face;
+
+  // Eyes by face type
+  const renderEyes = () => {
+    if (f === "sleepy") return (
+      <>
+        <line x1="26" y1="30" x2="30" y2="30" stroke={c} strokeWidth="2.2" strokeLinecap="round"/>
+        <line x1="34" y1="30" x2="38" y2="30" stroke={c} strokeWidth="2.2" strokeLinecap="round"/>
+      </>
+    );
+    if (f === "shocked") return (
+      <>
+        <circle cx="28.5" cy="30" r="2.8" fill={c}/>
+        <circle cx="35.5" cy="30" r="2.8" fill={c}/>
+        <circle cx="29.3" cy="29.2" r="0.8" fill="white" opacity="0.9"/>
+        <circle cx="36.3" cy="29.2" r="0.8" fill="white" opacity="0.9"/>
+      </>
+    );
+    if (f === "chill" || f === "sarcastic") return (
+      <>
+        <rect x="25.5" y="28.5" width="6" height="3" rx="1.5" fill={c}/>
+        <rect x="32.5" y="28.5" width="6" height="3" rx="1.5" fill={c}/>
+        {f === "sarcastic" && <line x1="31" y1="27" x2="34" y2="28" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>}
+      </>
+    );
+    if (f === "fire" || f === "celebrate" || f === "proud") return (
+      <>
+        <path d="M26 31.5 Q28.5 28 31 31.5" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
+        <path d="M33 31.5 Q35.5 28 38 31.5" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
+      </>
+    );
+    if (f === "warning") return (
+      <>
+        <circle cx="28.5" cy="30" r="1.8" fill={c}/>
+        <circle cx="35.5" cy="30" r="1.8" fill={c}/>
+        <line x1="26" y1="27.5" x2="31" y2="28.5" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="37" y1="27.5" x2="32" y2="28.5" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
+      </>
+    );
+    if (f === "coach") return (
+      <>
+        <circle cx="28.5" cy="30" r="1.8" fill={c}/>
+        <circle cx="35.5" cy="30" r="1.8" fill={c}/>
+        <circle cx="29.2" cy="29.3" r="0.7" fill="white" opacity="0.85"/>
+        <circle cx="36.2" cy="29.3" r="0.7" fill="white" opacity="0.85"/>
+      </>
+    );
+    // default (hype, happy)
+    return (
+      <>
+        <circle cx="28.5" cy="30" r="2" fill={c}/>
+        <circle cx="35.5" cy="30" r="2" fill={c}/>
+        <circle cx="29.3" cy="29.2" r="0.7" fill="white" opacity="0.8"/>
+        <circle cx="36.3" cy="29.2" r="0.7" fill="white" opacity="0.8"/>
+      </>
+    );
   };
-  const expr = expressions[mood.face] || expressions["🏋️"];
+
+  const renderMouth = () => {
+    if (f === "shocked") return <ellipse cx="32" cy="36.5" rx="3" ry="2.5" fill={c} opacity="0.85"/>;
+    if (f === "sleepy") return <path d="M29 36 Q32 34.5 35 36" stroke={c} strokeWidth="1.5" fill="none" strokeLinecap="round"/>;
+    if (f === "warning") return (
+      <>
+        <path d="M28 35.5 Q32 37.5 36 35.5" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+        <line x1="28" y1="35.5" x2="36" y2="35.5" stroke={c} strokeWidth="1" opacity="0.4"/>
+      </>
+    );
+    if (f === "sarcastic") return (
+      <path d="M28 36 Q30 34.5 32 35.5 Q34 36.5 36 35" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+    );
+    if (f === "chill") return <path d="M28 35.5 Q32 38.5 36 35.5" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/>;
+    // big smile for celebrate/fire/proud/hype/happy/coach
+    return <path d="M27 35 Q32 40 37 35" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>;
+  };
+
+  const renderExtras = () => {
+    if (f === "fire") return (
+      <>
+        <text x="24" y="16" fontSize="10" textAnchor="middle">🔥</text>
+        <text x="40" y="14" fontSize="8" textAnchor="middle">🔥</text>
+      </>
+    );
+    if (f === "celebrate") return (
+      <>
+        <text x="20" y="15" fontSize="9">✨</text>
+        <text x="42" y="13" fontSize="8">🎉</text>
+      </>
+    );
+    if (f === "proud") return <text x="42" y="16" fontSize="10">⭐</text>;
+    if (f === "shocked") return <text x="42" y="16" fontSize="10">❗</text>;
+    if (f === "sleepy") return <text x="40" y="14" fontSize="10">💤</text>;
+    if (f === "coach") return <text x="40" y="15" fontSize="10">📋</text>;
+    if (f === "sarcastic") return <text x="40" y="15" fontSize="10">🙄</text>;
+    if (f === "warning") return <text x="40" y="14" fontSize="10">⚠️</text>;
+    return null;
+  };
+
+  const s = size;
+  const scale = s / 64;
 
   return (
     <div style={{
-      width: size, height: size,
-      flexShrink: 0, position: "relative",
-      transform: bounce ? "scale(1.2) rotate(-8deg)" : "scale(1) rotate(0deg)",
-      transition: "transform 0.35s cubic-bezier(.36,.07,.19,.97)",
+      width: s, height: s, flexShrink: 0, position: "relative",
+      transform: bounce ? "scale(1.22) rotate(-8deg)" : "scale(1) rotate(0deg)",
+      transition: "transform 0.4s cubic-bezier(.36,.07,.19,.97)",
     }}>
-      <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: "block" }}>
-        {/* Glow */}
+      <svg viewBox="0 0 64 64" width={s} height={s} style={{ display: "block", overflow: "visible" }}>
         <defs>
-          <filter id={`glow-${mood.face}`}>
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          <filter id={`glow-brux-${f}`} x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
+          <radialGradient id={`grad-brux-${f}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={c} stopOpacity="0.25"/>
+            <stop offset="100%" stopColor={c} stopOpacity="0"/>
+          </radialGradient>
         </defs>
-        {/* Dumbbell body */}
-        <rect x="18" y="28" width="28" height="8" rx="4" fill={color} filter={`url(#glow-${mood.face})`} />
-        {/* Left weight stack */}
-        <rect x="6" y="20" width="14" height="24" rx="6" fill={color} opacity="0.9" />
-        <rect x="4" y="24" width="16" height="16" rx="5" fill={color} />
-        {/* Right weight stack */}
-        <rect x="44" y="20" width="14" height="24" rx="6" fill={color} opacity="0.9" />
-        <rect x="44" y="24" width="16" height="16" rx="5" fill={color} />
-        {/* Face on bar center */}
-        <circle cx="32" cy="32" r="10" fill="var(--card)" stroke={color} strokeWidth="1.5" />
-        {/* Eyes */}
-        <circle cx="28.5" cy="30" r="1.8" fill={color} />
-        <circle cx="35.5" cy="30" r="1.8" fill={color} />
-        {/* Mouth - changes by mood */}
-        {mood.face === "😱" ? (
-          <circle cx="32" cy="35" r="2.5" fill={color} />
-        ) : mood.face === "😎" ? (
-          <>
-            <rect x="26" y="28.5" width="5" height="2.5" rx="1" fill={color} />
-            <rect x="33" y="28.5" width="5" height="2.5" rx="1" fill={color} />
-            <path d="M28 35 Q32 37.5 36 35" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
-          </>
-        ) : mood.face === "😴" ? (
-          <>
-            <line x1="26.5" y1="29.5" x2="30.5" y2="29.5" stroke={color} strokeWidth="2" strokeLinecap="round" />
-            <line x1="33.5" y1="29.5" x2="37.5" y2="29.5" stroke={color} strokeWidth="2" strokeLinecap="round" />
-            <path d="M28 35 Q32 33 36 35" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
-          </>
-        ) : mood.face === "😬" ? (
-          <>
-            <path d="M28 34.5 Q32 36 36 34.5" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            <line x1="28" y1="34.5" x2="36" y2="34.5" stroke={color} strokeWidth="1" opacity="0.5" />
-          </>
-        ) : (
-          <path d="M28 34 Q32 38 36 34" stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" />
+
+        {/* Glow ring behind */}
+        {(f === "fire" || f === "celebrate" || f === "proud" || f === "hype") && (
+          <circle cx="32" cy="32" r="30" fill={`url(#grad-brux-${f})`}/>
         )}
+
+        {/* Dumbbell bar */}
+        <rect x="20" y="28" width="24" height="8" rx="4" fill={c} filter={`url(#glow-brux-${f})`} opacity="0.95"/>
+
+        {/* Left weights */}
+        <rect x="7"  y="22" width="14" height="20" rx="6" fill={c} opacity="0.9"/>
+        <rect x="4"  y="26" width="9"  height="12" rx="4" fill={c}/>
+
+        {/* Right weights */}
+        <rect x="43" y="22" width="14" height="20" rx="6" fill={c} opacity="0.9"/>
+        <rect x="51" y="26" width="9"  height="12" rx="4" fill={c}/>
+
+        {/* Face circle */}
+        <circle cx="32" cy="32" r="11" fill="var(--card)" stroke={c} strokeWidth="1.8"/>
+
+        {renderEyes()}
+        {renderMouth()}
+        {renderExtras()}
       </svg>
-      {/* Floating extra icon */}
-      {expr.extra && (
-        <div style={{
-          position: "absolute", top: -8, right: -8, fontSize: 14, lineHeight: 1,
-          animation: bounce ? "none" : "floatBadge 2s ease-in-out infinite",
-        }}>
-          {expr.extra}
-        </div>
-      )}
     </div>
   );
 }
 
-function getRexContext(sessions, todayPlanned, streak, inNewSession = false) {
+function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
   const today = new Date(); today.setHours(0,0,0,0);
   const todayStr2 = today.toISOString().slice(0,10);
-
-  // Última sesión
   const sorted = [...sessions].sort((a,b) => b.date.localeCompare(a.date));
   const lastSession = sorted[0];
   const daysSinceLast = lastSession
-    ? Math.round((today - new Date(lastSession.date + "T00:00:00")) / 86400000)
-    : 999;
-
-  // ¿Ya entrenó hoy? (la sesión fue GUARDADA/registrada con fecha de hoy)
+    ? Math.round((today - new Date(lastSession.date + "T00:00:00")) / 86400000) : 999;
   const trainedToday = sessions.some(s => s.date === todayStr2);
+  const hour = new Date().getHours();
+  const totalSessions = sessions.length;
 
   // Músculo más descuidado
   const lastTrained = {};
   sessions.forEach(s => {
-    (s.exercises || []).forEach(ex => {
+    (s.exercises||[]).forEach(ex => {
       const db = EXERCISE_DB.find(e => e.name === ex.name);
-      if (db?.muscle) {
-        if (!lastTrained[db.muscle] || s.date > lastTrained[db.muscle]) lastTrained[db.muscle] = s.date;
-      }
+      if (db?.muscle && (!lastTrained[db.muscle] || s.date > lastTrained[db.muscle])) lastTrained[db.muscle] = s.date;
     });
   });
   const muscleAge = MUSCLES.filter(m => m !== "Cardio").map(m => {
-    if (!lastTrained[m]) return { muscle: m, days: 999, never: true };
-    const days = Math.round((today - new Date(lastTrained[m] + "T00:00:00")) / 86400000);
-    return { muscle: m, days, never: false };
+    if (!lastTrained[m]) return { muscle:m, days:999, never:true };
+    return { muscle:m, days:Math.round((today - new Date(lastTrained[m]+"T00:00:00"))/86400000), never:false };
   }).sort((a,b) => b.days - a.days);
   const neglected = muscleAge[0];
 
-  // Músculo más entrenado esta semana
-  const weekSessions = sessions.filter(s => {
-    const d = new Date(s.date + "T00:00:00");
-    return (today - d) / 86400000 <= 7;
-  });
+  // Músculo más esta semana
+  const weekSessions = sessions.filter(s => (today - new Date(s.date+"T00:00:00"))/86400000 <= 7);
   const weekMuscles = {};
   weekSessions.forEach(s => (s.exercises||[]).forEach(ex => {
     const db = EXERCISE_DB.find(e => e.name === ex.name);
-    if (db?.muscle) weekMuscles[db.muscle] = (weekMuscles[db.muscle] || 0) + 1;
+    if (db?.muscle) weekMuscles[db.muscle] = (weekMuscles[db.muscle]||0) + 1;
   }));
   const mostThisWeek = Object.entries(weekMuscles).sort((a,b)=>b[1]-a[1])[0]?.[0];
 
-  // Hora del día
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "¡Buenos días" : hour < 19 ? "¡Buenas tardes" : "¡Buenas noches";
+  // PRs recientes (últimas 2 semanas)
+  const recentPRs = [];
+  const recent2w = sessions.filter(s => (today - new Date(s.date+"T00:00:00"))/86400000 <= 14);
+  recent2w.forEach(s => {
+    (s.exercises||[]).forEach(ex => {
+      const w = ex.sets?.length>0 ? Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
+      const prevBest = sessions.filter(ps=>ps.date<s.date).flatMap(ps=>(ps.exercises||[]).filter(pe=>pe.name===ex.name))
+        .reduce((b,pe)=>Math.max(b,parseFloat(pe.weight)||0),0);
+      if (w>prevBest && w>0) recentPRs.push({ name:ex.name, weight:w, muscle:EXERCISE_DB.find(e=>e.name===ex.name)?.muscle });
+    });
+  });
 
-  // ── Árbol de decisiones para el mensaje ──────────────────────────────────
-  // 1. Sin sesiones aún → bienvenida
+  // Deterministic seed para variar mensajes por día (no al azar cada render)
+  const seed = parseInt(todayStr2.replace(/-/g,"")) % 7;
+
+  // ── 1. Sin sesiones ──
   if (sessions.length === 0) {
-    return {
-      mood: "hype",
-      title: "¡Hora de empezar!",
-      message: `¡Hola! Soy tu compañero de gym 💪 Registrá tu primera sesión y comenzamos juntos.`,
-      cta: null,
-    };
+    return { mood:"hype", title:"¡Hora de empezar!", message:"Soy Brux, tu compañero de gym. Registra tu primera sesión y te ayudo a mejorar cada semana. 💪", cta:null };
   }
 
-  // 2. Ya entrenó hoy → solo en dashboard (no en nueva sesión)
+  // ── 2. Ya entrenó hoy — dashboard ──
   if (trainedToday && !inNewSession) {
-    const todaySession = sorted.find(s => s.date === todayStr2);
-    const workoutName = todaySession?.workout || null;
-    const muscle = todaySession?.exercises?.[0]?.name
-      ? EXERCISE_DB.find(e => e.name === todaySession.exercises[0].name)?.muscle
-      : null;
+    const ts = sorted.find(s=>s.date===todayStr2);
+    const muscle = ts?.exercises?.[0]?.name ? EXERCISE_DB.find(e=>e.name===ts.exercises[0].name)?.muscle : null;
+    const exCount = ts?.exercises?.length || 0;
+    const hasPR = recentPRs.some(p => p.muscle === muscle);
+    if (hasPR) {
+      const pr = recentPRs.find(p=>p.muscle===muscle);
+      return { mood:"celebrate", title:`¡Nuevo PR en ${pr.name}! 🏆`, message:`${pr.weight}kg. Brux va a hablar de esto toda la semana. Merecido.`, cta:null };
+    }
     const msgs = muscle ? [
-      `Esos ${muscle.toLowerCase()} te lo van a agradecer mañana. ¡Bien hecho!`,
-      `${muscle} trabajado ✅ ¡Descansá bien!`,
-      `¡${muscle} destruido en buena onda! Mañana volvemos.`,
+      `${exCount} ejercicios de ${muscle.toLowerCase()} registrados. Mañana van a doler — eso es progreso.`,
+      `${muscle} trabajado al máximo hoy. Brux toma nota. Descansa bien.`,
+      `Sólido. ${exCount > 0 ? `${exCount} ejercicios terminados.` : ""} El descanso también es parte del entrenamiento.`,
     ] : [
-      "¡Lo diste todo hoy! Descansá bien, que mañana volvemos.",
-      "Sesión registrada. ¡Bien hecho! 💪",
+      "Sesión guardada. Brux está orgulloso, aunque no lo parezca.",
+      "Entrenamiento registrado. ¡Bien hecho! 💪 Ahora a descansar.",
     ];
-    const msg = msgs[Math.floor(Date.now() / 86400000) % msgs.length];
-    return {
-      mood: "proud",
-      title: workoutName ? `✅ ${workoutName} — ¡listo!` : "✅ ¡Entrenamiento registrado!",
-      message: msg,
-      cta: null,
-    };
+    return { mood:"proud", title:ts?.workout ? `✅ ${ts.workout} — ¡listo!` : "✅ ¡Entrenamiento registrado!", message:msgs[seed % msgs.length], cta:null };
   }
 
-  // 2b. Ya entrenó hoy y está en nueva sesión → animar segunda sesión o músculo diferente
+  // ── 2b. Ya entrenó hoy — nueva sesión (doble sesión) ──
   if (trainedToday && inNewSession) {
-    const todaySession = sorted.find(s => s.date === todayStr2);
-    const muscle = todaySession?.exercises?.[0]?.name
-      ? EXERCISE_DB.find(e => e.name === todaySession.exercises[0].name)?.muscle
-      : null;
-    const otros = MUSCLES.filter(m => m !== muscle && m !== "Cardio");
-    const sugerido = otros[Math.floor(new Date().getHours()) % otros.length];
+    const ts = sorted.find(s=>s.date===todayStr2);
+    const muscle = ts?.exercises?.[0]?.name ? EXERCISE_DB.find(e=>e.name===ts.exercises[0].name)?.muscle : null;
+    const otros = MUSCLES.filter(m=>m!==muscle&&m!=="Cardio");
+    const sugerido = neglected?.muscle && otros.includes(neglected.muscle) ? neglected.muscle : otros[hour%otros.length];
     return {
-      mood: "happy",
-      title: `¿Doble sesión hoy? 💪`,
+      mood:"happy", title:"¿Doble sesión hoy? 💪",
       message: muscle && sugerido
-        ? `Ya hiciste ${muscle.toLowerCase()} hoy. ¿Y si le das a ${sugerido.toLowerCase()} también? ¡Rex te apoya!`
-        : `¡Viniste por más! Rex está orgulloso. ¿Qué entrenamos?`,
-      cta: sugerido || null,
-      neglectedMuscle: sugerido || null,
+        ? `Ya trabajaste ${muscle.toLowerCase()} hoy. ${neglected?.days>5?`${sugerido} lleva ${neglected.days} días sin aparecer. ¿Lo sumamos?`:`¿Qué tal añadir ${sugerido.toLowerCase()} también?`}`
+        : "¡Volviste por más! Brux está sorprendido (y orgulloso).",
+      cta:sugerido||null, neglectedMuscle:sugerido||null,
     };
   }
 
-  // 3. Hay plan de hoy
+  // ── 3. Hay plan de hoy ──
   if (todayPlanned) {
-    const muscleNames = { Pecho: "pechito", Espalda: "espalda", Piernas: "piernas", Hombros: "hombros", Bíceps: "bíceps", Tríceps: "tríceps", Abdomen: "abdomen", Glúteos: "glúteos" };
-    const friendly = muscleNames[todayPlanned] || todayPlanned.toLowerCase();
-    return {
-      mood: "hype",
-      title: `¡Hoy toca ${friendly}! 📅`,
-      message: `Tenés ${todayPlanned} en el plan de hoy. ¿Qué esperás? ¡Rex ya está calentando!`,
-      cta: todayPlanned,
-    };
+    const prevSamePlan = sessions.filter(s=>s.workout?.toLowerCase()===todayPlanned.toLowerCase());
+    const lastSamePlan = prevSamePlan[0];
+    const planMsg = lastSamePlan
+      ? `La última vez que hiciste ${todayPlanned} fue el ${lastSamePlan.date}. ¿Superamos eso hoy?`
+      : `Primera vez con ${todayPlanned}. Brux va a estar tomando notas.`;
+    return { mood:"hype", title:`¡Hoy toca ${todayPlanned.toLowerCase()}! 📅`, message:planMsg, cta:todayPlanned };
   }
 
-  // 4. Lleva muchos días sin entrenar
+  // ── 4. Mucho tiempo sin entrenar ──
+  if (daysSinceLast >= 14) {
+    const msgs = [
+      `${daysSinceLast} días. Brux pensó que te habías mudado a otro gimnasio. Bienvenido de vuelta.`,
+      `Dos semanas sin verte. Tus músculos preguntaron si sigues vivo. ¡Vuelve hoy!`,
+    ];
+    return { mood:"shocked", title:`¡${daysSinceLast} días sin verte! 😱`, message:msgs[seed%2], cta:null };
+  }
   if (daysSinceLast >= 7) {
-    return {
-      mood: "shocked",
-      title: `¡${daysSinceLast} días sin verte! 😱`,
-      message: `Rex te extrañó... pero más tus músculos. ¡Volvé hoy y olvidemos que esto pasó!`,
-      cta: null,
-    };
+    return { mood:"shocked", title:`¡${daysSinceLast} días sin entrenar! 😱`,
+      message:`Brux no va a juzgarte... mucho. ${daysSinceLast} días es bastante. ¿Volvemos hoy?`, cta:null };
   }
   if (daysSinceLast >= 3) {
-    return {
-      mood: "warning",
-      title: `${daysSinceLast} días sin entrenar...`,
-      message: `Rex está un poco preocupado. No mucho. Bueno, sí. ¡Andá a mover el cuerpo!`,
-      cta: null,
-    };
-  }
-
-  // 5. Músculo muy descuidado (>10 días)
-  if (neglected && neglected.days >= 10) {
-    const muscleNames2 = { Pecho: "el pecho", Espalda: "la espalda", Piernas: "las piernas", Hombros: "los hombros", Bíceps: "el bíceps", Tríceps: "el tríceps", Abdomen: "el abdomen", Glúteos: "los glúteos" };
-    const friendly2 = muscleNames2[neglected.muscle] || neglected.muscle.toLowerCase();
     const msgs = [
-      `¡${neglected.days} días sin trabajar ${friendly2}! Rex opina que se está poniendo celoso.`,
-      `¿${friendly2}? Nunca oí hablar de eso... ah espera, ¡tenés ${neglected.days} días sin entrenarlo!`,
-      `Rex dice: "${friendly2} llamó. Quiere saber si te olvidaste de él." 📞`,
+      `${daysSinceLast} días de pausa. No es el fin del mundo, pero Brux recomienda volver hoy.`,
+      `Brux lleva ${daysSinceLast} días esperándote. El gimnasio también.`,
+      `${daysSinceLast} días sin registrar nada. ¿Fue descanso activo o se quedó en intención? Sin juicio.`,
     ];
-    return {
-      mood: "warning",
-      title: `¡${neglected.muscle} te necesita! ⚠️`,
-      message: msgs[neglected.days % msgs.length],
-      cta: neglected.muscle,
-      neglectedMuscle: neglected.muscle,
-      neglectedDays: neglected.days,
-    };
+    return { mood:"warning", title:`${daysSinceLast} días sin entrenar...`, message:msgs[seed%msgs.length], cta:null };
   }
 
-  // 6. Entrenó ayer → animar continuidad + recordar registrar
-  if (daysSinceLast === 1 && streak >= 2) {
-    const fireMsg = streak >= 7
-      ? `¡${streak} días seguidos! Rex no puede más de la emoción. 🔥🔥🔥`
-      : `¡${streak} días seguidos! Registrá el de hoy para no perder la racha.`;
-    return {
-      mood: "happy",
-      title: `¡Racha de ${streak} días! 🔥`,
-      message: fireMsg,
-      cta: null,
-    };
+  // ── 5. Racha fuerte ──
+  if (streak >= 14) {
+    return { mood:"fire", title:`🔥 ¡${streak} días seguidos!`,
+      message:`Brux está tomando nota. ${streak} días sin parar es cosa seria. No se lo cuentes a todos o van a pedirte consejos.`, cta:null };
+  }
+  if (streak >= 7) {
+    return { mood:"fire", title:`🔥 Racha de ${streak} días`,
+      message:`Una semana completa seguida. Brux dice que esto ya no es suerte — es hábito.`, cta:null };
+  }
+  if (daysSinceLast === 1 && streak >= 3) {
+    return { mood:"happy", title:`¡Racha de ${streak} días! 🔥`,
+      message:`Entrena hoy y son ${streak+1}. Brux lo tiene apuntado.`, cta:null };
   }
 
-  // 7. Mismo músculo mucho esta semana → variar
-  if (mostThisWeek && (weekMuscles[mostThisWeek] || 0) >= 3) {
-    const muscleNames3 = { Pecho: "el pecho", Espalda: "la espalda", Piernas: "las piernas" };
-    const friendly3 = muscleNames3[mostThisWeek] || mostThisWeek.toLowerCase();
-    return {
-      mood: "chill",
-      title: `Ojo con ${mostThisWeek}... 😎`,
-      message: `Esta semana entrenaste ${friendly3} ${weekMuscles[mostThisWeek]} veces. Rex sugiere darle amor a otro músculo hoy.`,
-      cta: null,
-    };
+  // ── 6. PR reciente ──
+  if (recentPRs.length > 0) {
+    const pr = recentPRs[0];
+    return { mood:"celebrate", title:`¡Récord en ${pr.name}! 🏆`,
+      message:`${pr.weight}kg. Brux lo anota. Sigue así y necesitarás un estante más grande para los trofeos.`, cta:null };
   }
 
-  // 8. Mensaje motivador genérico según hora
-  const genericMsgs = hour < 7
-    ? { mood: "sleepy", title: `¡Madrugador! 🌅`, message: `Rex todavía está dormido pero igual te aplaude. ¡Vamos!` }
-    : hour < 12
-    ? { mood: "hype",   title: `${greeting}! ⚡`,  message: `Rex está listo. ¿Vos? ¡A entrenar!` }
-    : hour < 19
-    ? { mood: "happy",  title: `¡A romperla hoy! 💪`, message: `Otro día, otra oportunidad. ¡Rex confía en vos!` }
-    : { mood: "chill",  title: `¡Entreno nocturno! 🌙`, message: `Rex ama los nocturnos. Más tranqui, más enfoque. ¡Dale!` };
-  return { ...genericMsgs, cta: null };
+  // ── 7. Músculo muy descuidado ──
+  if (neglected && neglected.days >= 10) {
+    const sarcMsgs = [
+      `${neglected.muscle} lleva ${neglected.days} días sin aparecer. Brux no va a decir nada... pero lo piensa.`,
+      `¿${neglected.muscle}? Brux buscó en el historial y no lo encuentra desde hace ${neglected.days} días. Curioso.`,
+      `${neglected.days} días sin trabajar ${neglected.muscle.toLowerCase()}. Brux sugiere darle una oportunidad.`,
+    ];
+    return { mood:"sarcastic", title:`${neglected.muscle} lleva ${neglected.days} días esperando`,
+      message:sarcMsgs[seed%sarcMsgs.length], cta:neglected.muscle, neglectedMuscle:neglected.muscle, neglectedDays:neglected.days };
+  }
+
+  // ── 8. Mismo músculo mucho esta semana ──
+  if (mostThisWeek && (weekMuscles[mostThisWeek]||0) >= 3) {
+    return { mood:"coach", title:`Ojo con ${mostThisWeek}... 📋`,
+      message:`${weekMuscles[mostThisWeek]} sesiones de ${mostThisWeek.toLowerCase()} esta semana. Brux recomienda trabajar otro músculo hoy para un balance real.`, cta:null };
+  }
+
+  // ── 9. Milestone de sesiones ──
+  if ([10,25,50,100,200].includes(totalSessions)) {
+    return { mood:"celebrate", title:`¡${totalSessions} sesiones! 🎉`,
+      message:`Brux hace una pausa para aplaudirte. ${totalSessions} entrenamientos registrados. Eso no lo hace cualquiera.`, cta:null };
+  }
+
+  // ── 10. Coaching basado en historial reciente ──
+  if (sessions.length >= 5) {
+    const weekCount = weekSessions.length;
+    const prevWeekCount = sessions.filter(s => { const d=(today-new Date(s.date+"T00:00:00"))/86400000; return d>7&&d<=14; }).length;
+    if (weekCount > prevWeekCount && prevWeekCount > 0) {
+      return { mood:"happy", title:"¡Semana más activa! 📈",
+        message:`Esta semana llevas ${weekCount} sesiones vs ${prevWeekCount} la semana pasada. Brux lo llama progreso.`, cta:null };
+    }
+    if (weekCount < prevWeekCount && prevWeekCount >= 3) {
+      return { mood:"coach", title:"Ritmo bajó esta semana 📋",
+        message:`La semana pasada fueron ${prevWeekCount} sesiones, esta van ${weekCount}. ¿Todo bien? Brux pregunta sin presionar.`, cta:null };
+    }
+  }
+
+  // ── 11. Genérico por hora, con variación ──
+  const morningMsgs = [
+    "Los que entrenan temprano tienen el día ganado antes del mediodía. Brux lo confirma.",
+    "Buenos días. El gimnasio vacío de mañana es tuyo.",
+    "Brux también madruga (en espíritu). ¡A entrenar!",
+  ];
+  const dayMsgs = [
+    "Otro día, otra oportunidad. Sin excusas, dice Brux.",
+    "El entrenamiento perfecto es el que haces. El resto es teoría.",
+    "Brux espera. No por siempre, pero por ahora sí.",
+  ];
+  const nightMsgs = [
+    "Entreno nocturno. Menos gente, más concentración. Brux aprueba.",
+    "Terminar el día en el gimnasio tiene algo especial. Vamos.",
+    "El único mal entreno es el que no se hace. Brux dixit.",
+  ];
+
+  if (hour < 7) return { mood:"sleepy", title:"¡Madrugador! 🌅",
+    message:"Brux todavía está calentando pero te aplaude igual. Pocos llegan tan temprano.", cta:null };
+  if (hour < 12) return { mood:"hype", title:"¡Buenos días! ⚡", message:morningMsgs[seed%morningMsgs.length], cta:null };
+  if (hour < 19) return { mood:"happy", title:"¡A darlo todo hoy! 💪", message:dayMsgs[seed%dayMsgs.length], cta:null };
+  return { mood:"chill", title:"¡Entreno nocturno! 🌙", message:nightMsgs[seed%nightMsgs.length], cta:null };
 }
 
-function RexMascot({ sessions, todayPlanned, streak, onStartSession, inNewSession = false }) {
+function BruxMascot({ sessions, todayPlanned, streak, onStartSession, inNewSession = false }) {
   const [bounce, setBounce] = useState(false);
-  const ctx = getRexContext(sessions, todayPlanned, streak, inNewSession);
-  const mood = REX_MOODS[ctx.mood] || REX_MOODS.happy;
+  const [prevMood, setPrevMood] = useState(null);
+  const [showTip, setShowTip] = useState(false);
+  const ctx = getBruxContext(sessions, todayPlanned, streak, inNewSession);
+  const mood = BRUX_MOODS[ctx.mood] || BRUX_MOODS.happy;
 
-  // Bounce animation on mount
   useEffect(() => {
-    setBounce(true);
-    const t = setTimeout(() => setBounce(false), 600);
-    return () => clearTimeout(t);
+    if (ctx.mood !== prevMood) {
+      setBounce(true);
+      const t = setTimeout(() => setBounce(false), 500);
+      setPrevMood(ctx.mood);
+      return () => clearTimeout(t);
+    }
   }, [ctx.mood]);
+
+  // Quick stats for coaching tip
+  const weekCount = sessions.filter(s => (new Date()-new Date(s.date+"T00:00:00"))/86400000 <= 7).length;
+  const totalSessions = sessions.length;
 
   const suggestions = ctx.neglectedMuscle
     ? EXERCISE_DB.filter(e => e.muscle === ctx.neglectedMuscle).slice(0, 3)
@@ -5540,130 +5809,73 @@ function RexMascot({ sessions, todayPlanned, streak, onStartSession, inNewSessio
 
   return (
     <div style={{
-      background: `linear-gradient(135deg, ${mood.glow}, transparent)`,
-      border: `1.5px solid ${mood.color}40`,
-      borderRadius: 20,
-      padding: "16px 18px",
-      marginBottom: 20,
-      position: "relative",
-      overflow: "hidden",
+      background: `linear-gradient(145deg, ${mood.glow}, transparent 70%)`,
+      border: `1.5px solid ${mood.color}35`,
+      borderRadius: 20, padding: "14px 16px", marginBottom: 18,
+      position: "relative", overflow: "hidden",
     }}>
-      {/* Fondo decorativo — mancuerna grande */}
-      <div style={{ position:"absolute", right:-16, top:-10, fontSize:80, opacity:0.04, userSelect:"none", pointerEvents:"none", transform:"rotate(25deg)" }}>🏋️</div>
+      {/* Subtle background pattern */}
+      <div style={{ position:"absolute", right:-20, bottom:-20, fontSize:90, opacity:0.03, userSelect:"none", pointerEvents:"none", transform:"rotate(-15deg)", lineHeight:1 }}>🏋️</div>
 
-      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-        {/* Avatar — Mancuerna SVG con cara */}
-        <div
-          style={{
-            width: 68, height: 68, flexShrink: 0, position: "relative",
-            transform: bounce ? "scale(1.18) rotate(-6deg)" : "scale(1)",
-            transition: "transform 0.35s cubic-bezier(.36,.07,.19,.97)",
-            filter: `drop-shadow(0 0 10px ${mood.color}50)`,
-          }}
-        >
-          <svg viewBox="0 0 68 68" width="68" height="68" xmlns="http://www.w3.org/2000/svg">
-            {/* Círculo fondo */}
-            <circle cx="34" cy="34" r="33" fill={`${mood.color}18`} stroke={`${mood.color}60`} strokeWidth="1.5"/>
-            {/* Mancuerna — barra */}
-            <rect x="14" y="31" width="40" height="6" rx="3" fill={mood.color} opacity="0.9"/>
-            {/* Pesas izquierda */}
-            <rect x="8"  y="25" width="9" height="18" rx="4" fill={mood.color}/>
-            <rect x="5"  y="28" width="5" height="12" rx="2.5" fill={mood.color} opacity="0.7"/>
-            {/* Pesas derecha */}
-            <rect x="51" y="25" width="9" height="18" rx="4" fill={mood.color}/>
-            <rect x="58" y="28" width="5" height="12" rx="2.5" fill={mood.color} opacity="0.7"/>
-            {/* Cara en el centro de la barra */}
-            <circle cx="34" cy="34" r="10" fill="var(--surface)" stroke={`${mood.color}80`} strokeWidth="1"/>
-            {/* Ojos */}
-            {mood.face === "😴" ? (
-              <>
-                <path d="M29 32 Q31 30 33 32" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-                <path d="M35 32 Q37 30 39 32" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-              </>
-            ) : mood.face === "😱" ? (
-              <>
-                <circle cx="30.5" cy="32" r="2" fill={mood.color}/>
-                <circle cx="37.5" cy="32" r="2" fill={mood.color}/>
-              </>
-            ) : (
-              <>
-                <circle cx="30.5" cy="32" r="1.8" fill={mood.color}/>
-                <circle cx="37.5" cy="32" r="1.8" fill={mood.color}/>
-                {/* Brillo ojos */}
-                <circle cx="31.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
-                <circle cx="38.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
-              </>
-            )}
-            {/* Boca según estado */}
-            {(mood.face === "😁" || mood.face === "🤩" || mood.face === "😤") && (
-              <path d="M30 36.5 Q34 40 38 36.5" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            )}
-            {mood.face === "😬" && (
-              <path d="M30 37 Q34 35 38 37" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            )}
-            {mood.face === "😱" && (
-              <ellipse cx="34" cy="38" rx="3" ry="2.5" fill={mood.color} opacity="0.8"/>
-            )}
-            {mood.face === "😎" && (
-              <>
-                <path d="M30 36.5 Q34 40 38 36.5" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-                {/* Gafas */}
-                <rect x="27.5" y="30" width="6" height="4" rx="2" fill="none" stroke={mood.color} strokeWidth="1"/>
-                <rect x="34.5" y="30" width="6" height="4" rx="2" fill="none" stroke={mood.color} strokeWidth="1"/>
-                <line x1="33.5" y1="32" x2="34.5" y2="32" stroke={mood.color} strokeWidth="1"/>
-              </>
-            )}
-            {mood.face === "😴" && (
-              <path d="M31 37 Q34 36 37 37" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            )}
-            {(mood.face !== "😁" && mood.face !== "🤩" && mood.face !== "😤" && mood.face !== "😬" && mood.face !== "😱" && mood.face !== "😎" && mood.face !== "😴") && (
-              <path d="M30 36.5 Q34 40 38 36.5" stroke={mood.color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            )}
-          </svg>
-        </div>
+      {/* Top row: avatar + label + stats strip */}
+      <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:10 }}>
+        <DumbbellAvatar mood={mood} bounce={bounce} size={60}/>
 
-        {/* Burbuja de texto */}
         <div style={{ flex:1, minWidth:0 }}>
-          {/* Nombre de Rex */}
-          <div style={{ fontSize:9, fontWeight:800, letterSpacing:2, color: mood.color, textTransform:"uppercase", marginBottom:2 }}>
-            🏋️ tu compañero de gym
+          {/* Brux label */}
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+            <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:mood.color, textTransform:"uppercase" }}>BRUX · TU COACH</div>
+            <div style={{ fontSize:9, padding:"1px 6px", borderRadius:10, background:`${mood.color}20`, color:mood.color, fontWeight:700 }}>{mood.label}</div>
           </div>
-          {/* Título */}
-          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color:"var(--text)", lineHeight:1.1, marginBottom:4 }}>
+
+          {/* Title */}
+          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color:"var(--text)", lineHeight:1.15, marginBottom:3 }}>
             {ctx.title}
           </div>
-          {/* Mensaje */}
-          <div style={{ fontSize:13, color:"var(--text-muted)", lineHeight:1.5 }}>
+
+          {/* Message */}
+          <div style={{ fontSize:12.5, color:"var(--text-muted)", lineHeight:1.55 }}>
             {ctx.message}
           </div>
-
-          {/* Ejercicios sugeridos si hay músculo descuidado */}
-          {suggestions.length > 0 && (
-            <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:4 }}>
-              {suggestions.map(e => (
-                <span key={e.name} style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:`${mood.color}15`, border:`1px solid ${mood.color}30`, color:"var(--text)", fontWeight:600 }}>
-                  {e.name}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
-      {/* CTA button */}
-      {onStartSession && ctx.neglectedMuscle && (
-        <button
-          onClick={() => onStartSession(ctx.neglectedMuscle)}
-          style={{
-            marginTop:14, width:"100%",
-            background:`linear-gradient(135deg, ${mood.color}, ${mood.color}cc)`,
-            border:"none", color:"white", borderRadius:12,
-            padding:"10px 16px", fontFamily:"Barlow Condensed,sans-serif",
-            fontSize:16, fontWeight:800, cursor:"pointer",
-            letterSpacing:0.5,
-          }}
-        >
-          💪 Entrenar {ctx.neglectedMuscle} ahora
+      {/* Suggested exercises chips */}
+      {suggestions.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:10 }}>
+          {suggestions.map(e => (
+            <span key={e.name} style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:`${mood.color}18`, border:`1px solid ${mood.color}35`, color:"var(--text)", fontWeight:600 }}>{e.name}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Stats strip — solo si hay sesiones */}
+      {sessions.length > 0 && (
+        <div style={{ display:"flex", gap:6, marginBottom: ctx.cta ? 10 : 0 }}>
+          {[
+            { label: "Esta semana", value: `${weekCount} sesiones`, color: weekCount>=3?"#22c55e":weekCount>=1?"#f59e0b":"#ef4444" },
+            { label: "Racha", value: streak > 0 ? `🔥 ${streak}d` : "0d", color: streak>=7?"#ef4444":streak>=3?"#f97316":"var(--text-muted)" },
+            { label: "Total", value: `${totalSessions}`, color: "var(--text-muted)" },
+          ].map(s => (
+            <div key={s.label} style={{ flex:1, background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"5px 6px", textAlign:"center", border:"1px solid var(--border)" }}>
+              <div style={{ fontSize:9, color:"var(--text-muted)", marginBottom:1 }}>{s.label}</div>
+              <div style={{ fontSize:12, fontWeight:800, color:s.color, fontFamily:"Barlow Condensed,sans-serif" }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* CTA Button */}
+      {ctx.cta && onStartSession && (
+        <button onClick={() => onStartSession(ctx.cta)} style={{
+          width:"100%", padding:"10px 16px", marginTop: 2,
+          background:`linear-gradient(135deg, ${mood.color}ee, ${mood.color}bb)`,
+          border:"none", borderRadius:12, color:"white",
+          fontFamily:"Barlow Condensed,sans-serif", fontSize:16, fontWeight:800,
+          cursor:"pointer", letterSpacing:0.5,
+          boxShadow:`0 4px 16px ${mood.color}35`,
+        }}>
+          💪 Entrenar {ctx.cta} ahora
         </button>
       )}
     </div>
@@ -5671,7 +5883,7 @@ function RexMascot({ sessions, todayPlanned, streak, onStartSession, inNewSessio
 }
 
 function NeglectedMuscle({ sessions, onStartSession }) {
-  // Mantenido por compatibilidad pero ya no se usa directamente — Rex lo reemplaza
+  // Mantenido por compatibilidad pero ya no se usa directamente — Brux lo reemplaza
   return null;
 }
 
@@ -5918,7 +6130,7 @@ function InsightsModal({ sessions, bodyStats, onClose }) {
   );
 }
 
-function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick }) {
+function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine }) {
   const total = sessions.length;
   const thisWeek = sessions.filter(s => (new Date() - new Date(s.date + "T00:00:00")) / 86400000 <= 7).length;
   const exCount = {};
@@ -6000,7 +6212,59 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
         ))}
       </div>
 
-      <RexMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
+      <BruxMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
+
+      {/* Banner: Rutina del coach para hoy */}
+      {coachRoutines.length > 0 && (() => {
+        const todayDow = (new Date().getDay() + 6) % 7;
+        const todayRoutine = coachRoutines.find(r => Number(r.dayOfWeek) === todayDow);
+        if (!todayRoutine) return null;
+        const todayDateStr = new Date().toISOString().slice(0,10);
+        const alreadyDone = sessions.some(s => s.date === todayDateStr &&
+          (s.workout === todayRoutine.name || s.muscle === todayRoutine.muscle || s.muscle === todayRoutine.name));
+        return (
+          <div onClick={onOpenCoach} style={{
+            background: alreadyDone ? "rgba(34,197,94,0.08)" : "linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.1))",
+            border: `1.5px solid ${alreadyDone ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.4)"}`,
+            borderRadius: 14, padding: "14px 16px", marginBottom: 14,
+            cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
+            display: "flex", alignItems: "center", gap: 14,
+          }}
+            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 6px 24px rgba(59,130,246,0.2)";}}
+            onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}
+          >
+            <div style={{fontSize:28,flexShrink:0}}>{alreadyDone?"✅":"📋"}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",
+                color: alreadyDone ? "#22c55e" : "var(--accent)", marginBottom:3}}>
+                {alreadyDone ? "Rutina completada hoy 🎉" : "📣 Hoy te toca · Rutina del coach"}
+              </div>
+              <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:4}}>
+                {todayRoutine.name || todayRoutine.muscle || "Entrenamiento"}
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {(todayRoutine.exercises||[]).slice(0,4).map((ex,i)=>(
+                  <span key={i} style={{fontSize:10,background:"rgba(255,255,255,0.07)",
+                    borderRadius:6,padding:"2px 8px",color:"var(--text-muted)"}}>
+                    {ex.name||ex}
+                  </span>
+                ))}
+                {(todayRoutine.exercises||[]).length > 4 &&
+                  <span style={{fontSize:10,color:"var(--text-muted)"}}>+{todayRoutine.exercises.length-4} más</span>}
+              </div>
+            </div>
+            {!alreadyDone && (
+              <button onClick={e=>{e.stopPropagation(); onStartCoachRoutine && onStartCoachRoutine(todayRoutine);}} style={{
+                background:"var(--accent)", border:"none", borderRadius:10,
+                color:"white", fontWeight:700, fontSize:12,
+                padding:"9px 14px", cursor:"pointer", flexShrink:0,
+                display:"flex",alignItems:"center",gap:5,
+              }}>▶ Iniciar</button>
+            )}
+          </div>
+        );
+      })()}
+
       <StreakBanner sessions={sessions} />
       {(() => {
         const ins = generateInsights(sessions, bodyStats);
@@ -6028,6 +6292,7 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
           </div>
         );
       })()}
+      <TrainingCalendar sessions={sessions} />
       <WeeklyChart sessions={sessions} />
       <WeekComparison sessions={sessions} />
       <ProgressPrediction sessions={sessions} />
@@ -6415,12 +6680,12 @@ function LiveTrainMode({
     const completionPct = exData.length > 0 ? Math.round(completedSets / exData.reduce((a,e)=>a+e.sets.length,0) * 100) : 0;
 
     // Pick celebration mood based on performance
-    const celebMood = completionPct >= 90 ? REX_MOODS.celebrate
-      : completionPct >= 60 ? REX_MOODS.proud
-      : REX_MOODS.happy;
+    const celebMood = completionPct >= 90 ? BRUX_MOODS.celebrate
+      : completionPct >= 60 ? BRUX_MOODS.proud
+      : BRUX_MOODS.happy;
 
     const celebMessages = completionPct >= 90
-      ? ["¡Lo completaste todo! Eso es nivel élite 🔥", "¡100%! Sos una bestia del gym 🏆", "¡Brutal! Rex está sin palabras. Buenas, claro. 💪"]
+      ? ["¡Lo completaste todo! Eso es nivel élite 🔥", "¡100%! Sos una bestia del gym 🏆", "¡Brutal! Brux está sin palabras. Buenas, claro. 💪"]
       : completionPct >= 60
       ? ["¡Buen trabajo! Cada serie cuenta 👊", "¡Sesión cumplida! Mañana más 💪", "¡Eso! Consistencia es la clave 🗝️"]
       : ["Algo es algo. Lo importante es aparecer 💯", "¡Viniste y eso ya es una victoria! 🌟", "El primer paso siempre es el más difícil. ¡Seguí! 🚀"];
@@ -7350,13 +7615,32 @@ const [histPage, setHistPage] = useState(0);
   const [showChallenge, setShowChallenge] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
 const [showAthleteCoach, setShowAthleteCoach] = useState(false);
+  const [showAdminExercises, setShowAdminExercises] = useState(false);
+  const [athleteCoachInitialRoutine, setAthleteCoachInitialRoutine] = useState(null);
   const [coachRoutines, setCoachRoutines] = useState([]);
+
+  // Cargar ejercicios personalizados de Firestore al iniciar
+  useEffect(() => {
+    loadCustomExercises().then(customs => {
+      customs.forEach(ex => {
+        if (!EXERCISE_DB.find(e => e.name === ex.name)) {
+          EXERCISE_DB.push({ name: ex.name, muscle: ex.muscle, machine: false, equipment: "Personalizado" });
+        }
+        if (ex.gifUrl) GIF_MAP[ex.name] = ex.gifUrl;
+      });
+    });
+  }, []);
 
   useEffect(() => {
     if (!user.isGuest) {
       getAthleteRoutines(user.uid).then(async (assigned) => {
         const full = await Promise.all(
-          assigned.map(r => getFullRoutine(r.coachUid, r.routineId))
+          assigned.map(async r => {
+            const routine = await getFullRoutine(r.coachUid, r.routineId);
+            if (!routine) return null;
+            // Merge dayOfWeek from athlete_routines metadata into full routine
+            return { ...routine, dayOfWeek: r.dayOfWeek ?? -1, coachUid: r.coachUid, routineId: r.routineId };
+          })
         );
         setCoachRoutines(full.filter(Boolean));
       });
@@ -7475,6 +7759,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     const count = Math.max(1, parseInt(exSeriesCount) || 3);
     const sets = Array.from({ length: count }, () => ({ id: uid(), weight: exWeight, reps: exReps }));
     if (exName === "__custom__" && exCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
+      saveCustomExercise(finalName, exCustomMuscle);
       EXERCISE_DB.push({ name: finalName, muscle: exCustomMuscle, machine: false, equipment: "Personalizado" });
     }
     setCurrentExercises(prev => [...prev, { id: uid(), name: finalName, sets, weight: exWeight, reps: exReps, note: exNote }]);
@@ -7599,13 +7884,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           </div>
         </div>
 
-        {/* Today's plan banner */}
-        {todayPlanned && (
-          <div style={{ margin: "0 12px 12px", padding: "10px 12px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 3 }}>Hoy toca</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{todayPlanned}</div>
-          </div>
-        )}
+        {todayPlanned&&(()=>{const ts=new Date().toISOString().slice(0,10);const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"0 12px 12px",padding:"10px 12px",background:dn?"rgba(34,197,94,0.1)":"rgba(59,130,246,0.1)",border:`1px solid ${dn?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.3)"}`,borderRadius:10}}><div style={{fontSize:9,fontWeight:700,letterSpacing:2,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ Completada":"Hoy toca"}</div><div style={{fontSize:14,fontWeight:700,color:dn?"#86efac":"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{todayPlanned}</div></div>);})()}
 
         <nav className="sidebar-nav">
   {NAV.map(item => (
@@ -7642,7 +7921,13 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         ))}
       </div>
     ))}
-</nav>
+        {ADMIN_EMAILS.includes(user.email) && (
+          <button className="nav-item" onClick={() => setShowAdminExercises(true)}>
+            <span className="nav-icon">⚙️</span>
+            <span className="nav-label">Ejercicios custom</span>
+          </button>
+        )}
+        </nav>
         <div className="sidebar-bottom">
           {/* Offline indicator */}
           {!isOnline && (
@@ -7666,6 +7951,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             <span className="nav-icon">❓</span>
             <span className="nav-label">Ver tutorial</span>
           </button>
+
           <div className="user-card">
             <div className="user-avatar" style={{cursor:"pointer", overflow:"hidden", padding:0}} onClick={() => setShowProfile(true)}>
   {user.photoURL
@@ -7674,7 +7960,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 </div>
             <div style={{ minWidth: 0 }}>
               <div className="user-name">{user.name}</div>
-              {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>✓ Cuenta activa</span>}
+              {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}></span>}
             </div>
           </div>
           <button className="nav-item" onClick={logout}>
@@ -7701,11 +7987,12 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </h1>
           </div>
           <div className="topbar-actions">
+            {(()=>{const sv=getStreak(sessions);const tt=sessions.some(s=>s.date===new Date().toISOString().slice(0,10));return(<div className="topbar-btn" style={{cursor:"default",opacity:tt?1:0.35,filter:tt?"none":"grayscale(1)"}}><span className="topbar-btn-icon">🔥</span><span className="topbar-btn-label" style={{color:tt?"#f97316":"var(--text-muted)",fontWeight:800}}>{sv}</span></div>);})()}
             <button className="topbar-btn" onClick={toggleDark}>
               <span className="topbar-btn-icon">{dark ? "☀️" : "🌙"}</span>
               <span className="topbar-btn-label">{dark ? "Claro" : "Oscuro"}</span>
             </button>
-            <button className="topbar-btn" onClick={() => setUnit(u => u === "kg" ? "lbs" : "kg")}>
+            <button className="topbar-btn" onClick={()=>setUnit(u=>{const n=u==="kg"?"lbs":"kg";store("gym_unit",n);return n;})}>
               <span className="topbar-btn-icon">⚖️</span>
               <span className="topbar-btn-label">{unit}</span>
             </button>
@@ -7724,12 +8011,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 <button className="close-btn" onClick={() => setMobileNavOpen(false)}>✕</button>
               </div>
 
-              {todayPlanned && (
-                <div style={{ margin: "12px 12px 0", padding: "10px 12px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 10 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 3 }}>Hoy toca</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{todayPlanned}</div>
-                </div>
-              )}
+              {todayPlanned&&(()=>{const ts=new Date().toISOString().slice(0,10);const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"12px 12px 0",padding:"10px 12px",background:dn?"rgba(34,197,94,0.1)":"rgba(59,130,246,0.1)",border:`1px solid ${dn?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.3)"}`,borderRadius:10}}><div style={{fontSize:9,fontWeight:700,letterSpacing:2,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ Completada":"Hoy toca"}</div><div style={{fontSize:14,fontWeight:700,color:dn?"#86efac":"var(--text)"}}>{todayPlanned}</div></div>);})()}
 
               <nav style={{ padding: "12px 8px", flex: 1 }}>
                 {NAV.map(item => (
@@ -7746,6 +8028,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                   { icon: "⚔️", label: "Reto semanal", action: () => { setShowChallenge(true); setMobileNavOpen(false); } },
                   ...(user.isCoach ? [{ icon: "🏅", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
                   { icon: "🎽", label: "Mi Coach", action: () => { setShowAthleteCoach(true); setMobileNavOpen(false); } },
+                  ...(ADMIN_EMAILS.includes(user.email) ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => { setShowAdminExercises(true); setMobileNavOpen(false); } }] : []),
                 ].map(({ icon, label, action }) => (
                   <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
                     <span className="nav-icon">{icon}</span>
@@ -7783,7 +8066,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                   </div>
                   <div>
                     <div className="user-name">{user.name}</div>
-                    {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>✓ Cuenta activa · Ver perfil →</span>}
+                    {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>Ver perfil</span>}
                   </div>
                 </div>
                 <button className="nav-item" onClick={logout}>
@@ -7898,27 +8181,20 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               ? weeklyPlan.weekly?.[todayDow]
               : weeklyPlan.cycle?.[weeklyPlan.cyclePos];
             const name = typeof plan === "string" ? plan : plan?.name;
-            const planEx = plan?.exercises || [];
+            const planEx=plan?.exercises||[];
             if (!name) return null;
+            const ts2=new Date().toISOString().slice(0,10);
+            const doneToday=sessions.some(s=>s.date===ts2&&s.workout?.toLowerCase()===name.toLowerCase());
+            const todaySess=sessions.find(s=>s.date===ts2&&s.workout?.toLowerCase()===name.toLowerCase());
             return (
-              <div style={{
-                background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.3)",
-                borderRadius: 14, padding: "14px 18px", marginBottom: 16,
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                flexWrap: "wrap", gap: 10,
-              }}>
+              <div style={{background:doneToday?"rgba(34,197,94,0.08)":"rgba(59,130,246,0.08)",border:`1px solid ${doneToday?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.3)"}`,borderRadius:14,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 4 }}>📅 Hoy toca</div>
-                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800, color: "var(--accent)" }}>{name}</div>
-                  {planEx.length > 0 && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{planEx.length} ejercicios planificados</div>}
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:doneToday?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:4}}>{doneToday?"✅ Completada hoy":"📅 Hoy toca"}</div>
+                  <div style={{fontFamily:"Barlow Condensed, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"var(--accent)"}}>{name}</div>
+                  {!doneToday&&planEx.length>0&&<div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{planEx.length} ejercicios planificados</div>}
+                  {doneToday&&todaySess&&<div style={{fontSize:12,color:"#86efac",marginTop:3}}>{todaySess.exercises?.length||0} ejercicios · {todaySess.durationSecs?`${Math.round(todaySess.durationSecs/60)} min`:"registrada"}</div>}
                 </div>
-                <button className="btn-ghost small" onClick={() => {
-                  setWorkout(name);
-                  if (planEx.length > 0) setCurrentExercises(planEx.map(e => ({ ...e, id: uid() })));
-                  showToast(`✅ "${name}" cargada`);
-                }}>
-                  💪 Cargar →
-                </button>
+                {doneToday?<button className="btn-ghost small" style={{borderColor:"rgba(34,197,94,0.4)",color:"#22c55e"}} onClick={()=>setActiveTab("history")}>Ver resumen →</button>:<button className="btn-ghost small" onClick={()=>{setWorkout(name);if(planEx.length>0)setCurrentExercises(planEx.map(e=>({...e,id:uid()})));setActiveTab("new");setSessionMode("live");showToast(`✅ "${name}" cargada`);}}>💪 Cargar →</button>}
               </div>
             );
           })()}
@@ -7950,8 +8226,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             );
           })()}
 
-          {/* ── REX + LAS DOS TARJETAS PRINCIPALES ── */}
-          <RexMascot
+          {/* ── BRUX + LAS DOS TARJETAS PRINCIPALES ── */}
+          <BruxMascot
             sessions={sessions}
             todayPlanned={todayPlanned}
             streak={getStreak(sessions)}
@@ -7960,7 +8236,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           />
 
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14 }}>
-            ¿Qué querés hacer?
+            ¿Qué quieres hacer?
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 28 }}>
@@ -8203,7 +8479,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           {currentExercises.length > 0 ? (
             <button
               onClick={() => {
-                if (!workout) { showToast("⚠️ Ponle nombre al entrenamiento"); return; }
+                if (!workout) { showToast("⚠️ Dale un nombre al entrenamiento"); return; }
                 setLiveActive(true);
               }}
               style={{
@@ -8219,7 +8495,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </button>
           ) : (
             <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
-              Agregá al menos un ejercicio para comenzar
+              Agrega al menos un ejercicio para comenzar
             </div>
           )}
         </div>
@@ -8564,6 +8840,9 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </div>
             <Dashboard sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal} onGoalClick={() => openPlanner("goal")} onBadgesClick={() => setShowBadges(true)}
               onInsightsClick={() => setShowInsights(true)}
+              coachRoutines={coachRoutines}
+              onOpenCoach={() => setShowAthleteCoach(true)}
+              onStartCoachRoutine={(routine) => { setAthleteCoachInitialRoutine(routine); setShowAthleteCoach(true); }}
               onStartSession={(muscle) => {
                 setExMuscle(muscle);
                 setActiveTab("new");
@@ -8636,10 +8915,14 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           onClose={() => setShowBodyStats(false)}
         />
       )}
+      {showAdminExercises && ADMIN_EMAILS.includes(user.email) && (
+        <AdminExercisesModal onClose={() => setShowAdminExercises(false)} />
+      )}
       {showAthleteCoach && (
         <AthleteCoachPanel
           user={user}
-          onClose={() => setShowAthleteCoach(false)}
+          initialRoutine={athleteCoachInitialRoutine}
+          onClose={() => { setShowAthleteCoach(false); setAthleteCoachInitialRoutine(null); }}
         />
       )}
       {showCoach && (
