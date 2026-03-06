@@ -3,6 +3,7 @@ import { initializeApp, getApps } from "firebase/app";
 import GIF_MAP from './assets/gif/gifMap.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, getRedirectResult } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc, enableIndexedDbPersistence } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const firebaseConfig = {
   apiKey: "AIzaSyAh3pfGv0vEpKmGtNKKRvAhma1pGtA7Alc",
   authDomain: "gymtracker-app-2c603.firebaseapp.com",
@@ -15,6 +16,7 @@ const ADMIN_EMAILS = ["luiseduardooo2000@gmail.com"]; // reemplaza con tu email 
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 // Offline persistence — cachea datos en IndexedDB para funcionar sin conexión
 enableIndexedDbPersistence(db).catch(() => {});
 const googleProvider = new GoogleAuthProvider();
@@ -23,6 +25,8 @@ const ThemeCtx = createContext();
 const useTheme = () => useContext(ThemeCtx);
 const AuthCtx = createContext();
 const useAuth = () => useContext(AuthCtx);
+const CustomGifCtx = createContext({ gifs: {}, setGif: () => {} });
+const useCustomGifs = () => useContext(CustomGifCtx);
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const fmtDate = (d) => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
@@ -109,7 +113,9 @@ const MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
 
 function ExerciseGif({ exName, size = 120 }) {
   const [expanded, setExpanded] = useState(false);
-  const src = GIF_MAP[exName];
+  const { gifs } = useCustomGifs();
+  const src = gifs[exName] || GIF_MAP[exName];
+  console.log("[ExerciseGif]", exName, "| gifs keys:", Object.keys(gifs), "| src:", src ? src.slice(0,40) : "null");
   if (!src || !exName || exName === "__custom__") return null;
   return (
     <>
@@ -654,40 +660,135 @@ const [newWeight, setNewWeight] = useState("");
 
 // ─── Weekly Chart ─────────────────────────────────────────────────────────────
 
-function TrainingCalendar({ sessions }) {
-  const today=new Date();today.setHours(0,0,0,0);
-  const year=today.getFullYear(),month=today.getMonth();
-  const daysInMonth=new Date(year,month+1,0).getDate();
-  const startOffset=(new Date(year,month,1).getDay()+6)%7;
-  const trainedDates=new Set(sessions.map(s=>s.date));
-  const monthName=today.toLocaleString("es",{month:"long",year:"numeric"});
-  const cells=[...Array(startOffset).fill(null),...Array.from({length:daysInMonth},(_,i)=>i+1)];
-  const todayDay=today.getDate();
+const REST_MSGS = [
+  "Día de descanso 😴 El músculo crece cuando recuperas.",
+  "Sin entreno — ¡el descanso también es parte del plan! 🛋️",
+  "Día libre. Hidrátate y duerme bien. 💧",
+  "Recovery day 💆 Tu cuerpo te lo agradece.",
+  "Descanso activo: camina, estira, respira. 🌿",
+  "Sin sesión registrada. ¡Mañana puede ser el día! 🔥",
+  "Día de recarga. La constancia es una maratón, no un sprint. 🏃",
+  "Off day — incluso los campeones descansan. 🏆",
+];
+
+function TrainingCalendar({ sessions, joinedAt }) {
+  const todayRef = new Date(); todayRef.setHours(0,0,0,0);
+  const joinedDate = joinedAt ? (() => { const d = new Date(joinedAt+"T00:00:00"); d.setHours(0,0,0,0); return d; })() : null;
+  const [viewYear, setViewYear] = useState(todayRef.getFullYear());
+  const [viewMonth, setViewMonth] = useState(todayRef.getMonth());
+  const [selected, setSelected] = useState(null);
+
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const startOffset = (new Date(viewYear, viewMonth, 1).getDay()+6)%7;
+  const monthName = new Date(viewYear, viewMonth, 1).toLocaleString("es",{month:"long",year:"numeric"});
+  const cells = [...Array(startOffset).fill(null), ...Array.from({length:daysInMonth},(_,i)=>i+1)];
+
+  const sessionsByDate = {};
+  sessions.forEach(s => { if (!sessionsByDate[s.date]) sessionsByDate[s.date]=[]; sessionsByDate[s.date].push(s); });
+
+  const isCurrentMonth = viewYear===todayRef.getFullYear() && viewMonth===todayRef.getMonth();
+  const todayDay = todayRef.getDate();
+
+  function prevMonth() {
+    if (viewMonth===0) { setViewYear(y=>y-1); setViewMonth(11); } else setViewMonth(m=>m-1);
+    setSelected(null);
+  }
+  function nextMonth() {
+    if (viewMonth===11) { setViewYear(y=>y+1); setViewMonth(0); } else setViewMonth(m=>m+1);
+    setSelected(null);
+  }
+
+  function handleDay(day) {
+    const ds = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const dayDate = new Date(viewYear, viewMonth, day); dayDate.setHours(0,0,0,0);
+    const daySessions = sessionsByDate[ds] || [];
+    const restMsg = REST_MSGS[Math.floor(Math.abs(day*(viewMonth+1)*viewYear) % REST_MSGS.length)];
+    setSelected(sel => sel?.ds===ds ? null : { ds, sessions: daySessions, restMsg, dayDate });
+  }
+
+  const monthSessions = sessions.filter(s => s.date.startsWith(`${viewYear}-${String(viewMonth+1).padStart(2,"0")}`));
+
   return (
     <div className="card" style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div className="card-label" style={{margin:0}}>📅 Calendario de entrenos</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",textTransform:"capitalize"}}>{monthName}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <button onClick={prevMonth} style={{background:"none",border:"1px solid var(--border)",color:"var(--text-muted)",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+          <span style={{fontSize:11,color:"var(--text-muted)",textTransform:"capitalize",minWidth:100,textAlign:"center"}}>{monthName}</span>
+          <button onClick={nextMonth} style={{background:"none",border:"1px solid var(--border)",color:"var(--text-muted)",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+        </div>
       </div>
+
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
         {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,color:"var(--text-muted)"}}>{d}</div>)}
       </div>
+
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
         {cells.map((day,i)=>{
           if (!day) return <div key={`e${i}`}/>;
-          const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-          const trained=trainedDates.has(ds);
-          const isToday=day===todayDay,isFuture=day>todayDay;
-          return (<div key={day} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,fontSize:10,fontWeight:trained||isToday?800:400,background:trained?(isToday?"var(--accent)":"rgba(59,130,246,0.3)"):(isToday?"rgba(59,130,246,0.15)":"transparent"),border:isToday?"1.5px solid var(--accent)":trained?"1px solid rgba(59,130,246,0.5)":"1px solid transparent",color:trained?(isToday?"white":"var(--accent)"):isFuture?"var(--text-muted)":"var(--text)",opacity:isFuture?0.4:1,position:"relative"}}>
-            {trained&&!isToday&&<span style={{position:"absolute",top:1,right:1,fontSize:6}}>🔥</span>}
-            {day}
-          </div>);
+          const ds = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+          const dayDate = new Date(viewYear, viewMonth, day); dayDate.setHours(0,0,0,0);
+          const trained = !!sessionsByDate[ds];
+          const isToday = isCurrentMonth && day===todayDay;
+          const isFuture = dayDate > todayRef;
+          const beforeJoin = joinedDate && dayDate < joinedDate;
+          const isSelected = selected?.ds===ds;
+          return (
+            <div key={day} onClick={()=>handleDay(day)} style={{
+              aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",
+              borderRadius:6,fontSize:10,fontWeight:trained||isToday?800:400,cursor:"pointer",
+              background:isSelected?"var(--accent)":trained?(isToday?"var(--accent)":"rgba(59,130,246,0.3)"):(isToday?"rgba(59,130,246,0.15)":"transparent"),
+              border:isSelected?"1.5px solid var(--accent)":isToday?"1.5px solid var(--accent)":trained?"1px solid rgba(59,130,246,0.5)":"1px solid transparent",
+              color:isSelected?"white":trained?(isToday?"white":"var(--accent)"):"var(--text)",
+              opacity:isFuture?0.2:beforeJoin?0.25:1,
+              position:"relative",transition:"transform 0.1s",transform:isSelected?"scale(1.15)":"scale(1)",
+            }}>
+              {trained&&!isToday&&!isSelected&&<span style={{position:"absolute",top:1,right:1,fontSize:6}}>🔥</span>}
+              {day}
+            </div>
+          );
         })}
       </div>
+
+      {selected && (
+        <div style={{marginTop:12,background:"var(--surface)",borderRadius:10,padding:"10px 12px",border:"1px solid var(--border)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <span style={{fontSize:11,fontWeight:700,color:"var(--accent)"}}>
+              {new Date(selected.ds+"T12:00:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
+            </span>
+            <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"var(--text-muted)",cursor:"pointer",fontSize:13}}>✕</button>
+          </div>
+          {selected.dayDate > todayRef ? (
+            <div style={{fontSize:12,color:"var(--text-muted)",fontStyle:"italic"}}>⏳ Todavía no ha llegado este día.</div>
+          ) : joinedDate && selected.dayDate < joinedDate ? (
+            <div style={{fontSize:12,color:"var(--text-muted)",fontStyle:"italic"}}>👣 Aún no te habías unido a GymTracker este día.</div>
+          ) : selected.sessions.length > 0 ? (
+            selected.sessions.map((s,si) => {
+              const totalSets = (s.exercises||[]).reduce((a,e)=>a+(e.sets?.length||0),0);
+              const vol = (s.exercises||[]).reduce((a,ex)=>a+(ex.sets||[]).reduce((b,st)=>b+(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1),0),0);
+              return (
+                <div key={si} style={{marginBottom:si<selected.sessions.length-1?8:0}}>
+                  <div style={{fontWeight:700,fontSize:13,marginBottom:3}}>💪 {s.workout||"Entrenamiento"}</div>
+                  <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:4}}>{(s.exercises||[]).map(e=>e.name).join(" · ")}</div>
+                  <div style={{display:"flex",gap:10,fontSize:11,flexWrap:"wrap"}}>
+                    <span style={{color:"var(--accent)",fontWeight:700}}>{(s.exercises||[]).length} ejercicios</span>
+                    <span style={{color:"var(--text-muted)"}}>{totalSets} series</span>
+                    {vol>0&&<span style={{color:"var(--text-muted)"}}>{Math.round(vol).toLocaleString()} kg vol.</span>}
+                    {s.durationSecs>0&&<span style={{color:"var(--text-muted)"}}>{Math.floor(s.durationSecs/60)}min</span>}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{fontSize:12,color:"var(--text-muted)",fontStyle:"italic"}}>{selected.restMsg}</div>
+          )}
+        </div>
+      )}
+
       <div style={{display:"flex",gap:12,marginTop:10,fontSize:10,color:"var(--text-muted)",alignItems:"center"}}>
         <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:3,background:"rgba(59,130,246,0.3)",border:"1px solid rgba(59,130,246,0.5)",display:"inline-block"}}/>Entrenado</span>
         <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:3,background:"var(--accent)",display:"inline-block"}}/>Hoy</span>
-        <span style={{marginLeft:"auto",fontWeight:700,color:"var(--accent)"}}>{sessions.filter(s=>s.date.startsWith(`${year}-${String(month+1).padStart(2,"0")}`)).length} este mes</span>
+        <span style={{marginLeft:"auto",fontWeight:700,color:"var(--accent)"}}>{monthSessions.length} este mes</span>
       </div>
     </div>
   );
@@ -868,7 +969,7 @@ const BADGE_DEFS = [
   { id: "sessions5",  stars: 1, icon: "🔥", name: "En racha",            desc: "5 sesiones completadas",                  check: (s) => s.length >= 5 },
   { id: "pr1",        stars: 1, icon: "⭐", name: "Primer PR",           desc: "Superaste un récord personal",            check: (s, prs) => Object.keys(prs).length >= 1 },
   { id: "variety10",  stars: 1, icon: "🎯", name: "Explorador",          desc: "10 ejercicios distintos registrados",     check: (s) => new Set(s.flatMap(x => (x.exercises||[]).map(e=>e.name))).size >= 10 },
-  { id: "streak3",    stars: 1, icon: "🔑", name: "3 días seguidos",     desc: "Entrenaste 3 días consecutivos",          check: (s) => getStreak(s) >= 3 },
+  { id: "streak3",    stars: 1, icon: "🔑", name: "3 semanas seguidas",   desc: "Cumpliste tu meta 3 semanas consecutivas",    check: (s) => getStreak(s) >= 3 },
   { id: "sunday",     stars: 1, icon: "☀️", name: "Dominguero",          desc: "Entrenaste un domingo",                   check: (s) => s.some(x => new Date(x.date+"T00:00:00").getDay() === 0) },
   { id: "holiday",    stars: 1, icon: "🎉", name: "Sin excusas",         desc: "Entrenaste en día 1 de enero o 25 dic",  check: (s) => s.some(x => { const d=new Date(x.date+"T00:00:00"); return (d.getMonth()===0&&d.getDate()===1)||(d.getMonth()===11&&d.getDate()===25); }) },
   { id: "minimalist", stars: 1, icon: "🔬", name: "Minimalista",         desc: "Sesión completa con solo 3 ejercicios",  check: (s) => s.some(x => (x.exercises||[]).length === 3) },
@@ -878,9 +979,9 @@ const BADGE_DEFS = [
   { id: "sessions25", stars: 2, icon: "🦾", name: "Consistente",         desc: "25 sesiones completadas",                 check: (s) => s.length >= 25 },
   { id: "sessions50", stars: 2, icon: "🏅", name: "Veterano",            desc: "50 sesiones completadas",                 check: (s) => s.length >= 50 },
   { id: "pr5",        stars: 2, icon: "🌟", name: "Máquina de PRs",      desc: "5 PRs en ejercicios distintos",           check: (s, prs) => Object.keys(prs).length >= 5 },
-  { id: "streak7",    stars: 2, icon: "🗓️", name: "Semana perfecta",    desc: "7 días consecutivos entrenando",          check: (s) => getStreak(s) >= 7 },
+  { id: "streak7",    stars: 2, icon: "🗓️", name: "2 meses seguidos",    desc: "Cumpliste tu meta 7 semanas consecutivas",    check: (s) => getStreak(s) >= 7 },
   { id: "heavy",      stars: 2, icon: "🏗️", name: "Pesado",             desc: "Registraste 100kg+ en un ejercicio",      check: (s) => s.some(x => (x.exercises||[]).some(e => parseFloat(e.weight)>=100 || (e.sets||[]).some(st=>parseFloat(st.weight)>=100))) },
-  { id: "streak14",   stars: 2, icon: "🔥", name: "En llamas",           desc: "14 días seguidos entrenando",             check: (s) => getStreak(s) >= 14 },
+  { id: "streak14",   stars: 2, icon: "🔥", name: "En llamas",           desc: "Cumpliste tu meta 14 semanas consecutivas",  check: (s) => getStreak(s) >= 14 },
   { id: "beast5in7",  stars: 2, icon: "⚡", name: "Modo bestia",         desc: "5 sesiones en 7 días",                    check: (s) => { const w=new Date(); w.setDate(w.getDate()-7); return s.filter(x=>new Date(x.date+"T00:00:00")>=w).length>=5; } },
   { id: "variety25",  stars: 2, icon: "🧭", name: "Variado",             desc: "25 ejercicios distintos registrados",     check: (s) => new Set(s.flatMap(x=>(x.exercises||[]).map(e=>e.name))).size>=25 },
   { id: "volume_ses", stars: 2, icon: "💥", name: "Volumen serio",       desc: "10.000 kg movidos en una sesión",         check: (s) => s.some(x=>calcSessionVolume(x)>=10000) },
@@ -890,7 +991,7 @@ const BADGE_DEFS = [
   // ⭐⭐⭐ NIVEL 3 — Oro
   { id: "sessions100",stars: 3, icon: "💯", name: "Leyenda",             desc: "100 sesiones completadas",                check: (s) => s.length >= 100 },
   { id: "pr10",       stars: 3, icon: "🏆", name: "Rompe récords",       desc: "PR en 10 ejercicios distintos",           check: (s, prs) => Object.keys(prs).length >= 10 },
-  { id: "streak30",   stars: 3, icon: "🔥", name: "Disciplina total",    desc: "30 días seguidos entrenando",             check: (s) => getStreak(s) >= 30 },
+  { id: "streak30",   stars: 3, icon: "🔥", name: "Disciplina total",    desc: "Cumpliste tu meta 30 semanas consecutivas",  check: (s) => getStreak(s) >= 30 },
   { id: "leg20",      stars: 3, icon: "🦵", name: "Piernas de acero",    desc: "20 sesiones de pierna",                   check: (s) => s.filter(x=>(x.exercises||[]).some(e=>["Cuádriceps","Femoral","Glúteos","Pantorrillas"].includes(EXERCISE_DB.find(d=>d.name===e.name)?.muscle))).length>=20 },
   { id: "chest20",    stars: 3, icon: "💪", name: "Rey del press",       desc: "20 sesiones de pecho",                    check: (s) => s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Pecho")).length>=20 },
   { id: "back20",     stars: 3, icon: "🏋️", name: "Espalda ancha",      desc: "20 sesiones de espalda",                  check: (s) => s.filter(x=>(x.exercises||[]).some(e=>EXERCISE_DB.find(d=>d.name===e.name)?.muscle==="Espalda")).length>=20 },
@@ -903,7 +1004,7 @@ const BADGE_DEFS = [
 
   // ⭐⭐⭐⭐ NIVEL 4 — Platino
   { id: "sessions200",stars: 4, icon: "🗡️", name: "Veterano del hierro", desc: "200 sesiones completadas",               check: (s) => s.length >= 200 },
-  { id: "streak90",   stars: 4, icon: "💎", name: "90 días seguidos",    desc: "90 días consecutivos entrenando",         check: (s) => getStreak(s) >= 90 },
+  { id: "streak90",   stars: 4, icon: "💎", name: "90 semanas seguidas", desc: "Cumpliste tu meta 90 semanas consecutivas",  check: (s) => getStreak(s) >= 90 },
   { id: "180days",    stars: 4, icon: "🔮", name: "Cambio real",         desc: "180 días de actividad acumulada",         check: (s) => { const sorted=[...s].sort((a,b)=>a.date.localeCompare(b.date)); if(sorted.length<60) return false; const first=new Date(sorted[0].date+"T00:00:00"),last=new Date(sorted[sorted.length-1].date+"T00:00:00"); return (last-first)/86400000>=180; } },
   { id: "leg100",     stars: 4, icon: "🦾", name: "Especialista piernas", desc: "100 sesiones de pierna",                 check: (s) => s.filter(x=>(x.exercises||[]).some(e=>["Cuádriceps","Femoral","Glúteos","Pantorrillas"].includes(EXERCISE_DB.find(d=>d.name===e.name)?.muscle))).length>=100 },
   { id: "sessions500",stars: 4, icon: "⚔️", name: "500 batallas",        desc: "500 sesiones completadas",               check: (s) => s.length >= 500 },
@@ -915,7 +1016,7 @@ const BADGE_DEFS = [
 
   // ⭐⭐⭐⭐⭐ NIVEL 5 — Legendario
   { id: "sessions1000",stars:5, icon: "💀", name: "Mil batallas",        desc: "1000 sesiones registradas",               check: (s) => s.length >= 1000 },
-  { id: "streak365",  stars: 5, icon: "🌞", name: "365 días seguidos",   desc: "365 días consecutivos entrenando",        check: (s) => getStreak(s) >= 365 },
+  { id: "streak365",  stars: 5, icon: "🌞", name: "365 semanas seguidas", desc: "Cumpliste tu meta 365 semanas consecutivas", check: (s) => getStreak(s) >= 365 },
   { id: "year_full",  stars: 5, icon: "💫", name: "Transformación total", desc: "1 año sin pausas mayores a 2 semanas",   check: (s) => { if(s.length<100) return false; const sorted=[...s].sort((a,b)=>a.date.localeCompare(b.date)); const first=new Date(sorted[0].date+"T00:00:00"),last=new Date(sorted[sorted.length-1].date+"T00:00:00"); if((last-first)/86400000<365) return false; for(let i=1;i<sorted.length;i++){if((new Date(sorted[i].date+"T00:00:00")-new Date(sorted[i-1].date+"T00:00:00"))/86400000>14) return false;} return true; } },
   { id: "5years",     stars: 5, icon: "🏟️", name: "Leyenda del gimnasio", desc: "5 años activo (60 meses con sesiones)", check: (s) => new Set(s.map(x=>x.date.slice(0,7))).size>=60 },
   { id: "10years",    stars: 5, icon: "🔮", name: "ADN de hierro",       desc: "10 años registrado (120 meses)",          check: (s) => new Set(s.map(x=>x.date.slice(0,7))).size>=120 },
@@ -923,15 +1024,49 @@ const BADGE_DEFS = [
   { id: "vol_1m",     stars: 5, icon: "🌍", name: "Un millón de kilos",  desc: "1.000.000 kg acumulados en total",        check: (s) => s.reduce((acc,x)=>acc+calcSessionVolume(x),0)>=1000000 },
   { id: "iron_gen",   stars: 5, icon: "🧬", name: "Generación hierro",   desc: "3 años entrenando 3+ veces/semana",       check: (s) => { const ref=new Date(); ref.setFullYear(ref.getFullYear()-3); const recent=s.filter(x=>new Date(x.date+"T00:00:00")>=ref); const weeks={}; recent.forEach(x=>{const d=new Date(x.date+"T00:00:00"); const wk=Math.floor((d-ref)/604800000); weeks[wk]=(weeks[wk]||0)+1;}); return Object.values(weeks).filter(c=>c>=3).length>=125; } },
 ];
-function getStreak(sessions) {
-  const dates = [...new Set(sessions.map(s => s.date))].sort().reverse();
+function getStreak(sessions, weeklyTarget = 3) {
+  if (!sessions || sessions.length === 0) return 0;
+  // Get the Monday of a given date
+  const getMonday = (d) => {
+    const date = new Date(d); date.setHours(0,0,0,0);
+    const day = date.getDay(); // 0=Sun
+    const diff = (day === 0 ? -6 : 1 - day);
+    date.setDate(date.getDate() + diff);
+    return date;
+  };
+  const toKey = (d) => d.toISOString().slice(0, 10);
+
+  // Count sessions per week (keyed by Monday date)
+  const weekMap = {};
+  sessions.forEach(s => {
+    const mon = toKey(getMonday(new Date(s.date + "T00:00:00")));
+    weekMap[mon] = (weekMap[mon] || 0) + 1;
+  });
+
+  // Walk backwards week by week from current week
+  const today = new Date(); today.setHours(0,0,0,0);
+  let cursor = getMonday(today);
   let streak = 0;
-  let check = new Date(); check.setHours(0,0,0,0);
-  for (let d of dates) {
-    const sd = new Date(d + "T00:00:00");
-    const diff = Math.round((check - sd) / 86400000);
-    if (diff <= 1) { streak++; check = sd; } else break;
+
+  while (true) {
+    const key = toKey(cursor);
+    const count = weekMap[key] || 0;
+    const isCurrentWeek = key === toKey(getMonday(today));
+
+    if (count >= weeklyTarget) {
+      streak++;
+    } else if (isCurrentWeek) {
+      // Current week not yet completed — don't break, just don't count it
+    } else {
+      break;
+    }
+
+    // Go to previous week
+    cursor.setDate(cursor.getDate() - 7);
+    // Safety: stop after 10 years
+    if (streak > 520) break;
   }
+
   return streak;
 }
 
@@ -2366,12 +2501,11 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
 
   const steps = [
     {
-      emoji: null, // Brux illustrated
+      emoji: null,
       title: `¡Hola, ${firstName}! 👋`,
-      desc: "Soy tu nueva mancuerna parlante 🏋️ Voy a acompañarte en cada entrenamiento, recordarte qué músculo te falta y celebrar tus logros.",
+      desc: "Soy Brux, tu asistente de entrenamiento. Te acompaño en cada sesión, te recuerdo qué músculo tienes pendiente y celebro tus logros.",
       content: (
         <div style={{ marginTop: 20 }}>
-          {/* Mini Brux */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             <div style={{ position: "relative", width: 90, height: 90 }}>
               <svg viewBox="0 0 68 68" width="90" height="90" xmlns="http://www.w3.org/2000/svg">
@@ -2394,8 +2528,8 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
             {[
               { icon:"🏋️", label:"Registra entrenamientos" },
               { icon:"📈", label:"Sigue tu progreso" },
-              { icon:"🏆", label:"Rompé records personales" },
-              { icon:"👥", label:"Competí con amigos" },
+              { icon:"🏆", label:"Rompe récords personales" },
+              { icon:"👥", label:"Compite con amigos" },
             ].map(f => (
               <div key={f.label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 10px", textAlign:"center" }}>
                 <div style={{ fontSize:22, marginBottom:5 }}>{f.icon}</div>
@@ -2409,7 +2543,7 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
     {
       emoji: "🎯",
       title: "¿Cuántos días por semana vas a entrenar?",
-      desc: "Voy a recordarte tu meta cada semana y celebrar cuando la cumplas. Sé honesto, ¡empezar con poco y cumplir es mejor que prometer mucho!",
+      desc: "Te recordaré tu meta cada semana y celebraré cuando la cumplas. Ser honesto ayuda: empezar con poco y cumplir es mejor que prometer mucho.",
       content: (
         <div style={{ marginTop: 24 }}>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: 20 }}>
@@ -2427,11 +2561,47 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
             })}
           </div>
           <div style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"12px 16px", textAlign:"center", fontSize:13, color:"var(--text-muted)" }}>
-            {selectedGoal <= 2 && "💡 Perfecto para arrancar. ¡La consistencia es lo que importa!"}
+            {selectedGoal <= 2 && "💡 Perfecto para comenzar. La consistencia es lo que importa."}
             {selectedGoal === 3 && "💡 3 días es ideal para recuperarse bien y progresar."}
-            {selectedGoal === 4 && "💡 El clásico. ¡4 días es el punto dulce para la mayoría!"}
-            {selectedGoal === 5 && "💡 ¡Ambicioso! Recordá descansar bien entre sesiones."}
-            {selectedGoal >= 6 && "💡 ¡Nivel beast! Asegurate de alternar grupos musculares."}
+            {selectedGoal === 4 && "💡 El clásico. 4 días es el punto ideal para la mayoría."}
+            {selectedGoal === 5 && "💡 ¡Ambicioso! Recuerda descansar bien entre sesiones."}
+            {selectedGoal >= 6 && "💡 ¡Nivel beast! Asegúrate de alternar grupos musculares."}
+          </div>
+        </div>
+      ),
+    },
+    {
+      emoji: "🔥",
+      title: "La racha: tu motivación semanal",
+      desc: "La racha cuenta semanas consecutivas en las que cumpliste tu meta de días. No importa si un día descansas, lo que importa es la semana completa.",
+      content: (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
+            {[
+              { weeks: 1, label:"Primera semana", color:"#22c55e" },
+              { weeks: 4, label:"Un mes seguido", color:"#3b82f6" },
+              { weeks: 12, label:"Tres meses", color:"#f59e0b" },
+            ].map(m => (
+              <div key={m.weeks} style={{ background:`${m.color}10`, border:`1px solid ${m.color}30`, borderRadius:12, padding:"14px 8px", textAlign:"center" }}>
+                <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:30, fontWeight:900, color:m.color, lineHeight:1 }}>{m.weeks}</div>
+                <div style={{ fontSize:9, fontWeight:700, color:m.color, marginBottom:4 }}>sem</div>
+                <div style={{ fontSize:10, color:"var(--text-muted)", lineHeight:1.4 }}>{m.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:10, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px 12px" }}>
+              <span style={{ fontSize:16, flexShrink:0 }}>✅</span>
+              <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.5 }}>Si cumples tu meta esta semana, la racha sube al terminar el domingo.</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:10, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px 12px" }}>
+              <span style={{ fontSize:16, flexShrink:0 }}>🔥</span>
+              <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.5 }}>El botón 🔥 en la parte superior te lleva directo al calendario de entrenamientos.</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:10, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px 12px" }}>
+              <span style={{ fontSize:16, flexShrink:0 }}>💡</span>
+              <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.5 }}>Puedes cambiar tu meta de días cuando quieras desde el botón 🎯 del Dashboard.</div>
+            </div>
           </div>
         </div>
       ),
@@ -2454,7 +2624,6 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
               <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>Completa los datos después de entrenar con calma.</div>
             </div>
           </div>
-
         </div>
       ),
     },
@@ -2492,7 +2661,7 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
           <button
             onClick={() => isLast ? onComplete() : setStep(s=>s+1)}
             style={{ flex:2, padding:"12px 0", borderRadius:10, border:"none", background:"var(--accent)", color:"white", fontWeight:800, fontSize:15, cursor:"pointer" }}>
-            {isLast ? "¡Empezar a entrenar! 💪" : "Siguiente →"}
+            {isLast ? "¡Comenzar a entrenar! 💪" : "Siguiente →"}
           </button>
         </div>
 
@@ -2865,7 +3034,7 @@ function MuscleBalance({ sessions }) {
   const warnings = [];
   if (push > 0 && pull > 0 && push / pull > 1.8) warnings.push("⚠️ Entrenas mucho más empuje que tirón. Riesgo de lesión de hombros.");
   if (pull > 0 && push > 0 && pull / push > 2) warnings.push("⚠️ Mucho más tirón que empuje. Considera balancear.");
-  if (totalAll > 0 && legs / totalAll < 0.15) warnings.push("🦵 Estás descuidando las piernas. ¡No seas pájaro!");
+  if (totalAll > 0 && legs / totalAll < 0.15) warnings.push("🦵 Estás descuidando las piernas. El equilibrio muscular es clave.");
   if (totalAll === 0) warnings.push("Sin datos este mes.");
 
   const colors = { "Empuje 🔵":"#3b82f6","Tirón 🟢":"#22c55e","Piernas 🔴":"#ef4444","Core 🟡":"#f59e0b" };
@@ -3354,7 +3523,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
 
   async function saveRoutine() {
-    if (!routineName.trim()) { setErr("Dale un nombre a la rutina"); return; }
+    if (!routineName.trim()) { setErr("Agrega un nombre a la rutina"); return; }
     if (routineExercises.length === 0) { setErr("Agrega al menos un ejercicio"); return; }
     setErr("");
     const routine = {
@@ -3741,7 +3910,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px,1fr))", gap: 10, marginBottom: 20 }}>
                       {[
                         { icon: "🏋️", label: "Sesiones", value: athleteData.sessions.length },
-                        { icon: "🔥", label: "Racha", value: `${getAthleteStreak(athleteData.sessions)}d` },
+                        { icon: "🔥", label: "Racha", value: `${getAthleteStreak(athleteData.sessions)}sem` },
                         { icon: "⭐", label: "PRs", value: Object.keys(getAthletePRs(athleteData.sessions)).length },
                         { icon: "⚖️", label: "Peso actual", value: athleteData.bodyStats?.entries?.length > 0 ? `${athleteData.bodyStats.entries[athleteData.bodyStats.entries.length-1].weight}kg` : "—" },
                       ].map(s => (
@@ -3982,15 +4151,38 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
             {/* Timer de descanso */}
             <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
               {restTimer ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>DESCANSANDO</div>
-                    <div style={{ height: 6, background: "var(--border)", borderRadius: 10, overflow: "hidden" }}>
-                      <div style={{ height: "100%", background: "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
-                    </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>⏱ DESCANSANDO</div>
+                  {/* Barra de progreso */}
+                  <div style={{ height: 6, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
+                    <div style={{ height: "100%", background: restTimer.left === 0 ? "#22c55e" : "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
                   </div>
-                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 800, color: "var(--accent)", minWidth: 64, textAlign: "center" }}>{fmt(restTimer.left)}</div>
-                  <button onClick={() => setRestTimer(null)} style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>✕</button>
+                  {/* Timer + controles */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {/* -15s */}
+                    <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
+                    {/* Tiempo */}
+                    <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 36, fontWeight: 800, color: restTimer.left === 0 ? "#22c55e" : "var(--accent)" }}>
+                      {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
+                    </div>
+                    {/* +15s */}
+                    <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
+                  </div>
+                  {/* Presets + cerrar */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    {REST_OPTS.map(o => (
+                      <button key={o.label} onClick={() => startRest(o.secs)}
+                        style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "white" : "var(--text-muted)", borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                        {o.label}
+                      </button>
+                    ))}
+                    <button onClick={() => setRestTimer(null)}
+                      style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+                      ✕ Quitar
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -4435,13 +4627,28 @@ async function saveCustomExercise(name, muscle) {
 async function loadCustomExercises() {
   try {
     const snap = await getDocs(collection(db, "custom_exercises"));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e) { return []; }
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    console.log("[loadCustomExercises] docs:", docs.map(d => ({ name: d.name, hasGif: !!d.gifUrl, gifLen: d.gifUrl?.length })));
+    return docs;
+  } catch(e) {
+    console.error("[loadCustomExercises] ERROR:", e);
+    return [];
+  }
 }
 
 async function updateCustomExerciseGif(id, gifUrl) {
   try {
     await setDoc(doc(db, "custom_exercises", id), { gifUrl }, { merge: true });
+    return true;
+  } catch(e) {
+    console.error("[updateCustomExerciseGif] ERROR:", e);
+    return false;
+  }
+}
+
+async function updateCustomExerciseMeta(id, name, muscle) {
+  try {
+    await setDoc(doc(db, "custom_exercises", id), { name, muscle }, { merge: true });
     return true;
   } catch(e) { return false; }
 }
@@ -4562,7 +4769,7 @@ function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose 
             {icon:"🏋️",label:"Sesiones",value:sessions.length},
             {icon:"📅",label:"Esta semana",value:thisWeek},
             {icon:"🗓️",label:"Este mes",value:thisMonth},
-            {icon:"🔥",label:"Racha",value:`${streak}d`},
+            {icon:"🔥",label:"Racha",value:`${streak}sem`},
             {icon:"⭐",label:"PRs",value:Object.keys(prs).length},
             {icon:"📦",label:"Volumen",value:`${totalVol}t`},
             {icon:"🔥",label:"~kcal",value:kcal},
@@ -4694,7 +4901,7 @@ function TeamsModal({ user, sessions, onClose }) {
   }
 
   async function createTeam() {
-    if (!createName.trim()) { setErr("Dale un nombre al team"); return; }
+    if (!createName.trim()) { setErr("Agrega un nombre al equipo"); return; }
     if (myTeams.length >= 3) { setErr("Puedes estar en un máximo de 3 teams."); return; }
     const code = Math.random().toString(36).slice(2,8).toUpperCase();
     const team = { code, name: createName.trim(), createdBy: user.name, members: { [user.email]: myStats }, createdAt: todayStr() };
@@ -5089,7 +5296,7 @@ function TeamsModal({ user, sessions, onClose }) {
                       } else if (rankMetric === "prs") {
                         val = `${m.prs} PRs`; myVal = m.prs; maxVal = Math.max(...sorted.map(x=>x.prs),1);
                       } else {
-                        val = `${m.streak}d`; myVal = m.streak; maxVal = Math.max(...sorted.map(x=>x.streak),1);
+                        val = `${m.streak}sem`; myVal = m.streak; maxVal = Math.max(...sorted.map(x=>x.streak),1);
                       }
                       const barPct = maxVal > 0 ? Math.min((myVal/maxVal)*100, 100) : 0;
                       const barColor = i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#b45309":isMe?"var(--accent)":"#475569";
@@ -5109,7 +5316,7 @@ function TeamsModal({ user, sessions, onClose }) {
                                 {isMe && <span style={{ fontSize:10, background:"var(--accent)", color:"white", borderRadius:5, padding:"1px 6px" }}>TÚ</span>}
                               </div>
                               <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
-                                {m.sessions} ses · {m.volume}t · {m.prs} PRs · {m.streak}d
+                                {m.sessions} ses · {m.volume}t · {m.prs} PRs · {m.streak}sem
                                 {rankMetric==="progress" && m.bestImprovement && (
                                   <span style={{ color:"#22c55e" }}> · 🏋️ {m.bestImprovement.name} +{m.bestImprovement.pct}%</span>
                                 )}
@@ -5185,6 +5392,12 @@ function AdminExercisesModal({ onClose }) {
   const [gifInputs, setGifInputs] = useState({});
   const [saving, setSaving] = useState({});
   const [filter, setFilter] = useState("");
+  const [uploadMode, setUploadMode] = useState({});
+  const [uploadPreviews, setUploadPreviews] = useState({});
+  const fileInputRefs = useRef({});
+  const [editing, setEditing] = useState({}); // { [id]: { name, muscle } }
+  const [savingMeta, setSavingMeta] = useState({});
+  const { setGif } = useCustomGifs();
 
   useEffect(() => {
     loadCustomExercises().then(list => {
@@ -5196,11 +5409,50 @@ function AdminExercisesModal({ onClose }) {
     });
   }, []);
 
+  function getMode(id) { return uploadMode[id] || "url"; }
+  function setMode(id, mode) { setUploadMode(p => ({ ...p, [id]: mode })); }
+
+  function startEdit(ex) {
+    setEditing(p => ({ ...p, [ex.id]: { name: ex.name, muscle: ex.muscle } }));
+  }
+  function cancelEdit(id) {
+    setEditing(p => { const n = { ...p }; delete n[id]; return n; });
+  }
+  async function saveEdit(ex) {
+    const { name, muscle } = editing[ex.id];
+    if (!name.trim()) return;
+    setSavingMeta(s => ({ ...s, [ex.id]: true }));
+    await updateCustomExerciseMeta(ex.id, name.trim(), muscle.trim());
+    setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, name: name.trim(), muscle: muscle.trim() } : e));
+    setSavingMeta(s => ({ ...s, [ex.id]: false }));
+    cancelEdit(ex.id);
+  }
+
+  function handleFileChange(ex, file) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { alert("Solo se admiten imágenes/GIFs"); return; }
+    setUploadPreviews(p => ({ ...p, [ex.id]: URL.createObjectURL(file) }));
+    setGifInputs(p => ({ ...p, [ex.id]: file }));
+  }
+
   async function handleSaveGif(ex) {
     setSaving(s => ({ ...s, [ex.id]: true }));
-    const url = gifInputs[ex.id] || "";
-    await updateCustomExerciseGif(ex.id, url);
-    setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, gifUrl: url } : e));
+    let url = gifInputs[ex.id] || "";
+    try {
+      if (url instanceof File) {
+        const storageRef = ref(storage, `exercise_gifs/${ex.id}_${Date.now()}`);
+        await uploadBytes(storageRef, url);
+        url = await getDownloadURL(storageRef);
+      }
+      const ok = await updateCustomExerciseGif(ex.id, url);
+      if (!ok) { alert("Error al guardar."); setSaving(s => ({ ...s, [ex.id]: false })); return; }
+      setGifInputs(p => ({ ...p, [ex.id]: url }));
+      setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, gifUrl: url } : e));
+      setGif(ex.name, url);
+    } catch(e) {
+      console.error(e);
+      alert("Error al subir el GIF: " + e.message);
+    }
     setSaving(s => ({ ...s, [ex.id]: false }));
   }
 
@@ -5223,7 +5475,7 @@ function AdminExercisesModal({ onClose }) {
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 14 }}>
-          Ejercicios creados por usuarios. Pega la URL del GIF para que aparezca en la app.
+          Ejercicios creados por usuarios. Sube un GIF local o pega una URL para que aparezca en la app.
         </div>
         <input className="input" placeholder="🔍 Filtrar por nombre o músculo..."
           value={filter} onChange={e => setFilter(e.target.value)} style={{ marginBottom: 14 }} />
@@ -5233,41 +5485,138 @@ function AdminExercisesModal({ onClose }) {
           <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
             {exercises.length === 0 ? "Aún no hay ejercicios personalizados." : "Sin resultados."}
           </div>
-        ) : filtered.map(ex => (
-          <div key={ex.id} style={{ background: "var(--input-bg)", border: `1px solid ${ex.gifUrl ? "rgba(34,197,94,0.4)" : "var(--border)"}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>💪 {ex.muscle} · {ex.createdAt}</div>
+        ) : filtered.map(ex => {
+          const mode = getMode(ex.id);
+          const preview = uploadPreviews[ex.id] || ex.gifUrl;
+          const inputVal = gifInputs[ex.id] || "";
+          const isSaved = ex.gifUrl && inputVal === ex.gifUrl;
+          const isEditing = !!editing[ex.id];
+          return (
+            <div key={ex.id} style={{ background: "var(--input-bg)", border: `1px solid ${ex.gifUrl ? "rgba(34,197,94,0.4)" : "var(--border)"}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div style={{ flex: 1, marginRight: 10 }}>
+                  {isEditing ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <input className="input" style={{ fontSize: 13, fontWeight: 700, padding: "5px 10px" }}
+                        placeholder="Nombre del ejercicio"
+                        value={editing[ex.id].name}
+                        onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], name: e.target.value } }))} />
+                      <select className="input" style={{ fontSize: 12, padding: "5px 10px" }}
+                        value={editing[ex.id].muscle}
+                        onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], muscle: e.target.value } }))}>
+                        {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => saveEdit(ex)} disabled={savingMeta[ex.id]}
+                          className="btn-primary" style={{ fontSize: 11, padding: "5px 12px" }}>
+                          {savingMeta[ex.id] ? "⏳" : "✅ Guardar"}
+                        </button>
+                        <button onClick={() => cancelEdit(ex.id)}
+                          style={{ fontSize: 11, padding: "5px 12px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif" }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>💪 {ex.muscle} · {ex.createdAt}</div>
+                      </div>
+                      <button onClick={() => startEdit(ex)}
+                        title="Editar nombre y músculo"
+                        style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 7px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}>
+                        ✏️
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {preview && (
+                    <img src={preview} alt={ex.name}
+                      style={{ width: 54, height: 54, borderRadius: 8, objectFit: "cover", border: "1px solid var(--accent)" }}
+                      onError={e => { e.target.style.display = "none"; }} />
+                  )}
+                  <button onClick={() => handleDelete(ex)}
+                    style={{ background: "none", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444",
+                      borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 11 }}>🗑️</button>
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {ex.gifUrl && (
-                  <img src={ex.gifUrl} alt={ex.name}
-                    style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: "1px solid var(--border)" }}
-                    onError={e => { e.target.style.display = "none"; }} />
-                )}
-                <button onClick={() => handleDelete(ex)}
-                  style={{ background: "none", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444",
-                    borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 11 }}>🗑️</button>
+
+              {/* Toggle URL / Archivo local */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <button onClick={() => setMode(ex.id, "url")}
+                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontWeight: 600,
+                    background: mode === "url" ? "var(--accent)" : "none",
+                    color: mode === "url" ? "white" : "var(--text-muted)",
+                    border: `1px solid ${mode === "url" ? "var(--accent)" : "var(--border)"}`,
+                    transition: "all 0.15s" }}>
+                  🔗 URL
+                </button>
+                <button onClick={() => setMode(ex.id, "file")}
+                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontWeight: 600,
+                    background: mode === "file" ? "var(--accent)" : "none",
+                    color: mode === "file" ? "white" : "var(--text-muted)",
+                    border: `1px solid ${mode === "file" ? "var(--accent)" : "var(--border)"}`,
+                    transition: "all 0.15s" }}>
+                  📁 Archivo local
+                </button>
               </div>
+
+              {mode === "url" ? (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="input" style={{ flex: 1, fontSize: 12 }}
+                    placeholder="URL del GIF (https://...gif)"
+                    value={inputVal.startsWith("data:") ? "" : inputVal}
+                    onChange={e => {
+                      setGifInputs(p => ({ ...p, [ex.id]: e.target.value }));
+                      setUploadPreviews(p => ({ ...p, [ex.id]: null }));
+                    }} />
+                  <button onClick={() => handleSaveGif(ex)} disabled={saving[ex.id]}
+                    className="btn-primary" style={{ fontSize: 12, padding: "8px 14px", flexShrink: 0 }}>
+                    {saving[ex.id] ? "⏳" : ex.gifUrl ? "✏️ Actualizar" : "💾 Guardar"}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="file"
+                    accept="image/gif,image/webp,image/png,image/jpeg"
+                    ref={el => { fileInputRefs.current[ex.id] = el; }}
+                    style={{ display: "none" }}
+                    onChange={e => handleFileChange(ex, e.target.files[0])}
+                  />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button
+                      onClick={() => fileInputRefs.current[ex.id]?.click()}
+                      style={{ flex: 1, background: "var(--input-bg)", border: "1.5px dashed var(--border)", color: "var(--text-muted)",
+                        borderRadius: 8, padding: "9px 12px", cursor: "pointer", fontSize: 12, fontFamily: "Barlow, sans-serif",
+                        textAlign: "left", transition: "border-color 0.15s" }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent)"}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                      {uploadPreviews[ex.id] ? "✅ GIF cargado — click para cambiar" : "📂 Seleccionar GIF local (máx. 3 MB)"}
+                    </button>
+                    <button onClick={() => handleSaveGif(ex)} disabled={saving[ex.id] || !gifInputs[ex.id]}
+                      className="btn-primary" style={{ fontSize: 12, padding: "8px 14px", flexShrink: 0 }}>
+                      {saving[ex.id] ? "⏳" : ex.gifUrl ? "✏️ Actualizar" : "💾 Guardar"}
+                    </button>
+                  </div>
+                  {uploadPreviews[ex.id] && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>
+                      Vista previa ↑ · Se subirá a Firebase Storage
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isSaved && !uploadPreviews[ex.id] && (
+                <div style={{ fontSize: 11, color: "#22c55e", marginTop: 6 }}>✅ GIF asignado</div>
+              )}
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input className="input" style={{ flex: 1, fontSize: 12 }}
-                placeholder="URL del GIF (https://...gif)"
-                value={gifInputs[ex.id] || ""}
-                onChange={e => setGifInputs(p => ({ ...p, [ex.id]: e.target.value }))} />
-              <button onClick={() => handleSaveGif(ex)} disabled={saving[ex.id]}
-                className="btn-primary" style={{ fontSize: 12, padding: "8px 14px", flexShrink: 0 }}>
-                {saving[ex.id] ? "⏳" : ex.gifUrl ? "✏️ Actualizar" : "💾 Guardar"}
-              </button>
-            </div>
-            {ex.gifUrl && gifInputs[ex.id] === ex.gifUrl && (
-              <div style={{ fontSize: 11, color: "#22c55e", marginTop: 6 }}>✅ GIF asignado</div>
-            )}
-          </div>
-        ))}
+          );
+        })}
         <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(59,130,246,0.08)", borderRadius: 10, fontSize: 12, color: "var(--text-muted)" }}>
-          💡 GIFs gratis en <a href="https://giphy.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>giphy.com</a> o <a href="https://tenor.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>tenor.com</a> — copia el enlace directo al .gif
+          💡 GIFs gratis en <a href="https://giphy.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>giphy.com</a> o <a href="https://tenor.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>tenor.com</a> — o sube directamente desde tu dispositivo
         </div>
       </div>
     </div>
@@ -5645,7 +5994,7 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
       return { mood:"celebrate", title:`¡Nuevo PR en ${pr.name}! 🏆`, message:`${pr.weight}kg. Brux va a hablar de esto toda la semana. Merecido.`, cta:null };
     }
     const msgs = muscle ? [
-      `${exCount} ejercicios de ${muscle.toLowerCase()} registrados. Mañana van a doler — eso es progreso.`,
+      `${exCount} ejercicios de ${muscle.toLowerCase()} registrados. Mañana lo vas a sentir, y eso es progreso.`,
       `${muscle} trabajado al máximo hoy. Brux toma nota. Descansa bien.`,
       `Sólido. ${exCount > 0 ? `${exCount} ejercicios terminados.` : ""} El descanso también es parte del entrenamiento.`,
     ] : [
@@ -5665,7 +6014,7 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
       mood:"happy", title:"¿Doble sesión hoy? 💪",
       message: muscle && sugerido
         ? `Ya trabajaste ${muscle.toLowerCase()} hoy. ${neglected?.days>5?`${sugerido} lleva ${neglected.days} días sin aparecer. ¿Lo sumamos?`:`¿Qué tal añadir ${sugerido.toLowerCase()} también?`}`
-        : "¡Volviste por más! Brux está sorprendido (y orgulloso).",
+        : "¡Volviste por más! Brux está impresionado (y orgulloso).",
       cta:sugerido||null, neglectedMuscle:sugerido||null,
     };
   }
@@ -5676,7 +6025,7 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
     const lastSamePlan = prevSamePlan[0];
     const planMsg = lastSamePlan
       ? `La última vez que hiciste ${todayPlanned} fue el ${lastSamePlan.date}. ¿Superamos eso hoy?`
-      : `Primera vez con ${todayPlanned}. Brux va a estar tomando notas.`;
+      : `Primera vez con ${todayPlanned}. Brux estará tomando notas.`;
     return { mood:"hype", title:`¡Hoy toca ${todayPlanned.toLowerCase()}! 📅`, message:planMsg, cta:todayPlanned };
   }
 
@@ -5696,23 +6045,23 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
     const msgs = [
       `${daysSinceLast} días de pausa. No es el fin del mundo, pero Brux recomienda volver hoy.`,
       `Brux lleva ${daysSinceLast} días esperándote. El gimnasio también.`,
-      `${daysSinceLast} días sin registrar nada. ¿Fue descanso activo o se quedó en intención? Sin juicio.`,
+      `${daysSinceLast} días sin registrar nada. ¿Fue descanso activo o quedó pendiente? Todo bien, hoy es un buen momento para retomar.`,
     ];
     return { mood:"warning", title:`${daysSinceLast} días sin entrenar...`, message:msgs[seed%msgs.length], cta:null };
   }
 
   // ── 5. Racha fuerte ──
   if (streak >= 14) {
-    return { mood:"fire", title:`🔥 ¡${streak} días seguidos!`,
-      message:`Brux está tomando nota. ${streak} días sin parar es cosa seria. No se lo cuentes a todos o van a pedirte consejos.`, cta:null };
+    return { mood:"fire", title:`🔥 ¡${streak} semanas seguidas!`,
+      message:`Brux está registrando todo. ${streak} semanas cumpliendo tu meta es algo serio. Pronto todos te van a pedir consejos.`, cta:null };
   }
   if (streak >= 7) {
-    return { mood:"fire", title:`🔥 Racha de ${streak} días`,
-      message:`Una semana completa seguida. Brux dice que esto ya no es suerte — es hábito.`, cta:null };
+    return { mood:"fire", title:`🔥 Racha de ${streak} semanas`,
+      message:`Casi dos meses cumpliendo tu meta cada semana. Brux dice que esto ya no es suerte, es hábito.`, cta:null };
   }
   if (daysSinceLast === 1 && streak >= 3) {
-    return { mood:"happy", title:`¡Racha de ${streak} días! 🔥`,
-      message:`Entrena hoy y son ${streak+1}. Brux lo tiene apuntado.`, cta:null };
+    return { mood:"happy", title:`¡${streak} semanas en racha! 🔥`,
+      message:`Cumpliste tu meta ${streak} semanas seguidas. Brux lleva la cuenta.`, cta:null };
   }
 
   // ── 6. PR reciente ──
@@ -5854,7 +6203,7 @@ function BruxMascot({ sessions, todayPlanned, streak, onStartSession, inNewSessi
         <div style={{ display:"flex", gap:6, marginBottom: ctx.cta ? 10 : 0 }}>
           {[
             { label: "Esta semana", value: `${weekCount} sesiones`, color: weekCount>=3?"#22c55e":weekCount>=1?"#f59e0b":"#ef4444" },
-            { label: "Racha", value: streak > 0 ? `🔥 ${streak}d` : "0d", color: streak>=7?"#ef4444":streak>=3?"#f97316":"var(--text-muted)" },
+            { label: "Racha", value: streak > 0 ? `🔥 ${streak}sem` : "0sem", color: streak>=7?"#ef4444":streak>=3?"#f97316":"var(--text-muted)" },
             { label: "Total", value: `${totalSessions}`, color: "var(--text-muted)" },
           ].map(s => (
             <div key={s.label} style={{ flex:1, background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"5px 6px", textAlign:"center", border:"1px solid var(--border)" }}>
@@ -6130,7 +6479,7 @@ function InsightsModal({ sessions, bodyStats, onClose }) {
   );
 }
 
-function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine }) {
+function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user }) {
   const total = sessions.length;
   const thisWeek = sessions.filter(s => (new Date() - new Date(s.date + "T00:00:00")) / 86400000 <= 7).length;
   const exCount = {};
@@ -6141,15 +6490,17 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
   const topW = Object.entries(wCount).sort((a, b) => b[1] - a[1])[0];
   const totalVol = sessions.reduce((acc, s) => acc + (s.exercises || []).reduce((a, ex) => a + (parseFloat(ex.weight) || 0) * (parseFloat(ex.reps) || 1), 0), 0);
 
-  // Streak
-  const sortedDates = [...new Set(sessions.map(s => s.date))].sort().reverse();
-  let streak = 0;
-  let checkDate = new Date(); checkDate.setHours(0,0,0,0);
-  for (let d of sortedDates) {
-    const sd = new Date(d + "T00:00:00");
-    const diff = Math.round((checkDate - sd) / 86400000);
-    if (diff <= 1) { streak++; checkDate = sd; } else break;
-  }
+  // Streak (weekly)
+  const weeklyTarget = weeklyGoal?.target || 3;
+  const streak = getStreak(sessions, weeklyTarget);
+
+  // Progress this week
+  const thisWeekSessions = sessions.filter(s => {
+    const getMonday = (d) => { const date = new Date(d); date.setHours(0,0,0,0); const day = date.getDay(); date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day)); return date; };
+    const mon = getMonday(new Date()); mon.setHours(0,0,0,0);
+    const sd = new Date(s.date + "T00:00:00"); sd.setHours(0,0,0,0);
+    return sd >= mon;
+  }).length;
 
   // All PRs
   const prs = {};
@@ -6167,7 +6518,7 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
   const stats = [
     { icon: "🏋️", label: "Sesiones totales", value: total },
     { icon: "🔥", label: "Esta semana", value: thisWeek },
-    { icon: "🔑", label: "Racha actual", value: `${streak} días` },
+    { icon: "🔑", label: "Racha actual", value: streak === 1 ? "1 semana" : `${streak} semanas` },
     { icon: "🏆", label: "Récords personales", value: totalPRs > 0 ? totalPRs : "—" },
     { icon: "💪", label: "Rutina favorita", value: topW ? topW[0] : "—" },
     { icon: "⚖️", label: "Volumen total", value: totalVol > 0 ? `${(totalVol / 1000).toFixed(1)}t` : "—" },
@@ -6292,7 +6643,7 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
           </div>
         );
       })()}
-      <TrainingCalendar sessions={sessions} />
+      <div id="training-calendar-section"><TrainingCalendar sessions={sessions} joinedAt={user?.createdAt} /></div>
       <WeeklyChart sessions={sessions} />
       <WeekComparison sessions={sessions} />
       <ProgressPrediction sessions={sessions} />
@@ -6609,6 +6960,33 @@ function LiveTrainMode({
   );
   const [showSummary, setShowSummary] = useState(false);
   const timerRef = useRef();
+  const restRef = useRef();
+  const [restTimer, setRestTimer] = useState(null); // null | { total, left }
+
+  // Countdown de descanso
+  useEffect(() => {
+    if (restTimer && restTimer.left > 0) {
+      restRef.current = setInterval(() => {
+        setRestTimer(prev => {
+          if (!prev || prev.left <= 1) { clearInterval(restRef.current); return prev ? { ...prev, left: 0 } : null; }
+          return { ...prev, left: prev.left - 1 };
+        });
+      }, 1000);
+    }
+    return () => clearInterval(restRef.current);
+  }, [restTimer?.total]);
+
+  function startRest(secs) {
+    clearInterval(restRef.current);
+    setRestTimer({ total: secs, left: secs });
+  }
+
+  const REST_OPTS_LIVE = [
+    { label: "1m", secs: 60 },
+    { label: "1.5m ⭐", secs: 90 },
+    { label: "2m", secs: 120 },
+    { label: "3m", secs: 180 },
+  ];
 
   useEffect(() => {
     if (running) timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -6631,9 +7009,7 @@ function LiveTrainMode({
     ));
     // Auto-lanzar timer de descanso al COMPLETAR una serie
     if (!wasDone) {
-      const defaultRest = 90;
-      setFloatTimer(t => ({ ...t, visible: true, secs: defaultRest, elapsed: 0, running: true }));
-      // Solicitar permiso notificación si no está dado
+      startRest(90);
       if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
       }
@@ -6685,9 +7061,9 @@ function LiveTrainMode({
       : BRUX_MOODS.happy;
 
     const celebMessages = completionPct >= 90
-      ? ["¡Lo completaste todo! Eso es nivel élite 🔥", "¡100%! Sos una bestia del gym 🏆", "¡Brutal! Brux está sin palabras. Buenas, claro. 💪"]
+      ? ["¡Lo completaste todo! Eso es nivel élite 🔥", "¡100%! Eres una bestia del gym 🏆", "¡Brutal! Brux está sin palabras. Buenas, claro. 💪"]
       : completionPct >= 60
-      ? ["¡Buen trabajo! Cada serie cuenta 👊", "¡Sesión cumplida! Mañana más 💪", "¡Eso! Consistencia es la clave 🗝️"]
+      ? ["¡Buen trabajo! Cada serie cuenta 👊", "¡Sesión completada! Mañana más 💪", "¡Así se hace! Consistencia es la clave 🗝️"]
       : ["Algo es algo. Lo importante es aparecer 💯", "¡Viniste y eso ya es una victoria! 🌟", "El primer paso siempre es el más difícil. ¡Seguí! 🚀"];
     const celebMsg = celebMessages[Math.floor(Date.now()/86400000) % celebMessages.length];
 
@@ -7116,38 +7492,58 @@ function LiveTrainMode({
                 )}
               </div>
 
-              {/* Inline rest timer shortcuts */}
+              {/* Inline rest timer */}
               <div style={{
-                background: "var(--card)", border: "1px solid var(--border)",
+                background: "var(--card)", border: `1px solid ${restTimer ? "var(--accent)" : "var(--border)"}`,
                 borderRadius: 12, padding: "11px 14px", marginBottom: 18,
-                display: "flex", alignItems: "center", gap: 12,
+                transition: "border-color 0.3s",
               }}>
-                <span style={{ fontSize: 18 }}>⏱️</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
-                    letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5,
-                  }}>
-                    Iniciar descanso
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {[[60, "Cardio"], [90, "Hiper ⭐"], [120, "Fuerza"], [180, "Pesado"]].map(([t, label]) => (
-                      <button
-                        key={t}
-                        onClick={() => setFloatTimer(f => ({ ...f, visible: true, secs: t, elapsed: 0, running: true }))}
-                        style={{
-                          background: "var(--input-bg)", border: "1px solid var(--border)",
-                          borderRadius: 8, padding: "5px 10px", cursor: "pointer",
-                          color: "var(--text-muted)", fontSize: 11, fontWeight: 600,
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {t < 60 ? `${t}s` : `${t / 60}m`}{" "}
-                        <span style={{ opacity: 0.6 }}>{label}</span>
+                {restTimer ? (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>⏱ DESCANSANDO</div>
+                    <div style={{ height: 5, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 10 }}>
+                      <div style={{ height: "100%", background: restTimer.left === 0 ? "#22c55e" : "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
+                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
+                      <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 34, fontWeight: 800, color: restTimer.left === 0 ? "#22c55e" : "var(--accent)" }}>
+                        {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
+                      </div>
+                      <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
+                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      {REST_OPTS_LIVE.map(o => (
+                        <button key={o.label} onClick={() => startRest(o.secs)}
+                          style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "white" : "var(--text-muted)", borderRadius: 20, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                          {o.label}
+                        </button>
+                      ))}
+                      <button onClick={() => setRestTimer(null)}
+                        style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontSize: 11 }}>
+                        ✕ Quitar
                       </button>
-                    ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 18 }}>⏱️</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
+                        Iniciar descanso
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {REST_OPTS_LIVE.map(o => (
+                          <button key={o.label} onClick={() => startRest(o.secs)}
+                            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontWeight: 600 }}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Previous / Next navigation */}
@@ -7178,7 +7574,7 @@ function LiveTrainMode({
                   </button>
                 ) : (
                   <button
-                    onClick={() => { setRunning(false); setShowSummary(true); setFloatTimer(f => ({ ...f, visible: false, running: false })); }}
+                    onClick={() => { setRunning(false); setShowSummary(true); }}
                     style={{
                       flex: 2, background: "linear-gradient(135deg, #22c55e, #16a34a)",
                       border: "none", color: "white", borderRadius: 10, padding: 11,
@@ -7217,13 +7613,13 @@ function StreakBanner({ sessions }) {
           <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:10, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:1 }}>{msg}</div>
           <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
             <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:38, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
-            <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>días seguidos</span>
+            <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>semanas seguidas</span>
           </div>
         </div>
         {nextMilestone && (
           <div style={{ textAlign:"center", flexShrink:0 }}>
             <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, marginBottom:4 }}>Próximo hito</div>
-            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}d</div>
+            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}sem</div>
             <div style={{ fontSize:9, color:"var(--text-muted)" }}>faltan {nextMilestone-streak}</div>
           </div>
         )}
@@ -7235,8 +7631,8 @@ function StreakBanner({ sessions }) {
             <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${color}80,${color})`, borderRadius:20, transition:"width 0.6s ease", boxShadow:`0 0 6px ${color}60` }} />
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{prevMilestone}d</span>
-            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{nextMilestone}d</span>
+            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{prevMilestone}sem</span>
+            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{nextMilestone}sem</span>
           </div>
         </div>
       )}
@@ -7250,7 +7646,7 @@ function StreakChip({ sessions, compact = false }) {
   const color = streak >= 30 ? "#f97316" : streak >= 14 ? "#a855f7" : streak >= 7 ? "#3b82f6" : "#f59e0b";
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${color}18`, border:`1px solid ${color}50`, borderRadius:20, padding: compact ? "2px 7px" : "3px 10px", fontSize: compact ? 10 : 11, fontWeight:700, color, flexShrink:0 }}>
-      🔥 {streak}d
+      🔥 {streak}sem
     </span>
   );
 }
@@ -7301,16 +7697,24 @@ function StreakModal({ sessions, user, onClose }) {
   // Count active days & best streak
   const totalActiveDays = sessions.length;
   function calcBestStreak(sessions) {
-    const dates = [...new Set(sessions.map(s => s.date))].sort();
+    // Best weekly streak: max consecutive weeks meeting the target
+    const weeklyTarget = 3; // default
+    const getMonday = (d) => { const date = new Date(d); date.setHours(0,0,0,0); const day = date.getDay(); date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day)); return date; };
+    const toKey = (d) => d.toISOString().slice(0,10);
+    const weekMap = {};
+    sessions.forEach(s => { const mon = toKey(getMonday(new Date(s.date+"T00:00:00"))); weekMap[mon]=(weekMap[mon]||0)+1; });
+    const weekKeys = Object.keys(weekMap).sort();
     let best = 0, cur = 0;
-    let prev = null;
-    for (const d of dates) {
-      if (prev) {
-        const diff = Math.round((new Date(d + "T00:00:00") - new Date(prev + "T00:00:00")) / 86400000);
-        cur = diff === 1 ? cur + 1 : 1;
-      } else { cur = 1; }
-      best = Math.max(best, cur);
-      prev = d;
+    for (let i = 0; i < weekKeys.length; i++) {
+      if (weekMap[weekKeys[i]] >= weeklyTarget) {
+        if (i > 0) {
+          const prev = new Date(weekKeys[i-1]+"T00:00:00");
+          const curr = new Date(weekKeys[i]+"T00:00:00");
+          const diff = Math.round((curr-prev)/604800000);
+          cur = diff === 1 ? cur + 1 : 1;
+        } else { cur = 1; }
+        best = Math.max(best, cur);
+      } else { cur = 0; }
     }
     return best;
   }
@@ -7364,23 +7768,23 @@ function StreakModal({ sessions, user, onClose }) {
           <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 72, fontWeight: 900, color, lineHeight: 1, filter: `drop-shadow(0 0 20px ${color}60)` }}>
             {streak}
           </div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 12 }}>días seguidos</div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 12 }}>semanas seguidas</div>
           <div style={{ fontSize: 11, color: "var(--text-muted)", background: "var(--input-bg)", borderRadius: 8, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
-            ℹ️ La racha se mantiene registrando una sesión por día
+            ℹ️ La racha cuenta semanas donde cumpliste tu meta de días
           </div>
 
           {/* Progress toward next milestone */}
           {nextMilestone && (
             <div style={{ maxWidth: 280, margin: "0 auto" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-                <span>{prevMilestone}d</span>
-                <span style={{ color, fontWeight: 700 }}>→ {nextMilestone}d</span>
+                <span>{prevMilestone}sem</span>
+                <span style={{ color, fontWeight: 700 }}>→ {nextMilestone}sem</span>
               </div>
               <div style={{ background: "var(--border)", borderRadius: 20, height: 8, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: 20, boxShadow: `0 0 10px ${color}60`, transition: "width 0.8s ease" }} />
               </div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
-                {nextMilestone - streak === 1 ? "¡Mañana llegás al hito! 🎯" : `Faltan ${nextMilestone - streak} días para el próximo hito`}
+                {nextMilestone - streak === 1 ? "¡La semana que viene llegas al hito! 🎯" : `Faltan ${nextMilestone - streak} semanas para el próximo hito`}
               </div>
             </div>
           )}
@@ -7389,8 +7793,8 @@ function StreakModal({ sessions, user, onClose }) {
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 22 }}>
           {[
-            { label: "Racha actual", value: `${streak}d`, color },
-            { label: "Mejor racha", value: `${bestStreak}d`, color: "#f59e0b" },
+            { label: "Racha actual", value: `${streak}sem`, color },
+            { label: "Mejor racha", value: `${bestStreak}sem`, color: "#f59e0b" },
             { label: "Días activos", value: totalActiveDays, color: "#3b82f6" },
           ].map(s => (
             <div key={s.label} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
@@ -7487,7 +7891,7 @@ function StreakModal({ sessions, user, onClose }) {
                         {m.name} {m.isMe && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)" }}>(tú)</span>}
                       </div>
                       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: mColor }}>
-                        {m.streak}d
+                        {m.streak}sem
                       </div>
                     </div>
                     {/* Mini bar */}
@@ -7515,6 +7919,7 @@ function GymApp() {
   const [unit, setUnit] = useState(() => load("gym_unit", "kg"));
   const [activeTab, setActiveTab] = useState("new");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [customGifsMap, setCustomGifsMap] = useState({});
 
   // Body stats
   const bodyKey = `gym_body_${user.email}`;
@@ -7573,6 +7978,8 @@ function GymApp() {
   const [currentExercises, setCurrentExercises] = useState([]);
   const [exName, setExName] = useState("");
   const [exMuscle, setExMuscle] = useState("Todos");
+  const [exSearch, setExSearch] = useState("");
+  const [exSearchFocus, setExSearchFocus] = useState(false);
   const [exCustom, setExCustom] = useState("");
   const [exCustomMuscle, setExCustomMuscle] = useState("");
   const [exWeight, setExWeight] = useState("");
@@ -7622,11 +8029,17 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   // Cargar ejercicios personalizados de Firestore al iniciar
   useEffect(() => {
     loadCustomExercises().then(customs => {
+      const map = {};
       customs.forEach(ex => {
         if (!EXERCISE_DB.find(e => e.name === ex.name)) {
           EXERCISE_DB.push({ name: ex.name, muscle: ex.muscle, machine: false, equipment: "Personalizado" });
         }
-        if (ex.gifUrl) GIF_MAP[ex.name] = ex.gifUrl;
+        if (ex.gifUrl) map[ex.name] = ex.gifUrl;
+      });
+      setCustomGifsMap(map);
+      console.log("[GymApp] setCustomGifsMap keys:", Object.keys(map));
+      customs.forEach(ex => {
+        console.log("[GymApp] doc →", JSON.stringify({ id: ex.id, name: ex.name, gifUrl: ex.gifUrl ? ex.gifUrl.slice(0,50) : "EMPTY" }));
       });
     });
   }, []);
@@ -7874,6 +8287,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   const navClick = (id) => { setActiveTab(id); setMobileNavOpen(false); };
 
   return (
+    <CustomGifCtx.Provider value={{ gifs: customGifsMap, setGif: (name, url) => setCustomGifsMap(p => ({ ...p, [name]: url })) }}>
     <div className="app-layout">
       {/* Desktop Sidebar */}
       <aside className="sidebar desktop-only">
@@ -7987,7 +8401,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </h1>
           </div>
           <div className="topbar-actions">
-            {(()=>{const sv=getStreak(sessions);const tt=sessions.some(s=>s.date===new Date().toISOString().slice(0,10));return(<div className="topbar-btn" style={{cursor:"default",opacity:tt?1:0.35,filter:tt?"none":"grayscale(1)"}}><span className="topbar-btn-icon">🔥</span><span className="topbar-btn-label" style={{color:tt?"#f97316":"var(--text-muted)",fontWeight:800}}>{sv}</span></div>);})()}
+            {(()=>{const sv=getStreak(sessions, weeklyGoal?.target||3);const tt=sessions.some(s=>s.date===new Date().toISOString().slice(0,10));return(<button className="topbar-btn" onClick={()=>{ setActiveTab("dashboard"); setTimeout(()=>{ const el=document.getElementById("training-calendar-section"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },100); }} style={{cursor:"pointer",opacity:tt?1:0.45,filter:tt?"none":"grayscale(1)",background:"none",border:"none"}}><span className="topbar-btn-icon">🔥</span><span className="topbar-btn-label" style={{color:tt?"#f97316":"var(--text-muted)",fontWeight:800}}>{sv}sem</span></button>);})()}
             <button className="topbar-btn" onClick={toggleDark}>
               <span className="topbar-btn-icon">{dark ? "☀️" : "🌙"}</span>
               <span className="topbar-btn-label">{dark ? "Claro" : "Oscuro"}</span>
@@ -8362,20 +8776,72 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 10 }}>
               {["Todos", ...MUSCLES].map(m => (
                 <button key={m} className={`muscle-chip ${exMuscle === m ? "active" : ""}`}
-                  onClick={() => { setExMuscle(m); setExName(""); }}>
+                  onClick={() => { setExMuscle(m); setExName(""); setExSearch(""); }}>
                   {m}
                 </button>
               ))}
             </div>
             <div className="field" style={{ marginBottom: 10 }}>
   <label className="field-label">Ejercicio</label>
-  <select className="input" value={exName} onChange={e => setExName(e.target.value)}>
-    <option value="">— Selecciona —</option>
-    {(exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle)).map(ex => (
-      <option key={ex.name} value={ex.name}>{ex.name}{ex.machine ? " 🔧" : ""}</option>
-    ))}
-    <option value="__custom__">✏️ Personalizado...</option>
-  </select>
+  {(() => {
+    const filteredEx = (exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle))
+      .filter(e => !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase()));
+    return (
+      <div style={{ position: "relative" }}>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <span style={{ position: "absolute", left: 12, color: "var(--text-muted)", fontSize: 15, pointerEvents: "none" }}>
+            {exSearchFocus ? "🔍" : "▾"}
+          </span>
+          <input
+            className="input"
+            style={{ paddingLeft: 36, color: exName && exName !== "__custom__" && !exSearchFocus ? "var(--text)" : undefined, fontWeight: exName && !exSearchFocus ? 600 : 400 }}
+            placeholder="— Selecciona —"
+            value={exSearchFocus ? exSearch : (exName && exName !== "__custom__" ? exName : "")}
+            onChange={e => { setExSearch(e.target.value); setExName(""); }}
+            onFocus={() => { setExSearchFocus(true); setExSearch(""); }}
+            onBlur={() => setTimeout(() => setExSearchFocus(false), 150)}
+          />
+        </div>
+        {(exSearchFocus || exSearch) && (
+          <div style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
+            zIndex: 50, maxHeight: 220, overflowY: "auto",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+          }}>
+            {filteredEx.slice(0, 30).map(ex => (
+              <button key={ex.name}
+                onMouseDown={() => { setExName(ex.name); setExSearch(""); setExSearchFocus(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  width: "100%", background: "none", border: "none",
+                  borderBottom: "1px solid var(--border)", padding: "9px 14px",
+                  cursor: "pointer", textAlign: "left", color: "var(--text)",
+                  fontFamily: "Barlow, sans-serif", fontSize: 13,
+                  transition: "background 0.12s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <span style={{ flex: 1 }}>{ex.name}{ex.machine ? " 🔧" : ""}</span>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>{ex.muscle}</span>
+              </button>
+            ))}
+            <button
+              onMouseDown={() => { setExName("__custom__"); setExSearch(""); setExSearchFocus(false); }}
+              style={{
+                display: "flex", width: "100%", background: "none", border: "none",
+                padding: "9px 14px", cursor: "pointer", textAlign: "left",
+                color: "var(--accent)", fontFamily: "Barlow, sans-serif", fontSize: 13, fontWeight: 600,
+              }}
+            >
+              ✏️ Personalizado...
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  })()}
   {exName === "__custom__" && (
     <>
       <input className="input" style={{ marginTop: 6 }} placeholder="Nombre..." value={exCustom}
@@ -8479,7 +8945,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           {currentExercises.length > 0 ? (
             <button
               onClick={() => {
-                if (!workout) { showToast("⚠️ Dale un nombre al entrenamiento"); return; }
+                if (!workout) { showToast("⚠️ Agrega un nombre al entrenamiento"); return; }
                 setLiveActive(true);
               }}
               style={{
@@ -8563,31 +9029,84 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 10 }}>
     {["Todos", ...MUSCLES].map(m => (
       <button key={m} className={`muscle-chip ${exMuscle === m ? "active" : ""}`}
-        onClick={() => { setExMuscle(m); setExName(""); }}>
+        onClick={() => { setExMuscle(m); setExName(""); setExSearch(""); }}>
         {m}
       </button>
     ))}
   </div>
   <div className="field" style={{ marginBottom: 10 }}>
-  <label className="field-label">Ejercicio</label>
-  <select className="input" value={exName} onChange={e => setExName(e.target.value)}>
-    <option value="">— Selecciona —</option>
-    {(exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle)).map(ex => (
-      <option key={ex.name} value={ex.name}>{ex.name}{ex.machine ? " 🔧" : ""}</option>
-    ))}
-    <option value="__custom__">✏️ Personalizado...</option>
-  </select>
-  {exName === "__custom__" && (
-    <>
-      <input className="input" style={{ marginTop: 6 }} placeholder="Nombre..." value={exCustom}
-        onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
-      <select className="input" style={{ marginTop: 6 }} value={exCustomMuscle} onChange={e => setExCustomMuscle(e.target.value)}>
-        <option value="">— Músculo —</option>
-        {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </>
-  )}
-</div>
+    <label className="field-label">Ejercicio</label>
+    {(() => {
+      const filteredEx = (exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle))
+        .filter(e => !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase()));
+      return (
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <span style={{ position: "absolute", left: 12, color: "var(--text-muted)", fontSize: 15, pointerEvents: "none" }}>
+              {exSearchFocus ? "🔍" : "▾"}
+            </span>
+            <input
+              className="input"
+              style={{ paddingLeft: 36, color: exName && exName !== "__custom__" && !exSearchFocus ? "var(--text)" : undefined, fontWeight: exName && !exSearchFocus ? 600 : 400 }}
+              placeholder="— Selecciona —"
+              value={exSearchFocus ? exSearch : (exName && exName !== "__custom__" ? exName : "")}
+              onChange={e => { setExSearch(e.target.value); setExName(""); }}
+              onFocus={() => { setExSearchFocus(true); setExSearch(""); }}
+              onBlur={() => setTimeout(() => setExSearchFocus(false), 150)}
+            />
+          </div>
+          {(exSearchFocus || exSearch) && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
+              zIndex: 50, maxHeight: 220, overflowY: "auto",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+            }}>
+              {filteredEx.slice(0, 30).map(ex => (
+                <button key={ex.name}
+                  onMouseDown={() => { setExName(ex.name); setExSearch(""); setExSearchFocus(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    width: "100%", background: "none", border: "none",
+                    borderBottom: "1px solid var(--border)", padding: "9px 14px",
+                    cursor: "pointer", textAlign: "left", color: "var(--text)",
+                    fontFamily: "Barlow, sans-serif", fontSize: 13,
+                    transition: "background 0.12s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <span style={{ flex: 1 }}>{ex.name}{ex.machine ? " 🔧" : ""}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>{ex.muscle}</span>
+                </button>
+              ))}
+              <button
+                onMouseDown={() => { setExName("__custom__"); setExSearch(""); setExSearchFocus(false); }}
+                style={{
+                  display: "flex", width: "100%", background: "none", border: "none",
+                  padding: "9px 14px", cursor: "pointer", textAlign: "left",
+                  color: "var(--accent)", fontFamily: "Barlow, sans-serif", fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                ✏️ Personalizado...
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    })()}
+    {exName === "__custom__" && (
+      <>
+        <input className="input" style={{ marginTop: 6 }} placeholder="Nombre..." value={exCustom}
+          onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
+        <select className="input" style={{ marginTop: 6 }} value={exCustomMuscle} onChange={e => setExCustomMuscle(e.target.value)}>
+          <option value="">— Músculo —</option>
+          {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </>
+    )}
+  </div>
 
 {exName && exName !== "__custom__" ? (
   <div style={{ margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16, display:"flex", flexDirection:"column", gap:12 }}>
@@ -8840,6 +9359,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </div>
             <Dashboard sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal} onGoalClick={() => openPlanner("goal")} onBadgesClick={() => setShowBadges(true)}
               onInsightsClick={() => setShowInsights(true)}
+              user={user}
               coachRoutines={coachRoutines}
               onOpenCoach={() => setShowAthleteCoach(true)}
               onStartCoachRoutine={(routine) => { setAthleteCoachInitialRoutine(routine); setShowAthleteCoach(true); }}
@@ -8992,10 +9512,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         />
       )}
       {toast && <div className="toast">{toast}</div>}
-      {floatTimer.visible && (
-        <RestTimerFloating timer={floatTimer} setTimer={setFloatTimer} />
-      )}
       </div>
+    </CustomGifCtx.Provider>
 )}
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
@@ -9045,7 +9563,7 @@ export default function App() {
           profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
           try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
         }
-        setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile.isCoach || false, photoURL: firebaseUser.photoURL || profile.photoURL || null });
+        setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile.isCoach || false, photoURL: firebaseUser.photoURL || profile.photoURL || null, createdAt: firebaseUser.metadata?.creationTime ? new Date(firebaseUser.metadata.creationTime).toISOString().slice(0,10) : null });
       } else {
         setCurrentUser(null);
       }
