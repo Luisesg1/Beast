@@ -1,24 +1,23 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import GIF_MAP from './assets/gif/gifMap.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, getRedirectResult } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc, enableIndexedDbPersistence } from "firebase/firestore";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { Capacitor } from '@capacitor/core';
+import { getFirestore, initializeFirestore, persistentLocalCache, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const firebaseConfig = {
-  apiKey: "AIzaSyAh3pfGv0vEpKmGtNKKRvAhma1pGtA7Alc",
-  authDomain: "gymtracker-app-2c603.firebaseapp.com",
-  projectId: "gymtracker-app-2c603",
-  storageBucket: "gymtracker-app-2c603.firebasestorage.app",
-  messagingSenderId: "1006490404310",
-  appId: "1:1006490404310:web:015b3d4817304032aed077",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 const ADMIN_EMAILS = ["luiseduardooo2000@gmail.com"]; // reemplaza con tu email real
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const db = initializeFirestore(firebaseApp, { localCache: persistentLocalCache() });
 const storage = getStorage(firebaseApp);
-// Offline persistence — cachea datos en IndexedDB para funcionar sin conexión
-enableIndexedDbPersistence(db).catch(() => {});
 const googleProvider = new GoogleAuthProvider();
 
 const ThemeCtx = createContext();
@@ -28,7 +27,7 @@ const useAuth = () => useContext(AuthCtx);
 const CustomGifCtx = createContext({ gifs: {}, setGif: () => {} });
 const useCustomGifs = () => useContext(CustomGifCtx);
 
-const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
 const fmtDate = (d) => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const lettersOnly = (v) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, "");
@@ -56,7 +55,8 @@ const PRESETS = {
   "Full Body": ["Sentadilla", "Press Banca", "Dominadas", "Peso Muerto Rumano", "Press Hombro"],
 };
 
-const EXERCISE_DB = [
+// Array mutable controlado — usar addCustomExerciseToDb() en lugar de push directo
+let EXERCISE_DB = [
   { name: "Press Banca", muscle: "Pecho", machine: false, equipment: "Barra" },
   { name: "Press Banca Inclinado", muscle: "Pecho", machine: false, equipment: "Barra" },
   { name: "Press Mancuernas", muscle: "Pecho", machine: false, equipment: "Mancuernas" },
@@ -109,13 +109,19 @@ const EXERCISE_DB = [
   { name: "Burpees", muscle: "Cardio", machine: false, equipment: "Cuerpo" },
   { name: "Saltar Cuerda", muscle: "Cardio", machine: false, equipment: "Accesorio" },
 ];
-const MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
+let MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
+
+// Helper centralizado para agregar ejercicios personalizados al array global
+function registerCustomExercise(name, muscle) {
+  if (EXERCISE_DB.find(e => e.name === name)) return;
+  EXERCISE_DB.push({ name, muscle, machine: false, equipment: "Personalizado" });
+  if (!MUSCLES.includes(muscle)) MUSCLES = [...MUSCLES, muscle];
+}
 
 function ExerciseGif({ exName, size = 120 }) {
   const [expanded, setExpanded] = useState(false);
   const { gifs } = useCustomGifs();
   const src = gifs[exName] || GIF_MAP[exName];
-  console.log("[ExerciseGif]", exName, "| gifs keys:", Object.keys(gifs), "| src:", src ? src.slice(0,40) : "null");
   if (!src || !exName || exName === "__custom__") return null;
   return (
     <>
@@ -276,7 +282,7 @@ function PRConfetti({ prs, onDone }) {
     }
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [onDone]);
 
   return (
     <>
@@ -335,17 +341,33 @@ function TemplatesModal({ sessions, onLoad, onClose }) {
   const [editName, setEditName] = useState("");
   const [editDay, setEditDay] = useState("");
   const [editExercises, setEditExercises] = useState([]);
+  const [editError, setEditError] = useState("");
   const [newExercise, setNewExercise] = useState("");
 
   function saveTemplates(t) { setTemplates(t); store("gym_templates", t); }
   function deleteTemplate(id) { saveTemplates(templates.filter(t => t.id !== id)); }
-  function loadTemplate(t) { onLoad(t.workout, t.exercises); onClose(); }
+  function loadTemplate(t, mode = "live") { onLoad(t.workout, t.exercises, mode); onClose(); }
+  const [modePickerFor, setModePickerFor] = useState(null); // template waiting for mode choice
 
   const recentWorkouts = [...new Map(sessions.map(s => [s.workout, s])).values()].slice(0, 5);
 
   function saveFromSession(s) {
     if (!s.workout) return;
-    const t = { id: uid(), name: s.workout, workout: s.workout, exercises: (s.exercises||[]).map(e => ({ ...e, id: uid(), sets: [], weight: "", reps: "" })), createdAt: todayStr() };
+    const t = {
+      id: uid(), name: s.workout, workout: s.workout,
+      exercises: (s.exercises||[]).map(e => {
+        const bestSet = e.sets?.length > 0
+          ? e.sets.reduce((best, st) => (parseFloat(st.weight)||0) > (parseFloat(best.weight)||0) ? st : best, e.sets[0])
+          : null;
+        return {
+          ...e, id: uid(), sets: [],
+          weight: bestSet ? String(bestSet.weight||"") : String(e.weight||""),
+          reps: bestSet ? String(bestSet.reps||"") : String(e.reps||""),
+          series: String(e.sets?.length || e.series || 3),
+        };
+      }),
+      createdAt: todayStr()
+    };
     saveTemplates([...templates, t]);
   }
 
@@ -363,7 +385,8 @@ function TemplatesModal({ sessions, onLoad, onClose }) {
   }
 
   function saveEdit() {
-    if (!editName.trim()) return alert("Agrega un nombre a la plantilla");
+    if (!editName.trim()) { setEditError("⚠️ Agrega un nombre a la plantilla"); return; }
+    setEditError("");
     const updated = { ...editingTemplate, name: editName, workout: editName, day: editDay, exercises: editExercises };
     const exists = templates.find(t => t.id === updated.id);
     if (exists) saveTemplates(templates.map(t => t.id === updated.id ? updated : t));
@@ -394,7 +417,7 @@ const [newWeight, setNewWeight] = useState("");
     if (!finalName) return;
     if (newExercise === "__custom__" && exCustomMuscleTpl && !EXERCISE_DB.find(e => e.name === finalName)) {
       saveCustomExercise(finalName, exCustomMuscleTpl);
-      EXERCISE_DB.push({ name: finalName, muscle: exCustomMuscleTpl, machine: false, equipment: "Personalizado" });
+      registerCustomExercise(finalName, exCustomMuscleTpl);
     }
     setEditExercises(prev => [...prev, { id: uid(), name: finalName, sets: [], weight: newWeight || "0", reps: newReps || "0", series: newSeries || "3" }]);
     setNewExercise(""); setExCustomInput(""); setExCustomMuscleTpl(""); setNewWeight(""); setNewReps(""); setNewSeries("3");
@@ -452,15 +475,35 @@ const [newWeight, setNewWeight] = useState("");
           <div style={{ marginBottom: 16 }}>
             <div className="card-label">Ejercicios ({editExercises.length})</div>
             {editExercises.map(ex => (
-              <div key={ex.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, marginBottom:8 }}>
-                <ExerciseGif exName={ex.name} size={44} />
-                <div style={{ flex:1 }}>
-                  <span style={{ fontWeight:700, fontSize:14 }}>{ex.name}</span>
-                  <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
-                    {ex.weight}kg · {ex.reps} reps · {ex.series || "3"} series
+              <div key={ex.id} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, marginBottom:8, overflow:"hidden" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderBottom:"1px solid var(--border)" }}>
+                  <ExerciseGif exName={ex.name} size={36} />
+                  <span style={{ fontWeight:700, fontSize:13, flex:1 }}>{ex.name}</span>
+                  <button className="btn-ghost small danger" onClick={() => removeExercise(ex.id)}>🗑️</button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, padding:"8px 12px" }}>
+                  <div>
+                    <label style={{ fontSize:10, color:"var(--text-muted)", fontWeight:700, display:"block", marginBottom:3 }}>PESO (kg)</label>
+                    <input className="input" type="number" inputMode="decimal" placeholder="0"
+                      value={ex.weight}
+                      onChange={e => setEditExercises(prev => prev.map(x => x.id !== ex.id ? x : { ...x, weight: e.target.value }))}
+                      style={{ textAlign:"center", fontSize:14, fontWeight:700, padding:"6px 4px" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:"var(--text-muted)", fontWeight:700, display:"block", marginBottom:3 }}>REPS</label>
+                    <input className="input" type="number" inputMode="decimal" placeholder="0"
+                      value={ex.reps}
+                      onChange={e => setEditExercises(prev => prev.map(x => x.id !== ex.id ? x : { ...x, reps: e.target.value }))}
+                      style={{ textAlign:"center", fontSize:14, fontWeight:700, padding:"6px 4px" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, color:"var(--text-muted)", fontWeight:700, display:"block", marginBottom:3 }}>SERIES</label>
+                    <input className="input" type="number" inputMode="decimal" placeholder="3"
+                      value={ex.series || "3"}
+                      onChange={e => setEditExercises(prev => prev.map(x => x.id !== ex.id ? x : { ...x, series: e.target.value }))}
+                      style={{ textAlign:"center", fontSize:14, fontWeight:700, padding:"6px 4px" }} />
                   </div>
                 </div>
-                <button className="btn-ghost small danger" onClick={() => removeExercise(ex.id)}>🗑️</button>
               </div>
             ))}
           </div>
@@ -484,7 +527,31 @@ const [newWeight, setNewWeight] = useState("");
           {/* Selector de ejercicio */}
           <div className="field" style={{ marginBottom:10 }}>
             <label className="field-label">Ejercicio</label>
-            <select className="input" value={newExercise} onChange={e => setNewExercise(e.target.value)}>
+            <select className="input" value={newExercise} onChange={e => {
+              const name = e.target.value;
+              setNewExercise(name);
+              if (name && name !== "__custom__" && sessions?.length > 0) {
+                // Find last session where this exercise was logged
+                const allUses = sessions
+                  .slice().sort((a,b) => b.date.localeCompare(a.date))
+                  .flatMap(s => (s.exercises||[]).filter(ex => ex.name === name));
+                if (allUses.length > 0) {
+                  const last = allUses[0];
+                  const lastWeight = last.sets?.length > 0
+                    ? String(Math.max(...last.sets.map(st => parseFloat(st.weight)||0)))
+                    : String(last.weight || "");
+                  const lastReps = last.sets?.length > 0
+                    ? String(Math.max(...last.sets.map(st => parseFloat(st.reps)||0)))
+                    : String(last.reps || "");
+                  const lastSeries = last.sets?.length > 0
+                    ? String(last.sets.length)
+                    : String(last.series || "3");
+                  setNewWeight(lastWeight !== "0" ? lastWeight : "");
+                  setNewReps(lastReps !== "0" ? lastReps : "");
+                  setNewSeries(lastSeries || "3");
+                }
+              }
+            }}>
               <option value="">— Selecciona —</option>
               {(tplMuscleFilter === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === tplMuscleFilter))
                 .map(ex => <option key={ex.name} value={ex.name}>{ex.name}{ex.machine?" 🔧":""}</option>)}
@@ -506,7 +573,10 @@ const [newWeight, setNewWeight] = useState("");
             <div style={{ padding:14, background:"var(--card)", border:"1px solid var(--border)", borderRadius:14, marginBottom:10 }}>
               <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10 }}>
                 <ExerciseGif exName={newExercise} size={72} />
-                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800 }}>{newExercise}</div>
+                <div>
+                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800 }}>{newExercise}</div>
+                  {newWeight && <div style={{ fontSize:11, color:"var(--accent)", marginTop:2 }}>📋 Pre-rellenado con tu último entreno</div>}
+                </div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
                 <div className="field">
@@ -543,6 +613,9 @@ const [newWeight, setNewWeight] = useState("");
           <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
         </div>
 
+        {editError && (
+          <div className="err-msg" style={{ marginBottom: 10 }}>{editError}</div>
+        )}
         <button className="btn-primary" style={{ width:"100%", fontSize:15 }} onClick={saveEdit}>💾 Guardar plantilla</button>
       </div>
     </div>
@@ -566,26 +639,35 @@ const [newWeight, setNewWeight] = useState("");
             <button className="btn-primary" style={{ width:"100%", marginBottom:16, fontSize:15 }} onClick={openNew}>+ Crear plantilla</button>
             {templates.length === 0 && <p style={{ color:"var(--text-muted)", fontSize:13, textAlign:"center", padding:"20px 0" }}>Aún no tienes plantillas. Crea una o guarda una desde "Desde historial".</p>}
             {templates.map(t => (
-              <div key={t.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, marginBottom:8 }}>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{t.name}</div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>
-                    {(t.exercises||[]).length} ejercicios · {fmtDate(t.createdAt)}
-                    {t.day !== undefined && t.day !== "" && (
-                      <span style={{ marginLeft:8, color:"var(--accent)", fontWeight:600 }}>
-                        📅 {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"][t.day]}
-                      </span>
-                    )}
+              <div key={t.id} style={{ marginBottom:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, flexWrap:"wrap", gap:8 }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:14 }}>{t.name}</div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)" }}>
+                      {(t.exercises||[]).length} ejercicios · {fmtDate(t.createdAt)}
+                      {t.day !== undefined && t.day !== "" && (
+                        <span style={{ marginLeft:8, color:"var(--accent)", fontWeight:600 }}>
+                          📅 {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"][t.day]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button className="btn-ghost small" onClick={() => openEditor(t)}>✏️ Editar</button>
+                    <button className="btn-ghost small" onClick={() => setModePickerFor(modePickerFor?.id === t.id ? null : t)} style={{ background: modePickerFor?.id === t.id ? "var(--accent-dim)" : undefined, borderColor: modePickerFor?.id === t.id ? "var(--accent)" : undefined, color: modePickerFor?.id === t.id ? "var(--accent)" : undefined }}>▶ Usar</button>
+                    <button className="btn-ghost small" onClick={() => setShareCode(shareCode?.id === t.id ? null : { id: t.id, code: encodeTemplate(t), name: t.name })} title="Compartir">🔗</button>
+                    <button className="btn-ghost small danger" onClick={() => deleteTemplate(t.id)}>🗑️</button>
                   </div>
                 </div>
-                <div style={{ display:"flex", gap:8 }}>
-                  <button className="btn-ghost small" onClick={() => openEditor(t)}>✏️ Editar</button>
-                  <button className="btn-ghost small" onClick={() => loadTemplate(t)}>▶ Usar</button>
-                  <button className="btn-ghost small" onClick={() => setShareCode(shareCode?.id === t.id ? null : { id: t.id, code: encodeTemplate(t), name: t.name })} title="Compartir">🔗</button>
-                  <button className="btn-ghost small danger" onClick={() => deleteTemplate(t.id)}>🗑️</button>
-                </div>
+                {modePickerFor?.id === t.id && (
+                  <div style={{ marginTop: 6, padding: "10px 12px", background: "var(--input-bg)", border: "1px solid var(--accent)", borderRadius: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}>¿Cómo quieres entrenar?</span>
+                    <button className="btn-primary" style={{ fontSize: 13, padding: "7px 14px" }} onClick={() => loadTemplate(t, "live")}>⚡ En vivo</button>
+                    <button className="btn-ghost small" onClick={() => loadTemplate(t, "register")}>📝 Registrar</button>
+                  </div>
+                )}
                 {shareCode?.id === t.id && (
-                  <div style={{ marginTop: 8, padding: "10px 12px", background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 10 }}>
+                  <div style={{ marginTop: 6, padding: "10px 12px", background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 10 }}>
                     <div style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, marginBottom: 6 }}>Código para compartir:</div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <code style={{ flex: 1, fontSize: 10, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", wordBreak: "break-all", color: "var(--text)" }}>
@@ -640,15 +722,24 @@ const [newWeight, setNewWeight] = useState("");
             <p style={{ fontSize:12, color:"var(--text-muted)", marginBottom:14 }}>Guarda una sesión reciente como plantilla reutilizable:</p>
             {recentWorkouts.length === 0 && <p style={{ color:"var(--text-muted)", fontSize:13, textAlign:"center" }}>Sin sesiones aún.</p>}
             {recentWorkouts.map(s => (
-              <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, marginBottom:8 }}>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{s.workout}</div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>{(s.exercises||[]).length} ejercicios · {fmtDate(s.date)}</div>
+              <div key={s.id} style={{ marginBottom:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10 }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:14 }}>{s.workout}</div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)" }}>{(s.exercises||[]).length} ejercicios · {fmtDate(s.date)}</div>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button className="btn-ghost small" onClick={() => setModePickerFor(modePickerFor?.id === s.id ? null : s)}>▶ Usar</button>
+                    <button className="btn-ghost small" onClick={() => saveFromSession(s)}>💾 Guardar</button>
+                  </div>
                 </div>
-                <div style={{ display:"flex", gap:8 }}>
-                  <button className="btn-ghost small" onClick={() => loadTemplate(s)}>▶ Usar</button>
-                  <button className="btn-ghost small" onClick={() => saveFromSession(s)}>💾 Guardar</button>
-                </div>
+                {modePickerFor?.id === s.id && (
+                  <div style={{ marginTop: 6, padding: "10px 12px", background: "var(--input-bg)", border: "1px solid var(--accent)", borderRadius: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}>¿Cómo quieres entrenar?</span>
+                    <button className="btn-primary" style={{ fontSize: 13, padding: "7px 14px" }} onClick={() => loadTemplate(s, "live")}>⚡ En vivo</button>
+                    <button className="btn-ghost small" onClick={() => loadTemplate(s, "register")}>📝 Registrar</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1251,21 +1342,39 @@ function MuscleMapModal({ sessions, onClose }) {
     return Math.round((today - new Date(lastTrained[muscle] + "T00:00:00")) / 86400000);
   };
 
-  // Recovery status: ≤1 = just trained (red), 2 = recovering (orange), 3+ = ready (green), never = grey
+  // Recovery windows per muscle group (days needed to recover)
+  const RECOVERY_DAYS = {
+    "Bíceps":      { rest: 1, ready: 2 },  // small — recovers fast
+    "Tríceps":     { rest: 1, ready: 2 },
+    "Hombros":     { rest: 1, ready: 2 },
+    "Core":        { rest: 1, ready: 2 },
+    "Pantorrillas":{ rest: 1, ready: 2 },
+    "Pecho":       { rest: 2, ready: 3 },  // medium
+    "Espalda":     { rest: 2, ready: 3 },
+    "Glúteos":     { rest: 2, ready: 3 },
+    "Femoral":     { rest: 2, ready: 4 },  // large — needs more time
+    "Cuádriceps":  { rest: 2, ready: 4 },
+    "Cardio":      { rest: 1, ready: 2 },
+  };
+
+  // Recovery status using per-muscle thresholds
   const recoveryColor = (muscle) => {
     const d = daysSince(muscle);
-    if (d === 999) return "#374151"; // never
-    if (d <= 1)   return "#ef4444"; // just trained — rest
-    if (d <= 2)   return "#f59e0b"; // recovering
-    if (d <= 5)   return "#22c55e"; // ready
-    return "#3b82f6";               // prime time
+    const { rest, ready } = RECOVERY_DAYS[muscle] || { rest: 1, ready: 2 };
+    if (d === 999) return "#374151";          // never trained
+    if (d <= rest)  return "#ef4444";          // needs rest
+    if (d <= ready) return "#f59e0b";          // recovering
+    if (d <= ready + 2) return "#22c55e";      // ready
+    return "#3b82f6";                          // prime time (been a while)
   };
-  const recoveryLabel = (d) => {
-    if (d === 999) return "Nunca entrenado";
-    if (d <= 1)    return "Necesita descanso";
-    if (d <= 2)    return "Recuperando";
-    if (d <= 5)    return "Listo para entrenar";
-    return "¡Listo!";
+
+  const recoveryLabel = (muscle, d) => {
+    const { rest, ready } = RECOVERY_DAYS[muscle] || { rest: 1, ready: 2 };
+    if (d === 999)       return "Nunca entrenado";
+    if (d <= rest)       return `Necesita descanso (${rest - d + 1}d más)`;
+    if (d <= ready)      return `Recuperando (${ready - d}d más)`;
+    if (d <= ready + 2)  return "✅ Listo para entrenar";
+    return "💪 ¡En su punto!";
   };
 
   const maxCount = Math.max(...Object.values(muscleCounts), 1);
@@ -1283,47 +1392,133 @@ function MuscleMapModal({ sessions, onClose }) {
 
   // ── Front / Back SVG paths ─────────────────────────────────────────────── 
   // Front body silhouette base shape
-  const FRONT_BASE = "M 96 44 Q 96 22 120 20 Q 150 16 180 20 Q 204 22 204 44 Q 204 66 180 72 Q 150 76 120 72 Q 96 66 96 44 Z";
-  // Muscle areas mapped for front body (viewBox 0 0 300 420)
+  // Trazado anatómico basado en imagen de referencia muscular
+  // viewBox 0 0 300 440
   const FRONT_MUSCLES = {
-    "Hombros":    { paths: ["M 88 98 Q 70 92 68 108 Q 68 128 88 128 Q 96 118 92 100 Z","M 212 98 Q 230 92 232 108 Q 232 128 212 128 Q 204 118 208 100 Z"] },
-    "Pecho":      { paths: ["M 96 96 Q 120 88 148 94 Q 148 128 120 136 Q 96 130 92 112 Z","M 204 96 Q 180 88 152 94 Q 152 128 180 136 Q 204 130 208 112 Z"] },
-    "Bíceps":     { paths: ["M 76 136 Q 64 148 66 170 Q 78 178 88 166 Q 94 148 86 134 Z","M 224 136 Q 236 148 234 170 Q 222 178 212 166 Q 206 148 214 134 Z"] },
-    "Core":       { paths: ["M 108 148 Q 150 142 192 148 Q 192 196 150 200 Q 108 196 108 148 Z"] },
-    "Cuádriceps": { paths: ["M 108 208 Q 98 224 100 264 Q 116 272 128 256 Q 134 232 124 208 Z","M 192 208 Q 202 224 200 264 Q 184 272 172 256 Q 166 232 176 208 Z"] },
-    "Pantorrillas":{ paths: ["M 100 272 Q 90 288 94 316 Q 110 322 120 308 Q 124 286 112 272 Z","M 200 272 Q 210 288 206 316 Q 190 322 180 308 Q 176 286 188 272 Z"] },
-    "Cardio":     { paths: ["M 134 100 Q 150 90 166 100 Q 168 118 150 126 Q 132 118 134 100 Z"] },
-  };
-  const BACK_MUSCLES = {
-    "Hombros":    { paths: ["M 88 98 Q 70 92 68 108 Q 68 128 88 128 Q 96 118 92 100 Z","M 212 98 Q 230 92 232 108 Q 232 128 212 128 Q 204 118 208 100 Z"] },
-    "Espalda":    { paths: ["M 96 96 Q 150 88 204 96 Q 206 148 150 158 Q 94 148 96 96 Z"] },
-    "Tríceps":    { paths: ["M 76 136 Q 62 150 64 172 Q 78 180 88 168 Q 92 150 84 134 Z","M 224 136 Q 238 150 236 172 Q 222 180 212 168 Q 208 150 216 134 Z"] },
-    "Glúteos":    { paths: ["M 108 202 Q 150 194 192 202 Q 194 228 150 234 Q 106 228 108 202 Z"] },
-    "Femoral":    { paths: ["M 110 236 Q 100 256 104 284 Q 122 290 130 272 Q 134 250 120 234 Z","M 190 236 Q 200 256 196 284 Q 178 290 170 272 Q 166 250 180 234 Z"] },
-    "Pantorrillas":{ paths: ["M 102 290 Q 92 308 96 330 Q 114 336 122 320 Q 126 300 114 288 Z","M 198 290 Q 208 308 204 330 Q 186 336 178 320 Q 174 300 186 288 Z"] },
+    "Hombros": { paths: [
+      // deltoides anterior izquierdo — cubre hombro redondeado
+      "M 78 92 Q 62 94 58 110 Q 56 124 64 134 Q 72 142 84 138 Q 94 132 96 118 Q 98 104 90 94 Q 84 90 78 92 Z",
+      // deltoides anterior derecho
+      "M 222 92 Q 238 94 242 110 Q 244 124 236 134 Q 228 142 216 138 Q 206 132 204 118 Q 202 104 210 94 Q 216 90 222 92 Z",
+    ]},
+    "Pecho": { paths: [
+      // pectoral izquierdo — forma de abanico grande
+      "M 100 94 Q 126 86 150 92 Q 152 96 150 136 Q 138 146 118 142 Q 100 134 94 118 Q 92 106 100 94 Z",
+      // pectoral derecho
+      "M 200 94 Q 174 86 150 92 Q 148 96 150 136 Q 162 146 182 142 Q 200 134 206 118 Q 208 106 200 94 Z",
+    ]},
+    "Bíceps": { paths: [
+      // bíceps izquierdo — abultado en centro del brazo
+      "M 70 140 Q 58 152 58 172 Q 60 186 72 190 Q 84 190 90 178 Q 94 164 90 146 Q 84 136 70 140 Z",
+      // bíceps derecho
+      "M 230 140 Q 242 152 242 172 Q 240 186 228 190 Q 216 190 210 178 Q 206 164 210 146 Q 216 136 230 140 Z",
+    ]},
+    "Core": { paths: [
+      // recto abdominal — 6 bloques bien definidos
+      // fila superior
+      "M 126 140 Q 148 137 148 140 L 148 158 Q 134 161 120 158 Q 118 152 126 140 Z",
+      "M 152 140 Q 174 137 174 140 L 174 158 Q 166 161 152 158 Z",
+      // fila media
+      "M 122 162 Q 148 159 148 162 L 148 180 Q 132 183 118 180 Q 116 172 122 162 Z",
+      "M 152 162 Q 178 159 178 162 L 178 180 Q 164 183 152 180 Z",
+      // fila inferior
+      "M 124 184 Q 148 181 148 184 L 147 200 Q 134 203 122 200 Q 120 192 124 184 Z",
+      "M 152 184 Q 176 181 176 184 L 176 200 Q 162 203 152 200 Z",
+      // oblicuos (laterales)
+      "M 96 148 Q 108 140 120 142 Q 116 170 112 196 Q 100 194 92 182 Q 88 166 96 148 Z",
+      "M 204 148 Q 192 140 180 142 Q 184 170 188 196 Q 200 194 208 182 Q 212 166 204 148 Z",
+    ]},
+    "Cuádriceps": { paths: [
+      // cuádriceps izquierdo — 3 cabezas visibles
+      "M 104 212 Q 94 234 94 268 Q 96 286 112 292 Q 128 292 138 276 Q 144 256 138 226 Q 132 210 118 208 Q 110 208 104 212 Z",
+      // cuádriceps derecho
+      "M 196 212 Q 206 234 206 268 Q 204 286 188 292 Q 172 292 162 276 Q 156 256 162 226 Q 168 210 182 208 Q 190 208 196 212 Z",
+    ]},
+    "Pantorrillas": { paths: [
+      // gastrocnemio izquierdo — forma de corazón invertido
+      "M 100 294 Q 88 312 90 338 Q 94 356 110 360 Q 126 358 134 340 Q 138 318 130 296 Q 120 286 100 294 Z",
+      // gastrocnemio derecho
+      "M 200 294 Q 212 312 210 338 Q 206 356 190 360 Q 174 358 166 340 Q 162 318 170 296 Q 180 286 200 294 Z",
+    ]},
+    "Cardio": { paths: [
+      "M 150 120 Q 138 108 130 114 Q 122 122 128 134 Q 134 144 150 154 Q 166 144 172 134 Q 178 122 170 114 Q 162 108 150 120 Z",
+    ]},
   };
 
-  // Body outline SVG elements (generic humanoid)
+  const BACK_MUSCLES = {
+    "Hombros": { paths: [
+      // deltoides posterior izquierdo
+      "M 78 92 Q 62 94 58 110 Q 56 126 66 136 Q 76 144 88 138 Q 98 130 98 114 Q 96 98 84 90 Q 80 88 78 92 Z",
+      // deltoides posterior derecho
+      "M 222 92 Q 238 94 242 110 Q 244 126 234 136 Q 224 144 212 138 Q 202 130 202 114 Q 204 98 216 90 Q 220 88 222 92 Z",
+    ]},
+    "Espalda": { paths: [
+      // trapecio — triángulo superior entre hombros y cuello
+      "M 118 82 Q 150 76 182 82 Q 192 90 196 104 Q 180 116 150 120 Q 120 116 104 104 Q 108 90 118 82 Z",
+      // dorsal izquierdo — abanico desde axila hasta cadera
+      "M 96 108 Q 108 118 118 122 Q 120 152 116 184 Q 102 190 90 180 Q 82 166 84 142 Q 86 122 96 108 Z",
+      // dorsal derecho
+      "M 204 108 Q 192 118 182 122 Q 180 152 184 184 Q 198 190 210 180 Q 218 166 216 142 Q 214 122 204 108 Z",
+      // romboides / espina central
+      "M 122 122 Q 150 118 178 122 Q 182 148 178 178 Q 164 188 150 190 Q 136 188 122 178 Q 118 148 122 122 Z",
+    ]},
+    "Tríceps": { paths: [
+      // tríceps izquierdo — forma de herradura visible por detrás
+      "M 68 136 Q 56 150 56 172 Q 58 186 70 190 Q 82 190 90 178 Q 86 162 80 144 Q 76 132 68 136 Z",
+      // tríceps derecho
+      "M 232 136 Q 244 150 244 172 Q 242 186 230 190 Q 218 190 210 178 Q 214 162 220 144 Q 224 132 232 136 Z",
+    ]},
+    "Glúteos": { paths: [
+      // glúteo izquierdo — redondeado y prominente
+      "M 106 200 Q 108 190 148 192 Q 152 192 152 218 Q 150 234 126 238 Q 106 232 104 218 Q 102 208 106 200 Z",
+      // glúteo derecho
+      "M 194 200 Q 192 190 152 192 Q 148 192 148 218 Q 150 234 174 238 Q 194 232 196 218 Q 198 208 194 200 Z",
+    ]},
+    "Femoral": { paths: [
+      // bíceps femoral izquierdo — corre por posterior del muslo
+      "M 104 240 Q 94 260 94 290 Q 96 308 112 314 Q 128 312 136 294 Q 140 270 134 246 Q 126 232 114 234 Q 108 236 104 240 Z",
+      // bíceps femoral derecho
+      "M 196 240 Q 206 260 206 290 Q 204 308 188 314 Q 172 312 164 294 Q 160 270 166 246 Q 174 232 186 234 Q 192 236 196 240 Z",
+    ]},
+    "Pantorrillas": { paths: [
+      // gastrocnemio posterior izquierdo
+      "M 100 316 Q 88 336 90 358 Q 94 374 110 378 Q 126 376 134 358 Q 138 336 130 316 Q 120 306 100 316 Z",
+      // gastrocnemio posterior derecho
+      "M 200 316 Q 212 336 210 358 Q 206 374 190 378 Q 174 376 166 358 Q 162 336 170 316 Q 180 306 200 316 Z",
+    ]},
+  };
+
+  // Silueta anatómica detallada
   const BodyOutline = () => (
-    <g opacity={0.18} fill="var(--text)">
-      {/* head */}
-      <ellipse cx={150} cy={44} rx={30} ry={30}/>
-      {/* neck */}
-      <rect x={141} y={72} width={18} height={16} rx={4}/>
-      {/* torso */}
-      <path d="M 92 88 Q 90 86 88 92 L 84 200 Q 84 206 90 208 L 110 210 L 110 200 L 100 198 L 102 96 L 198 96 L 200 198 L 190 200 L 190 210 L 210 208 Q 216 206 216 200 L 212 92 Q 210 86 208 88 Z"/>
-      {/* upper arms */}
-      <rect x={62} y={90} width={28} height={90} rx={12}/>
-      <rect x={210} y={90} width={28} height={90} rx={12}/>
-      {/* forearms */}
-      <rect x={60} y={178} width={26} height={72} rx={10}/>
-      <rect x={214} y={178} width={26} height={72} rx={10}/>
-      {/* legs */}
-      <rect x={106} y={206} width={38} height={108} rx={14}/>
-      <rect x={156} y={206} width={38} height={108} rx={14}/>
-      {/* calves */}
-      <rect x={104} y={310} width={36} height={84} rx={12}/>
-      <rect x={160} y={310} width={36} height={84} rx={12}/>
+    <g opacity={0.22} fill="#475569">
+      {/* cabeza ovalada */}
+      <ellipse cx={150} cy={42} rx={25} ry={28}/>
+      {/* cuello */}
+      <path d="M 141 68 Q 140 80 136 86 L 164 86 Q 160 80 159 68 Z"/>
+      {/* torso trapezoidal — más ancho arriba */}
+      <path d="M 94 86 Q 88 88 86 96 L 82 198 Q 82 208 92 210 L 208 210 Q 218 208 218 198 L 214 96 Q 212 88 206 86 Z"/>
+      {/* clavículas */}
+      <path d="M 106 90 Q 128 84 150 86 Q 172 84 194 90" fill="none" stroke="#64748b" strokeWidth={2} opacity={0.5}/>
+      {/* brazo superior izquierdo */}
+      <path d="M 58 88 Q 50 94 50 114 L 52 180 Q 54 192 66 194 L 82 192 Q 94 190 96 178 L 98 112 Q 98 94 88 88 Z"/>
+      {/* brazo superior derecho */}
+      <path d="M 242 88 Q 250 94 250 114 L 248 180 Q 246 192 234 194 L 218 192 Q 206 190 204 178 L 202 112 Q 202 94 212 88 Z"/>
+      {/* antebrazo izquierdo */}
+      <path d="M 52 194 Q 44 202 44 220 L 46 264 Q 48 276 60 278 L 76 276 Q 88 274 90 262 L 92 218 Q 92 202 82 194 Z"/>
+      {/* antebrazo derecho */}
+      <path d="M 248 194 Q 256 202 256 220 L 254 264 Q 252 276 240 278 L 224 276 Q 212 274 210 262 L 208 218 Q 208 202 218 194 Z"/>
+      {/* muslo izquierdo */}
+      <path d="M 100 210 Q 92 218 92 238 L 94 294 Q 96 308 112 312 L 130 310 Q 144 306 146 292 L 144 236 Q 142 216 130 210 Z"/>
+      {/* muslo derecho */}
+      <path d="M 200 210 Q 208 218 208 238 L 206 294 Q 204 308 188 312 L 170 310 Q 156 306 154 292 L 156 236 Q 158 216 170 210 Z"/>
+      {/* pantorrilla izquierda */}
+      <path d="M 94 314 Q 86 324 88 346 L 90 372 Q 92 386 108 390 L 124 388 Q 138 384 140 368 L 138 342 Q 136 322 126 314 Z"/>
+      {/* pantorrilla derecha */}
+      <path d="M 206 314 Q 214 324 212 346 L 210 372 Q 208 386 192 390 L 176 388 Q 162 384 160 368 L 162 342 Q 164 322 174 314 Z"/>
+      {/* pie izquierdo */}
+      <ellipse cx={114} cy={394} rx={26} ry={9} transform="rotate(-5 114 394)"/>
+      {/* pie derecho */}
+      <ellipse cx={186} cy={394} rx={26} ry={9} transform="rotate(5 186 394)"/>
     </g>
   );
 
@@ -1341,7 +1536,7 @@ function MuscleMapModal({ sessions, onClose }) {
             onMouseLeave={() => setHover(null)}
             onClick={() => setHover(h => h === muscle ? null : muscle)}
           >
-            <title>{muscle}: {view === "recovery" ? recoveryLabel(daysSince(muscle)) : `${muscleCounts[muscle]||0} series`}</title>
+            <title>{muscle}: {view === "recovery" ? recoveryLabel(muscle, daysSince(muscle)) : `${muscleCounts[muscle]||0} series`}</title>
           </path>
         ));
       })}
@@ -1385,7 +1580,7 @@ function MuscleMapModal({ sessions, onClose }) {
               <span style={{ fontWeight:800, fontSize:14, color:"var(--text)" }}>{hoveredInfo.muscle}</span>
               {view === "volume"
                 ? <span style={{ fontSize:12, color:"var(--text-muted)", marginLeft:8 }}>{hoveredInfo.count} series en este período</span>
-                : <span style={{ fontSize:12, color:hoveredInfo.color, marginLeft:8, fontWeight:600 }}>{hoveredInfo.days === 999 ? "Nunca entrenado" : `Hace ${hoveredInfo.days}d · ${recoveryLabel(hoveredInfo.days)}`}</span>
+                : <span style={{ fontSize:12, color:hoveredInfo.color, marginLeft:8, fontWeight:600 }}>{hoveredInfo.days === 999 ? "Nunca entrenado" : `Hace ${hoveredInfo.days}d · ${recoveryLabel(hover, hoveredInfo.days)}`}</span>
               }
             </div>
           </div>
@@ -1396,7 +1591,7 @@ function MuscleMapModal({ sessions, onClose }) {
           {[["FRENTE", FRONT_MUSCLES], ["ESPALDA", BACK_MUSCLES]].map(([label, muscleMap]) => (
             <div key={label} style={{ flex:"0 0 auto", textAlign:"center" }}>
               <div style={{ fontSize:9, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", marginBottom:4 }}>{label}</div>
-              <svg width={200} height={380} viewBox="0 0 300 420" style={{ display:"block" }}>
+              <svg width={200} height={420} viewBox="0 0 300 460" style={{ display:"block" }}>
                 <BodyOutline />
                 <MuscleLayer muscleMap={muscleMap} />
               </svg>
@@ -1408,14 +1603,15 @@ function MuscleMapModal({ sessions, onClose }) {
         {view === "recovery" && (
           <div style={{ marginBottom:16 }}>
             <div style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Leyenda de recuperación</div>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {[["#ef4444","Descansando (≤1d)"],["#f59e0b","Recuperando (2d)"],["#22c55e","Listo (3-5d)"],["#3b82f6","¡Listo! (6d+)"]].map(([c,l]) => (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+              {[["#ef4444","Descansando"],["#f59e0b","Recuperando"],["#22c55e","Listo"],["#3b82f6","¡En su punto!"]].map(([c,l]) => (
                 <div key={l} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:"var(--text-muted)" }}>
                   <div style={{ width:10, height:10, borderRadius:3, background:c, flexShrink:0 }}/>
                   {l}
                 </div>
               ))}
             </div>
+            <div style={{ fontSize:10, color:"var(--text-muted)", opacity:0.7 }}>⚡ Tiempos ajustados por grupo: pequeños (bíceps, tríceps) 1-2d · medianos (pecho, espalda) 2-3d · grandes (cuádriceps, femoral) 2-4d</div>
           </div>
         )}
 
@@ -1463,7 +1659,7 @@ function MuscleMapModal({ sessions, onClose }) {
                     <div style={{ width:8, height:8, borderRadius:"50%", background:c, flexShrink:0 }}/>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:700, color:"var(--text)" }}>{muscle}</div>
-                      <div style={{ fontSize:10, color:c, fontWeight:600 }}>{d === 999 ? "Nunca" : `Hace ${d}d`}</div>
+                      <div style={{ fontSize:10, color:c, fontWeight:600 }}>{recoveryLabel(muscle, d)}</div>
                     </div>
                   </div>
                 );
@@ -1641,7 +1837,7 @@ function InfoPill({ title, lines, color = "var(--accent)" }) {
   );
 }
 
-function BodyStatsModal({ stats, onSave, onClose }) {
+function BodyStatsModal({ stats, onSave, onClose, uid, isGuest }) {
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState(stats.height || "170");
   const [gender, setGender] = useState(stats.gender || "male");
@@ -1656,13 +1852,27 @@ const [age, setAge] = useState(stats.age || "25");
   });
   const [measureForm, setMeasureForm] = useState({});
 
+  // Load from Firestore on mount (non-guest)
+  useEffect(() => {
+    if (isGuest || !uid) return;
+    loadMeasuresFromDB(uid).then(entries => {
+      if (entries && entries.length > 0) {
+        setMeasureEntries(entries);
+        try { localStorage.setItem("gym_measure_entries", JSON.stringify(entries)); } catch {}
+      }
+    });
+  }, [uid]);
+
+  function saveMeasures(updated) {
+    setMeasureEntries(updated);
+    try { localStorage.setItem("gym_measure_entries", JSON.stringify(updated)); } catch {}
+    if (!isGuest && uid) saveMeasuresToDB(uid, updated);
+  }
+
   function save() {
     if (!weight) return;
     const w = parseFloat(weight);
-    if (isNaN(w) || w < 20 || w > 300) {
-      alert("Por favor ingresa un peso válido entre 20 y 300 kg.");
-      return;
-    }
+    if (isNaN(w) || w < 20 || w > 300) return; // el error ya se muestra inline en el input
     const newEntry = { date: todayStr(), weight: w };
     const newHeight = parseFloat(height) || stats.height;
     const newStats = {
@@ -1818,9 +2028,8 @@ const [age, setAge] = useState(stats.age || "25");
                 <button className="btn-primary" style={{ width:"100%", fontSize:14 }} onClick={() => {
                   const entry = { date: todayStr(), ...measureForm };
                   const updated = [...measureEntries.filter(e => e.date !== todayStr()), entry].sort((a,b)=>a.date.localeCompare(b.date));
-                  setMeasureEntries(updated);
+                  saveMeasures(updated);
                   setMeasureForm({});
-                  try { localStorage.setItem("gym_measure_entries", JSON.stringify(updated)); } catch {}
                 }}>Guardar medidas</button>
               </div>
 
@@ -1877,8 +2086,7 @@ const [age, setAge] = useState(stats.age || "25");
                         </div>
                         <button onClick={() => {
                           const updated = [...measureEntries].reverse().filter((_,j)=>j!==i).reverse();
-                          setMeasureEntries(updated);
-                          try { localStorage.setItem("gym_measure_entries", JSON.stringify(updated)); } catch {}
+                          saveMeasures(updated);
                         }} style={{ background:"none", border:"none", color:"var(--text-muted)", cursor:"pointer", fontSize:13, padding:"0 4px" }}>🗑️</button>
                       </div>
                     ))}
@@ -2675,7 +2883,88 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
   );
 }
 
-function ProgressModal({ exName, sessions, onClose }) {
+function ExerciseSessionsTab({ exName, sessions }) {
+  const [filterPeriod, setFilterPeriod] = useState("all");
+  const periodDays = { "1m": 30, "3m": 90, "6m": 180, "1y": 365, all: 99999 };
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (periodDays[filterPeriod] || 99999));
+
+  const sessionsWithEx = sessions
+    .filter(s => (s.exercises||[]).some(ex => ex.name.toLowerCase() === exName.toLowerCase()))
+    .filter(s => new Date(s.date+"T00:00:00") >= cutoff)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  return (
+    <div>
+      <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+        {[["1m","1 mes"],["3m","3 meses"],["6m","6 meses"],["1y","1 año"],["all","Todo"]].map(([k,l]) => (
+          <button key={k} onClick={() => setFilterPeriod(k)} style={{
+            padding:"5px 12px", borderRadius:20, fontSize:12, fontWeight:700, cursor:"pointer",
+            border:`1px solid ${filterPeriod===k?"var(--accent)":"var(--border)"}`,
+            background: filterPeriod===k?"var(--accent-dim)":"transparent",
+            color: filterPeriod===k?"var(--accent)":"var(--text-muted)",
+          }}>{l}</button>
+        ))}
+        <span style={{ marginLeft:"auto", fontSize:12, color:"var(--text-muted)", alignSelf:"center" }}>
+          {sessionsWithEx.length} sesión{sessionsWithEx.length!==1?"es":""}
+        </span>
+      </div>
+
+      {sessionsWithEx.length === 0 ? (
+        <p className="text-muted">Sin sesiones en este período.</p>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {sessionsWithEx.map(s => {
+            const ex = (s.exercises||[]).find(e => e.name.toLowerCase() === exName.toLowerCase());
+            if (!ex) return null;
+            const sets = ex.sets?.length > 0 ? ex.sets : [{ weight: ex.weight, reps: ex.reps }];
+            const maxW = Math.max(...sets.map(st => parseFloat(st.weight)||0));
+            const totalVol = Math.round(sets.reduce((a,st) => a+(parseFloat(st.weight)||0)*(parseFloat(st.reps)||1), 0));
+            const rm = calc1RM(maxW, Math.max(...sets.map(st=>parseFloat(st.reps)||0)));
+            const [y,m,d] = s.date.split("-");
+            const dow = new Date(+y,+m-1,+d).getDay();
+            const dayName = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][dow];
+            return (
+              <div key={s.id} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, overflow:"hidden" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", borderBottom:"1px solid var(--border)" }}>
+                  <div>
+                    <span style={{ fontSize:12, color:"var(--text-muted)" }}>{dayName} {d}/{m}/{y}</span>
+                    <span style={{ fontSize:13, fontWeight:700, marginLeft:10 }}>{s.workout}</span>
+                  </div>
+                  <div style={{ display:"flex", gap:8, fontSize:12 }}>
+                    <span style={{ color:"var(--accent)", fontWeight:700 }}>1RM ~{rm}kg</span>
+                    <span style={{ color:"var(--text-muted)" }}>{totalVol}kg vol</span>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:6, padding:"10px 14px", flexWrap:"wrap" }}>
+                  {sets.map((st, i) => {
+                    const w = parseFloat(st.weight)||0;
+                    const r = parseFloat(st.reps)||0;
+                    const isTop = w === maxW;
+                    return (
+                      <div key={st.id||i} style={{
+                        padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:700,
+                        background: isTop?"rgba(59,130,246,0.12)":"var(--card)",
+                        border:`1px solid ${isTop?"rgba(59,130,246,0.4)":"var(--border)"}`,
+                        color: isTop?"var(--accent)":"var(--text)",
+                      }}>
+                        S{i+1}: {w||"—"}kg × {r||"—"}
+                        {isTop && <span style={{ fontSize:9, marginLeft:4, opacity:0.7 }}>▲</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProgressModal({ exName, sessions, onClose, onBack }) {
+  const [tab, setTab] = useState("progress"); // progress | prediction
   const [view, setView] = useState("weight"); // weight | rm1 | reps | volume
   const history = [];
   sessions.forEach(s => (s.exercises || []).forEach(ex => {
@@ -2714,13 +3003,24 @@ function ProgressModal({ exName, sessions, onClose }) {
     <div className="overlay" onClick={onClose}>
       <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight:"88vh", overflowY:"auto" }}>
         <div className="modal-header">
+          {onBack && <button className="btn-ghost small" onClick={onBack} style={{ marginRight:8 }}>← Volver</button>}
           <h3 className="modal-title">📈 {exName}</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {history.length < 2 ? (
+        {/* Tab selector */}
+        <div style={{ display:"flex", gap:0, marginBottom:16, background:"var(--input-bg)", borderRadius:10, padding:3 }}>
+          {[["progress","📈 Progreso"],["sesiones","📋 Sesiones"],["prediction","🎯 Predicción"]].map(([k,l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: tab===k?"var(--accent)":"transparent", color: tab===k?"white":"var(--text-muted)", fontWeight:700, fontSize:13, cursor:"pointer", transition:"all 0.2s" }}>{l}</button>
+          ))}
+        </div>
+
+        {tab === "sesiones" && <ExerciseSessionsTab exName={exName} sessions={sessions} />}
+
+        {tab !== "sesiones" && history.length < 2 && (
           <p className="text-muted" style={{ fontSize:14 }}>Necesitas al menos 2 registros para ver el progreso.</p>
-        ) : (<>
+        )}
+        {tab !== "sesiones" && history.length >= 2 && tab === "progress" && (<>
           {/* PR banner */}
           {prEntry && (
             <div style={{ background:"linear-gradient(135deg,rgba(251,191,36,0.15),rgba(251,191,36,0.04))", border:"1px solid rgba(251,191,36,0.4)", borderRadius:12, padding:"12px 16px", marginBottom:16, display:"flex", gap:14, alignItems:"center" }}>
@@ -2817,6 +3117,68 @@ function ProgressModal({ exName, sessions, onClose }) {
             })}
           </div>
         </>)}
+        {tab !== "sesiones" && history.length >= 2 && tab === "prediction" && (() => {
+          // Predicción tab
+          const points = history;
+          const t0 = new Date(points[0].date+"T00:00:00").getTime();
+          const xs = points.map(p => (new Date(p.date+"T00:00:00").getTime()-t0)/86400000);
+          const ys = points.map(p => p.rm);
+          const n = xs.length;
+          const sumX=xs.reduce((a,b)=>a+b,0), sumY=ys.reduce((a,b)=>a+b,0);
+          const sumXY=xs.reduce((s,x,i)=>s+x*ys[i],0), sumX2=xs.reduce((s,x)=>s+x*x,0);
+          const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+          const intercept=(sumY-slope*sumX)/n;
+          const currentRM=Math.round(points[points.length-1].rm);
+          const weeklyGain=Math.round(slope*7*10)/10;
+          const lastX=xs[xs.length-1];
+          let targets=[];
+          if (slope>0) {
+            const step=currentRM<60?5:10;
+            targets=[1,2,3,4,5,6].map(i=>Math.round((currentRM+i*step)/step)*step).filter(t=>t>currentRM).slice(0,3).map(target=>{
+              const daysNeeded=(target-intercept)/slope-lastX;
+              const weeksNeeded=Math.ceil(daysNeeded/7);
+              const eta=new Date(); eta.setDate(eta.getDate()+Math.round(daysNeeded));
+              return { target, weeks:weeksNeeded, eta:eta.toLocaleDateString("es-CL",{month:"short",year:"numeric"}) };
+            });
+          }
+          return (<>
+            <div style={{ display:"flex", gap:12, marginBottom:16 }}>
+              <div style={{ flex:1, background:"var(--input-bg)", borderRadius:10, padding:"12px 14px", border:"1px solid var(--border)" }}>
+                <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"var(--text-muted)", textTransform:"uppercase" }}>1RM actual</div>
+                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:800, color:"var(--accent)" }}>{currentRM} kg</div>
+              </div>
+              <div style={{ flex:1, background:"var(--input-bg)", borderRadius:10, padding:"12px 14px", border:"1px solid var(--border)" }}>
+                <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"var(--text-muted)", textTransform:"uppercase" }}>Ganancia/semana</div>
+                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:800, color:weeklyGain>0?"#22c55e":"#f87171" }}>
+                  {weeklyGain>0?"+":""}{weeklyGain} kg
+                </div>
+              </div>
+            </div>
+            {targets.length>0 ? (
+              <div>
+                <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>Proyección si mantienes el ritmo</div>
+                {targets.map(t => (
+                  <div key={t.target} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"rgba(59,130,246,0.05)", border:"1px solid rgba(59,130,246,0.15)", borderRadius:10, marginBottom:6 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:20 }}>🎯</span>
+                      <div>
+                        <div style={{ fontWeight:700, fontSize:14 }}>Llegar a {t.target} kg</div>
+                        <div style={{ fontSize:11, color:"var(--text-muted)" }}>~{t.eta}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800, color:"var(--accent)" }}>
+                      {t.weeks<=0?"¡Ya!":`${t.weeks} sem.`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize:13, color:"#f87171", textAlign:"center", padding:"16px 0" }}>
+                📉 Progreso estancado o descendente. ¡Sube la intensidad!
+              </div>
+            )}
+          </>);
+        })()}
       </div>
     </div>
   );
@@ -2888,113 +3250,168 @@ function ExerciseLibrary({ onSelect, onClose }) {
 
 
 
-// ─── Progress Prediction ──────────────────────────────────────────────────────
+// ─── Progress Widget (Dashboard) ─────────────────────────────────────────────
 function ProgressPrediction({ sessions }) {
   const [selected, setSelected] = useState("");
+  const [view, setView] = useState("rm1"); // rm1 | weight | reps | volume
 
-  // Build exercise list that has enough data points
+  // Build per-exercise history
   const exMap = {};
   sessions.forEach(s => (s.exercises||[]).forEach(ex => {
-    const w = ex.sets?.length>0 ? Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
-    const r = ex.sets?.length>0 ? Math.max(...ex.sets.map(st=>parseFloat(st.reps)||0)) : parseFloat(ex.reps)||0;
-    const rm = calc1RM(w, r);
+    const sets = ex.sets?.length > 0 ? ex.sets : [{ weight: ex.weight, reps: ex.reps }];
+    const weight = Math.max(...sets.map(st => parseFloat(st.weight)||0));
+    const reps   = Math.max(...sets.map(st => parseFloat(st.reps)||0));
+    const vol    = sets.reduce((a,st) => a + (parseFloat(st.weight)||0)*(parseFloat(st.reps)||1), 0);
+    const rm     = calc1RM(weight, reps);
     if (!exMap[ex.name]) exMap[ex.name] = [];
-    if (rm > 0) exMap[ex.name].push({ date: s.date, rm });
+    if (rm > 0 || weight > 0) exMap[ex.name].push({ date: s.date, weight, reps, vol: Math.round(vol), rm: Math.round(rm) });
   }));
-  const validExercises = Object.entries(exMap).filter(([,v]) => v.length >= 2).map(([k]) => k);
 
-  if (!selected && validExercises.length > 0) {
-    // auto-select first
-  } 
+  const validExercises = Object.entries(exMap)
+    .filter(([,v]) => v.length >= 2)
+    .map(([k]) => k)
+    .sort();
+
   const ex = selected || validExercises[0] || "";
-  const points = ex ? (exMap[ex] || []).sort((a,b) => a.date.localeCompare(b.date)) : [];
+  const history = ex
+    ? (exMap[ex] || []).sort((a,b) => a.date.localeCompare(b.date))
+    : [];
 
-  // Linear regression on 1RM over time (days from first session)
-  let prediction = null;
-  let weeklyGain = 0;
-  let currentRM = 0;
-  let targets = [];
+  const viewLabels = { rm1:"1RM", weight:"Peso", reps:"Reps", volume:"Vol." };
+  const viewColors = { rm1:"#f59e0b", weight:"var(--accent)", reps:"#22c55e", volume:"#a855f7" };
+  const vals = history.map(h => view==="rm1"?h.rm : view==="reps"?h.reps : view==="volume"?h.vol : h.weight);
 
-  if (points.length >= 2) {
-    const t0 = new Date(points[0].date + "T00:00:00").getTime();
-    const xs = points.map(p => (new Date(p.date+"T00:00:00").getTime() - t0) / 86400000);
-    const ys = points.map(p => p.rm);
-    const n = xs.length;
-    const sumX = xs.reduce((a,b)=>a+b,0), sumY = ys.reduce((a,b)=>a+b,0);
-    const sumXY = xs.reduce((s,x,i)=>s+x*ys[i],0), sumX2 = xs.reduce((s,x)=>s+x*x,0);
-    const slope = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX); // kg/day
-    const intercept = (sumY - slope*sumX) / n;
-    currentRM = Math.round(points[points.length-1].rm);
-    weeklyGain = Math.round(slope * 7 * 10) / 10;
-    const lastX = xs[xs.length-1];
+  // PR & trend
+  const prEntry  = history.length > 0 ? history.reduce((b,h) => h.rm > b.rm ? h : b, history[0]) : null;
+  const last     = history[history.length - 1];
+  const first    = history[0];
+  const improved = last && first && last.rm > first.rm;
+  const pct      = first?.rm > 0 ? Math.round((last.rm - first.rm) / first.rm * 100) : 0;
 
-    // Predict reaching round targets
-    if (slope > 0) {
-      const step = currentRM < 60 ? 5 : currentRM < 100 ? 5 : 10;
-const roundTargets = [1,2,3,4,5,6].map(i => Math.round((currentRM + i * step) / step) * step).filter(t => t > currentRM);
-      targets = roundTargets.slice(0,3).map(target => {
-        const daysNeeded = (target - intercept) / slope - lastX;
-        const weeksNeeded = Math.ceil(daysNeeded / 7);
-        const eta = new Date(); eta.setDate(eta.getDate() + Math.round(daysNeeded));
-        return { target, weeks: weeksNeeded, eta: eta.toLocaleDateString("es-CL", { month:"short", year:"numeric" }) };
-      });
-    }
+  // Trend line slope
+  let trend = null;
+  if (vals.length >= 3) {
+    const n = vals.length;
+    const xs = vals.map((_,i)=>i), ys = vals;
+    const sx=xs.reduce((a,b)=>a+b,0), sy=ys.reduce((a,b)=>a+b,0);
+    const sxy=xs.reduce((s,x,i)=>s+x*ys[i],0), sx2=xs.reduce((s,x)=>s+x*x,0);
+    const slope=(n*sxy-sx*sy)/(n*sx2-sx*sx);
+    trend = slope > 0.3 ? { label:"📈 Subiendo", color:"#22c55e" }
+          : slope < -0.3 ? { label:"📉 Bajando",  color:"#f87171" }
+          : { label:"➡️ Estable", color:"var(--text-muted)" };
   }
+
+  // SVG chart
+  const W=400, H=110, padL=34, padR=12, padT=10, padB=24;
+  const minV = vals.length ? Math.min(...vals) : 0;
+  const maxV = vals.length ? Math.max(...vals, minV+1) : 1;
+  const rangeV = maxV - minV || 1;
+  const px = i => padL + (i / Math.max(history.length-1,1)) * (W - padL - padR);
+  const py = v  => padT + (1 - (v - minV) / rangeV) * (H - padT - padB);
+  const color = viewColors[view];
+  const points = history.map((_,i) => `${px(i)},${py(vals[i])}`).join(" ");
 
   if (validExercises.length === 0) return (
     <div className="card">
-      <div className="card-label">📈 Predicción de progreso</div>
-      <p style={{ fontSize:13, color:"var(--text-muted)", textAlign:"center", padding:"12px 0" }}>Necesitas al menos 2 sesiones con el mismo ejercicio para ver predicciones.</p>
+      <div className="card-label">📊 Progreso por ejercicio</div>
+      <div style={{ textAlign:"center", padding:"24px 0", color:"var(--text-muted)" }}>
+        <div style={{ fontSize:32, marginBottom:8 }}>📈</div>
+        <p style={{ fontSize:13 }}>Registra al menos 2 sesiones con el mismo ejercicio para ver tu progreso.</p>
+      </div>
     </div>
   );
 
   return (
     <div className="card">
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
-        <div className="card-label" style={{ margin:0 }}>📈 Predicción de progreso</div>
-        <select className="input" style={{ width:"auto", fontSize:12, padding:"5px 10px" }} value={ex} onChange={e => setSelected(e.target.value)}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
+        <div className="card-label" style={{ margin:0 }}>📊 Progreso por ejercicio</div>
+        <select className="input" style={{ width:"auto", fontSize:12, padding:"5px 10px" }}
+          value={ex} onChange={e => setSelected(e.target.value)}>
           {validExercises.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
       </div>
 
-      {/* Current + weekly gain */}
-      <div style={{ display:"flex", gap:12, marginBottom:16 }}>
-        <div style={{ flex:1, background:"var(--input-bg)", borderRadius:10, padding:"10px 14px", border:"1px solid var(--border)" }}>
-          <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"var(--text-muted)", textTransform:"uppercase" }}>1RM actual</div>
-          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:28, fontWeight:800, color:"var(--accent)" }}>{currentRM} kg</div>
-        </div>
-        <div style={{ flex:1, background:"var(--input-bg)", borderRadius:10, padding:"10px 14px", border:"1px solid var(--border)" }}>
-          <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"var(--text-muted)", textTransform:"uppercase" }}>Ganancia/semana</div>
-          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:28, fontWeight:800, color: weeklyGain>0?"#22c55e":"#f87171" }}>
-            {weeklyGain > 0 ? "+" : ""}{weeklyGain} kg
-          </div>
-        </div>
+      {/* View toggle */}
+      <div style={{ display:"flex", gap:5, marginBottom:12 }}>
+        {Object.entries(viewLabels).map(([k,l]) => (
+          <button key={k} onClick={() => setView(k)} style={{
+            flex:1, padding:"5px 0", borderRadius:8, border:`1px solid ${view===k?viewColors[k]:"var(--border)"}`,
+            background: view===k?`${viewColors[k]}18`:"transparent",
+            color: view===k?viewColors[k]:"var(--text-muted)",
+            fontSize:11, fontWeight:700, cursor:"pointer", transition:"all 0.15s"
+          }}>{l}</button>
+        ))}
       </div>
 
-      {/* Predictions */}
-      {targets.length > 0 ? (
-        <div>
-          <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>Proyección si mantienes el ritmo</div>
-          {targets.map(t => (
-            <div key={t.target} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"rgba(59,130,246,0.05)", border:"1px solid rgba(59,130,246,0.15)", borderRadius:10, marginBottom:6 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:20 }}>🎯</span>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:14 }}>Llegar a {t.target} kg</div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>~{t.eta}</div>
-                </div>
-              </div>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800, color:"var(--accent)" }}>
-                {t.weeks <= 0 ? "¡Ya!" : `${t.weeks} sem.`}
-              </div>
+      {/* Chart */}
+      {history.length >= 2 ? (
+        <div style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"8px 4px 2px", marginBottom:12 }}>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display:"block" }}>
+            {/* Grid lines */}
+            {[0, 0.5, 1].map(t => {
+              const y = py(minV + t * rangeV);
+              return <g key={t}>
+                <line x1={padL} y1={y} x2={W-padR} y2={y} stroke="var(--border)" strokeWidth={1} strokeDasharray="3 3"/>
+                <text x={padL-4} y={y+3} textAnchor="end" fill="var(--text-muted)" fontSize={8}>{Math.round(minV+t*rangeV)}</text>
+              </g>;
+            })}
+            {/* Area fill */}
+            <polygon
+              points={`${px(0)},${py(minV)} ${points} ${px(history.length-1)},${py(minV)}`}
+              fill={color} fillOpacity={0.08}
+            />
+            {/* Line */}
+            <polyline points={points} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+            {/* Dots + labels */}
+            {history.map((h,i) => {
+              const x=px(i), y=py(vals[i]);
+              const isPR  = h === prEntry && view === "rm1";
+              const isLast = i === history.length-1;
+              const dc = isPR ? "#f59e0b" : isLast ? "#22c55e" : color;
+              const showLabel = isPR || isLast || history.length <= 6;
+              return <g key={i}>
+                <circle cx={x} cy={y} r={isPR||isLast?5:3} fill={dc} stroke="var(--card)" strokeWidth={1.5}/>
+                {showLabel && <text x={x} y={y-8} textAnchor="middle" fill={dc} fontSize={8} fontWeight={800}>{vals[i]}</text>}
+                {isPR && <text x={x} y={y-17} textAnchor="middle" fill="#f59e0b" fontSize={7} fontWeight={800}>PR</text>}
+                {/* Date label — only first, last, and every ~3 */}
+                {(i===0 || i===history.length-1 || i%3===0) && (
+                  <text x={x} y={H-4} textAnchor="middle" fill="var(--text-muted)" fontSize={7}>{fmtDate(h.date)}</text>
+                )}
+              </g>;
+            })}
+          </svg>
+        </div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"16px 0", color:"var(--text-muted)", fontSize:12 }}>
+          Agrega más sesiones para ver la gráfica
+        </div>
+      )}
+
+      {/* Stats row */}
+      {history.length >= 2 && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8, marginBottom:10 }}>
+          {[
+            { label:"1RM actual",  val:`${last?.rm}kg`,   color:"var(--accent)" },
+            { label:"Mejor 1RM",   val:`${prEntry?.rm}kg`, color:"#f59e0b" },
+            { label:"Registros",   val:history.length,    color:"var(--text)" },
+            { label:"Mejora total",val:`${pct>0?"+":""}${pct}%`, color:improved?"#22c55e":"#f87171" },
+          ].map(s => (
+            <div key={s.label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
+              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:16, fontWeight:800, color:s.color }}>{s.val}</div>
+              <div style={{ fontSize:9, color:"var(--text-muted)", marginTop:1 }}>{s.label}</div>
             </div>
           ))}
         </div>
-      ) : weeklyGain <= 0 ? (
-        <div style={{ fontSize:12, color:"#f87171", textAlign:"center", padding:"10px 0" }}>
-          📉 Progreso estancado o descendente. ¡Sube la intensidad!
+      )}
+
+      {/* Trend + PR date */}
+      {trend && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11 }}>
+          <span style={{ color:trend.color, fontWeight:700 }}>{trend.label}</span>
+          {prEntry && <span style={{ color:"var(--text-muted)" }}>🏆 PR el {fmtDate(prEntry.date)}</span>}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -3111,14 +3528,22 @@ const WEEKLY_CHALLENGES = [
   }, target:3, unit:"días", format: v => `${v} / 3 días seguidos` },
   { id:"pr2", emoji:"🏆", title:"2 récords personales", desc:"Supera 2 récords personales esta semana", check:(sessions, weekStart) => {
     const weekSess = sessions.filter(s=>new Date(s.date+"T00:00:00")>=weekStart);
-    let prs=0;
-    weekSess.forEach(s=>(s.exercises||[]).forEach(ex=>{
-      const w=ex.sets?.length>0?Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)):parseFloat(ex.weight)||0;
-      const prev=sessions.filter(ps=>ps.date<s.date).flatMap(ps=>(ps.exercises||[]).filter(pe=>pe.name===ex.name))
-        .reduce((b,pe)=>Math.max(b,parseFloat(pe.weight)||0),0);
-      if(w>prev&&w>0) prs++;
-    }));
-    return prs;
+    const prSet = new Set();
+    weekSess.forEach(s=>{
+      const sTs = new Date(s.date+"T00:00:00").getTime();
+      (s.exercises||[]).forEach(ex=>{
+        const w=ex.sets?.length>0?Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)):parseFloat(ex.weight)||0;
+        const prev=sessions
+          .filter(ps => new Date(ps.date+"T00:00:00").getTime() < sTs)
+          .flatMap(ps=>(ps.exercises||[]).filter(pe=>pe.name===ex.name))
+          .reduce((b,pe)=>{
+            const pw=pe.sets?.length>0?Math.max(...pe.sets.map(st=>parseFloat(st.weight)||0)):parseFloat(pe.weight)||0;
+            return Math.max(b,pw);
+          },0);
+        if(w>prev&&w>0) prSet.add(s.id+"__"+ex.name);
+      });
+    });
+    return prSet.size;
   }, target:2, unit:"PRs", format: v => `${v} / 2 récords` },
 ];
 
@@ -3397,6 +3822,7 @@ function CoachModal({ user, sessions, onClose }) {
   const [coachProfile, setCoachProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
+  const [activateError, setActivateError] = useState("");
   const [routines, setRoutines] = useState([]);
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [athleteData, setAthleteData] = useState(null);
@@ -3469,9 +3895,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
 
   async function activateCoach() {
   if (!ADMIN_EMAILS.includes(user.email)) {
-    alert("❌ Solo administradores pueden activar el modo Coach.");
+    setActivateError("❌ Solo administradores pueden activar el modo Coach.");
     return;
   }
+  setActivateError("");
   setActivating(true);
   const profile = await createCoachProfile(user.uid, user.name, user.email);
   setCoachProfile(profile);
@@ -3481,10 +3908,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     setSelectedAthlete(athlete);
     setAthleteData(null);
     setAthleteLoading(true);
-    console.log("Coach buscando atleta uid:", athlete.uid);
     const data = await getAthleteData(athlete.uid);
-    console.log("Sesiones del atleta:", data.sessions.length);
-    console.log("Data completa:", data);
     setAthleteData(data);
     setAthleteLoading(false);
     setTab("athlete");
@@ -3515,7 +3939,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     if (!finalName) return;
     if (rExName === "__custom__" && rExCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
       saveCustomExercise(finalName, rExCustomMuscle);
-      EXERCISE_DB.push({ name: finalName, muscle: rExCustomMuscle, machine: false, equipment: "Personalizado" });
+      registerCustomExercise(finalName, rExCustomMuscle);
     }
     const sets = rExSets.length > 0 ? rExSets : (rExWeight || rExReps ? [{ id: uid(), weight: rExWeight, reps: rExReps }] : []);
     setRoutineExercises(p => [...p, { id: uid(), name: finalName, sets, weight: rExWeight, reps: rExReps, comment: rExComment }]);
@@ -3616,6 +4040,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
             <button className="btn-primary" style={{ fontSize: 18, padding: "14px 32px" }} onClick={activateCoach} disabled={activating}>
               {activating ? "⏳ Activando..." : "⚡ Activar modo Coach"}
             </button>
+            {activateError && <div className="err-msg" style={{ marginTop: 12 }}>{activateError}</div>}
           </div>
         )}
 
@@ -3968,6 +4393,7 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
   const [exData, setExData] = useState(
     (routine.exercises || []).map(ex => ({
       ...ex,
+      restSecs: ex.restSecs || null,
       sets: ex.sets?.length
         ? ex.sets.map(s => ({ ...s, id: s.id || uid(), done: false }))
         : Array.from({ length: parseInt(ex.series) || 3 }, () => ({ id: uid(), weight: ex.weight || "", reps: ex.reps || "", done: false }))
@@ -4032,8 +4458,9 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
     }));
     if (!wasDone) {
       // Auto-lanzar timer de descanso al completar serie
-      setRestTimer(prev => prev ? prev : null); // reset si ya había
-      setTimeout(() => startRest(90), 50);
+      const exRestSecs = exData[exIdx]?.restSecs ?? defaultRest;
+      setRestTimer(prev => prev ? prev : null);
+      setTimeout(() => startRest(exRestSecs), 50);
       // Pedir permiso notificación
       if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
@@ -4064,6 +4491,8 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
     setRestTimer({ total: secs, left: secs });
   }
 
+  const defaultRest = load("gym_default_rest", 90);
+
   const REST_OPTS = [
     { label: "1m Cardio", secs: 60 },
     { label: "1.5m Hiper ⭐", secs: 90 },
@@ -4076,7 +4505,13 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
 
       {/* Header */}
       <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, display:"flex", alignItems:"center", gap:4 }}>← Salir</button>
+        <button onClick={() => {
+          const hasDone = exData.some(ex => ex.sets.some(s => s.done));
+          if (hasDone) {
+            if (!window.confirm("¿Salir del entrenamiento? Perderás el progreso no guardado.")) return;
+          }
+          onClose();
+        }} style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, display:"flex", alignItems:"center", gap:4 }}>← Salir</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>⚡ {routine.name}</div>
           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series completadas</div>
@@ -4120,6 +4555,24 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
               <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 900, marginTop: 10, textAlign: "center" }}>{ex.name}</div>
               <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series · {ex.sets.filter(s=>s.done).length}/{ex.sets.length} de este ejercicio</div>
               {ex.comment && <div style={{ fontSize: 12, color: "var(--accent)", fontStyle: "italic", marginTop: 4 }}>💬 {ex.comment}</div>}
+              {/* Per-exercise rest time selector */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
+                <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>⏱ Descanso:</span>
+                {[60, 90, 120, 180].map(secs => {
+                  const active = (ex.restSecs ?? defaultRest) === secs;
+                  return (
+                    <button key={secs} onClick={() => setExData(prev => prev.map((e, i) => i !== currentEx ? e : { ...e, restSecs: secs }))}
+                      style={{
+                        background: active ? "var(--accent)" : "var(--input-bg)",
+                        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                        color: active ? "white" : "var(--text-muted)",
+                        borderRadius: 20, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                      }}>
+                      {secs < 120 ? `${secs}s` : `${secs/60}m`}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Tabla series */}
@@ -4288,14 +4741,10 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null }) {
         };
 
         try {
-          console.log("UID atleta:", user.uid);
-          console.log("Sesiones existentes:", existing.length);
-          console.log("Nueva sesión:", newSession);
           await setDoc(doc(db, "sessions", user.uid), {
             list: [newSession, ...existing],
             updatedAt: serverTimestamp()
           });
-          console.log("✅ Sesión guardada en Firestore");
         } catch(e) { 
           console.error("❌ Error guardando sesión:", e); 
         }
@@ -4628,7 +5077,6 @@ async function loadCustomExercises() {
   try {
     const snap = await getDocs(collection(db, "custom_exercises"));
     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    console.log("[loadCustomExercises] docs:", docs.map(d => ({ name: d.name, hasGif: !!d.gifUrl, gifLen: d.gifUrl?.length })));
     return docs;
   } catch(e) {
     console.error("[loadCustomExercises] ERROR:", e);
@@ -4682,6 +5130,20 @@ async function saveBodyStatsToDB(uid, stats) {
     await setDoc(doc(db, "body_stats", uid), stats);
     return true;
   } catch(e) { return false; }
+}
+
+async function saveMeasuresToDB(uid, entries) {
+  try {
+    await setDoc(doc(db, "measures", uid), { entries, updatedAt: serverTimestamp() });
+    return true;
+  } catch(e) { return false; }
+}
+
+async function loadMeasuresFromDB(uid) {
+  try {
+    const snap = await getDoc(doc(db, "measures", uid));
+    return snap.exists() ? (snap.data().entries || []) : null;
+  } catch(e) { return null; }
 }
 
 async function teamsGet(code) {
@@ -4830,14 +5292,35 @@ function TeamsModal({ user, sessions, onClose }) {
     else { setJoinPreview(null); }
   }
 
-  // Load member previews for all my teams on mount
+  // Load member previews and autosync stats on mount
   useEffect(() => {
     const savedTeams = load(`gym_teams_${user.email}`, []);
     savedTeams.forEach(async t => {
       const data = await teamsGet(`team_${t.code}`);
-      setTeamPreviews(prev => ({ ...prev, [t.code]: data || null }));
+      if (data) {
+        const updated = { ...data, members: { ...data.members, [user.email]: myStats } };
+        await teamsSet(`team_${t.code}`, updated);
+        setTeamPreviews(prev => ({ ...prev, [t.code]: updated }));
+      } else {
+        setTeamPreviews(prev => ({ ...prev, [t.code]: null }));
+      }
     });
   }, []);
+
+  // Autosync stats to all teams when sessions change
+  useEffect(() => {
+    const savedTeams = load(`gym_teams_${user.email}`, []);
+    if (savedTeams.length === 0) return;
+    savedTeams.forEach(async t => {
+      const data = await teamsGet(`team_${t.code}`);
+      if (data) {
+        const updated = { ...data, members: { ...data.members, [user.email]: myStats } };
+        await teamsSet(`team_${t.code}`, updated);
+        setTeamPreviews(prev => ({ ...prev, [t.code]: updated }));
+        if (activeTeam?.code === t.code) setTeamData(updated);
+      }
+    });
+  }, [sessions.length]);
 
   // Stats for this user
   const myStats = (() => {
@@ -4889,6 +5372,7 @@ function TeamsModal({ user, sessions, onClose }) {
       bestImprovement,          // { name, pct } of top exercise
       thisWeekSessions: sessions.filter(s => new Date(s.date+"T00:00:00") >= weekAgo).length,
       lastUpdate: todayStr(),
+      lastSync: Date.now(), // timestamp ms for staleness check
     };
   })();
 
@@ -5321,6 +5805,20 @@ function TeamsModal({ user, sessions, onClose }) {
                                   <span style={{ color:"#22c55e" }}> · 🏋️ {m.bestImprovement.name} +{m.bestImprovement.pct}%</span>
                                 )}
                               </div>
+                              {(() => {
+                                if (!m.lastSync) return null;
+                                const diffH = Math.floor((Date.now() - m.lastSync) / 3600000);
+                                const diffD = Math.floor(diffH / 24);
+                                const label = diffH < 1 ? "hace menos de 1h" : diffH < 24 ? `hace ${diffH}h` : `hace ${diffD}d`;
+                                const stale = diffH >= 24;
+                                return (
+                                  <div style={{ fontSize:10, marginTop:3, color: stale ? "#f59e0b" : "var(--text-muted)", display:"flex", alignItems:"center", gap:4 }}>
+                                    {stale ? "⚠️" : "🟢"} Datos actualizados {label}
+                                    {stale && !isMe && <span style={{ color:"#f59e0b" }}> · puede estar desactualizado</span>}
+                                    {stale && isMe && <span style={{ color:"#f59e0b" }}> · pulsa "🔄 Mis stats"</span>}
+                                  </div>
+                                );
+                              })()}
                             </div>
                             <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:800, color: i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#b45309":isMe?"var(--accent)":"var(--text)", flexShrink:0 }}>
                               {val}
@@ -5335,9 +5833,29 @@ function TeamsModal({ user, sessions, onClose }) {
                   </>
                 )}
 
-                <p style={{ fontSize:11, color:"var(--text-muted)", textAlign:"center", marginTop:14 }}>
-                  💡 Pulsa "🔄 Mis stats" para actualizar tu posición.
-                </p>
+                {(() => {
+                  const staleMembers = sorted.filter(m => m.lastSync && (Date.now() - m.lastSync) >= 86400000 && m.email !== user.email);
+                  const myStale = sorted.find(m => m.email === user.email && m.lastSync && (Date.now() - m.lastSync) >= 86400000);
+                  return (
+                    <div style={{ marginTop:14, textAlign:"center" }}>
+                      {myStale && (
+                        <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:10, padding:"8px 14px", fontSize:12, color:"#fbbf24", marginBottom:8 }}>
+                          ⚠️ Tus datos llevan más de 24h sin actualizarse — pulsa <b>🔄 Mis stats</b>
+                        </div>
+                      )}
+                      {staleMembers.length > 0 && (
+                        <div style={{ fontSize:11, color:"var(--text-muted)" }}>
+                          ⚠️ {staleMembers.map(m=>m.name).join(", ")} {staleMembers.length===1?"lleva":"llevan"} más de 1 día sin sincronizar
+                        </div>
+                      )}
+                      {!myStale && staleMembers.length === 0 && (
+                        <p style={{ fontSize:11, color:"var(--text-muted)" }}>
+                          🟢 Todos los datos están actualizados · pulsa "🔄 Mis stats" para refrescar
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
@@ -5391,6 +5909,7 @@ function AdminExercisesModal({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [gifInputs, setGifInputs] = useState({});
   const [saving, setSaving] = useState({});
+  const [gifErrors, setGifErrors] = useState({}); // { [exId]: mensaje }
   const [filter, setFilter] = useState("");
   const [uploadMode, setUploadMode] = useState({});
   const [uploadPreviews, setUploadPreviews] = useState({});
@@ -5430,7 +5949,11 @@ function AdminExercisesModal({ onClose }) {
 
   function handleFileChange(ex, file) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { alert("Solo se admiten imágenes/GIFs"); return; }
+    if (!file.type.startsWith("image/")) {
+      setGifErrors(p => ({ ...p, [ex.id]: "⚠️ Solo se admiten imágenes/GIFs" }));
+      return;
+    }
+    setGifErrors(p => ({ ...p, [ex.id]: "" }));
     setUploadPreviews(p => ({ ...p, [ex.id]: URL.createObjectURL(file) }));
     setGifInputs(p => ({ ...p, [ex.id]: file }));
   }
@@ -5445,13 +5968,18 @@ function AdminExercisesModal({ onClose }) {
         url = await getDownloadURL(storageRef);
       }
       const ok = await updateCustomExerciseGif(ex.id, url);
-      if (!ok) { alert("Error al guardar."); setSaving(s => ({ ...s, [ex.id]: false })); return; }
+      if (!ok) {
+        setGifErrors(p => ({ ...p, [ex.id]: "❌ Error al guardar." }));
+        setSaving(s => ({ ...s, [ex.id]: false }));
+        return;
+      }
       setGifInputs(p => ({ ...p, [ex.id]: url }));
       setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, gifUrl: url } : e));
       setGif(ex.name, url);
+      setGifErrors(p => ({ ...p, [ex.id]: "" }));
     } catch(e) {
       console.error(e);
-      alert("Error al subir el GIF: " + e.message);
+      setGifErrors(p => ({ ...p, [ex.id]: "❌ Error al subir el GIF: " + e.message }));
     }
     setSaving(s => ({ ...s, [ex.id]: false }));
   }
@@ -5609,6 +6137,9 @@ function AdminExercisesModal({ onClose }) {
                 </div>
               )}
 
+              {gifErrors[ex.id] && (
+                <div className="err-msg" style={{ marginTop: 6, fontSize: 12 }}>{gifErrors[ex.id]}</div>
+              )}
               {isSaved && !uploadPreviews[ex.id] && (
                 <div style={{ fontSize: 11, color: "#22c55e", marginTop: 6 }}>✅ GIF asignado</div>
               )}
@@ -5997,9 +6528,18 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
       `${exCount} ejercicios de ${muscle.toLowerCase()} registrados. Mañana lo vas a sentir, y eso es progreso.`,
       `${muscle} trabajado al máximo hoy. Brux toma nota. Descansa bien.`,
       `Sólido. ${exCount > 0 ? `${exCount} ejercicios terminados.` : ""} El descanso también es parte del entrenamiento.`,
+      `Brux registró ${muscle} como trabajado. Ahora a recuperar bien. 💤`,
+      `${muscle} al límite hoy. Así se construye músculo de verdad. 🏗️`,
+      `${exCount} ejercicios para ${muscle.toLowerCase()}. Brux lo llama una buena sesión.`,
+      `${muscle} completado. Mañana ese músculo te lo va a agradecer (o no, pero valió la pena).`,
     ] : [
       "Sesión guardada. Brux está orgulloso, aunque no lo parezca.",
       "Entrenamiento registrado. ¡Bien hecho! 💪 Ahora a descansar.",
+      "Brux archivó tu sesión. Cada una suma. Cada una cuenta.",
+      "Registrado y guardado. Así se construye el historial de un campeón. 📋",
+      "Sesión en el libro. Brux ya está preparando la próxima. 🔜",
+      "Todo guardado. Brux dice: descansá bien, que mañana hay más. 💤",
+      "Hecho. Otro día que no te vas a arrepentir. 🙌",
     ];
     return { mood:"proud", title:ts?.workout ? `✅ ${ts.workout} — ¡listo!` : "✅ ¡Entrenamiento registrado!", message:msgs[seed % msgs.length], cta:null };
   }
@@ -6014,7 +6554,13 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
       mood:"happy", title:"¿Doble sesión hoy? 💪",
       message: muscle && sugerido
         ? `Ya trabajaste ${muscle.toLowerCase()} hoy. ${neglected?.days>5?`${sugerido} lleva ${neglected.days} días sin aparecer. ¿Lo sumamos?`:`¿Qué tal añadir ${sugerido.toLowerCase()} también?`}`
-        : "¡Volviste por más! Brux está impresionado (y orgulloso).",
+        : [
+            "¡Volviste por más! Brux está impresionado (y orgulloso).",
+            "De vuelta en el gym. Brux ya tenía preparada tu rutina.",
+            "¡Apareciste! Brux empezaba a preguntar por vos.",
+            "Volviste. Eso es lo que separa a los que progresan del resto. 🔑",
+            "Brux anotó tu regreso. Bienvenido de vuelta al trabajo real.",
+          ][seed % 5],
       cta:sugerido||null, neglectedMuscle:sugerido||null,
     };
   }
@@ -6034,18 +6580,33 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
     const msgs = [
       `${daysSinceLast} días. Brux pensó que te habías mudado a otro gimnasio. Bienvenido de vuelta.`,
       `Dos semanas sin verte. Tus músculos preguntaron si sigues vivo. ¡Vuelve hoy!`,
+      `${daysSinceLast} días es mucho tiempo. Brux no te va a juzgar... solo te va a poner a trabajar.`,
+      `Reaparición épica después de ${daysSinceLast} días. Brux ya tiene tu rutina lista.`,
+      `${daysSinceLast} días de ausencia. El gym cambió un poco, pero el hierro pesa igual. ¿Volvemos?`,
+      `Brux marcó ${daysSinceLast} días en el calendario. Hoy se borra esa racha mala. 🔄`,
     ];
-    return { mood:"shocked", title:`¡${daysSinceLast} días sin verte! 😱`, message:msgs[seed%2], cta:null };
+    return { mood:"shocked", title:`¡${daysSinceLast} días sin verte! 😱`, message:msgs[seed%msgs.length], cta:null };
   }
   if (daysSinceLast >= 7) {
+    const msgs7 = [
+      `Brux no va a juzgarte... mucho. ${daysSinceLast} días es bastante. ¿Volvemos hoy?`,
+      `Una semana entera. El cuerpo extraña moverse. Hoy es el día. 💪`,
+      `${daysSinceLast} días sin sudar. Brux ya extrañaba verte por acá.`,
+      `La semana se fue rápido. Pero hoy arrancamos de nuevo. Sin drama. 🔁`,
+      `${daysSinceLast} días. Brux no dice nada, solo te abre la puerta del gym. 🚪`,
+    ];
     return { mood:"shocked", title:`¡${daysSinceLast} días sin entrenar! 😱`,
-      message:`Brux no va a juzgarte... mucho. ${daysSinceLast} días es bastante. ¿Volvemos hoy?`, cta:null };
+      message:msgs7[seed%msgs7.length], cta:null };
   }
   if (daysSinceLast >= 3) {
     const msgs = [
       `${daysSinceLast} días de pausa. No es el fin del mundo, pero Brux recomienda volver hoy.`,
       `Brux lleva ${daysSinceLast} días esperándote. El gimnasio también.`,
       `${daysSinceLast} días sin registrar nada. ¿Fue descanso activo o quedó pendiente? Todo bien, hoy es un buen momento para retomar.`,
+      `${daysSinceLast} días de recuperación. Si ya descansaste suficiente, hoy es el momento. 🎯`,
+      `Brux no dice que te apures, pero ${daysSinceLast} días ya es suficiente descanso. 😏`,
+      `${daysSinceLast} días. El cuerpo ya debería estar recuperado. ¿Lo confirmamos hoy?`,
+      `Pequeña pausa de ${daysSinceLast} días. Normal. Retomemos donde lo dejamos. 🔙`,
     ];
     return { mood:"warning", title:`${daysSinceLast} días sin entrenar...`, message:msgs[seed%msgs.length], cta:null };
   }
@@ -6077,6 +6638,10 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
       `${neglected.muscle} lleva ${neglected.days} días sin aparecer. Brux no va a decir nada... pero lo piensa.`,
       `¿${neglected.muscle}? Brux buscó en el historial y no lo encuentra desde hace ${neglected.days} días. Curioso.`,
       `${neglected.days} días sin trabajar ${neglected.muscle.toLowerCase()}. Brux sugiere darle una oportunidad.`,
+      `${neglected.muscle} lleva ${neglected.days} días de vacaciones no autorizadas. Brux lo anota.`,
+      `${neglected.days} días ignorando ${neglected.muscle.toLowerCase()}. Los músculos también se ofenden.`,
+      `Brux revisó tu historial y ${neglected.muscle.toLowerCase()} está esperando hace ${neglected.days} días. ¿Hoy?`,
+      `${neglected.muscle} te va a mandar una carta pronto si seguís así. Ya van ${neglected.days} días. 📬`,
     ];
     return { mood:"sarcastic", title:`${neglected.muscle} lleva ${neglected.days} días esperando`,
       message:sarcMsgs[seed%sarcMsgs.length], cta:neglected.muscle, neglectedMuscle:neglected.muscle, neglectedDays:neglected.days };
@@ -6113,16 +6678,38 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
     "Los que entrenan temprano tienen el día ganado antes del mediodía. Brux lo confirma.",
     "Buenos días. El gimnasio vacío de mañana es tuyo.",
     "Brux también madruga (en espíritu). ¡A entrenar!",
+    "Mañana de entrenamiento. Nada mejor para arrancar el día con todo.",
+    "El sol todavía está calentando y tú ya estás en modo gym. Respeto.",
+    "Empezar el día entrenando es empezar ganando. Brux lo firma.",
+    "Madrugaste para esto. No hay excusa que valga ahora. Vamos. ⚡",
+    "La disciplina de mañana es el resultado de tarde. Brux lo promete.",
+    "Mientras otros duermen, tú construyes. Así se diferencia el nivel. 🏆",
+    "Buenos días, campeón. El gym ya te esperaba desde ayer.",
   ];
   const dayMsgs = [
     "Otro día, otra oportunidad. Sin excusas, dice Brux.",
     "El entrenamiento perfecto es el que haces. El resto es teoría.",
     "Brux espera. No por siempre, pero por ahora sí.",
+    "Mitad del día, momento perfecto para mover el cuerpo. Vamos.",
+    "Pausa activa o sesión completa, lo que sea. Hoy se entrena. 💪",
+    "No dejes que la tarde pase sin sudar un poco. Brux te va a preguntar.",
+    "El entrenamiento de hoy es la energía de mañana. Simple. 🔋",
+    "Cada sesión suma. Cada día importa. Hoy no es la excepción.",
+    "No hay 'mañana empiezo' en el vocabulario de Brux. Solo hoy. 📅",
+    "El único límite es el que tú mismo te ponés. Brux vio tu potencial.",
+    "Si tu cuerpo dice que no, tu cabeza dice que sí. Eso es entrenamiento real.",
   ];
   const nightMsgs = [
     "Entreno nocturno. Menos gente, más concentración. Brux aprueba.",
     "Terminar el día en el gimnasio tiene algo especial. Vamos.",
     "El único mal entreno es el que no se hace. Brux dixit.",
+    "Noche de gym. Los mejores resultados pasan cuando nadie mira. 🌙",
+    "Tarde en el día pero temprano en el compromiso. Eso es disciplina.",
+    "El gym de noche tiene otro nivel de concentración. Brux lo sabe.",
+    "Mientras la ciudad descansa, tú progresas. Eso no tiene precio. ⭐",
+    "Cerrar el día entrenando es la mejor forma de no arrepentirse mañana.",
+    "Brux prefiere el silencio del gym nocturno. Y vos también, aunque no lo sepas.",
+    "Último entrenamiento del día o primero del mañana. Da igual. Cuenta igual. 🔥",
   ];
 
   if (hour < 7) return { mood:"sleepy", title:"¡Madrugador! 🌅",
@@ -6267,8 +6854,9 @@ function WeekComparison({ sessions }) {
     const prs = new Set();
     ss.forEach(s => (s.exercises||[]).forEach(ex => {
       const w = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
+      const sTs1 = new Date(s.date+"T00:00:00").getTime();
       const prevBest = sessions
-        .filter(ps => ps.date < s.date)
+        .filter(ps => new Date(ps.date+"T00:00:00").getTime() < sTs1)
         .flatMap(ps => (ps.exercises||[]).filter(pe => pe.name === ex.name))
         .reduce((b, pe) => Math.max(b, parseFloat(pe.weight)||0), 0);
       if (w > prevBest && w > 0) prs.add(`${s.id}-${ex.name}`);
@@ -6644,9 +7232,8 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
         );
       })()}
       <div id="training-calendar-section"><TrainingCalendar sessions={sessions} joinedAt={user?.createdAt} /></div>
-      <WeeklyChart sessions={sessions} />
       <WeekComparison sessions={sessions} />
-      <ProgressPrediction sessions={sessions} />
+
       <MuscleBalance sessions={sessions} />
       {topPRs.length > 0 && (
         <div className="card">
@@ -6676,19 +7263,30 @@ function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onSha
     : sessionVol > 0 ? `${Math.round(sessionVol)}kg` : null;
 
   // Detect PRs in this session
+  // For same-day sessions: sort by id alphabetically as stable tiebreaker.
+  // Only sessions with a smaller id (i.e. "earlier" within the day) are treated as prior history.
   const prs = new Set();
+  const sTs2 = new Date(s.date+"T00:00:00").getTime();
   (s.exercises || []).forEach(ex => {
     const sessWeight = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(ex.weight) || 0;
-    const sessReps = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.reps) || 0)) : parseFloat(ex.reps) || 0;
-    const sess1RM = calc1RM(sessWeight, sessReps);
     const prevBest = allSessions
-  .filter(ps => ps.date < s.date)
-  .flatMap(ps => (ps.exercises || []).filter(pe => pe.name === ex.name))
-  .reduce((best, pe) => {
-    const pw = pe.sets?.length > 0 ? Math.max(...pe.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(pe.weight) || 0;
-    return Math.max(best, pw);
-  }, 0);
-if (sessWeight > prevBest && sessWeight > 0) prs.add(ex.name);
+      .filter(ps => {
+        if (ps.id === s.id) return false;
+        const psTs = new Date(ps.date+"T00:00:00").getTime();
+        if (psTs < sTs2) return true;           // earlier day → always prior
+        if (ps.date === s.date) {
+            // uid ends with Date.now().toString(36) — extract timestamp for reliable ordering
+            const tsOf = id => parseInt(id.slice(-8), 36) || 0;
+            return tsOf(ps.id) < tsOf(s.id); // ps was created before s → treat as prior
+          }
+        return false;
+      })
+      .flatMap(ps => (ps.exercises || []).filter(pe => pe.name === ex.name))
+      .reduce((best, pe) => {
+        const pw = pe.sets?.length > 0 ? Math.max(...pe.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(pe.weight) || 0;
+        return Math.max(best, pw);
+      }, 0);
+    if (sessWeight > prevBest && sessWeight > 0) prs.add(ex.name);
   });
 
   function updateExField(exId, field, val) {
@@ -6715,7 +7313,15 @@ if (sessWeight > prevBest && sessWeight > 0) prs.add(ex.name);
     <div className="card session-card">
       <div className="session-header" onClick={onToggle} style={prs.size > 0 ? { borderLeft: "3px solid #f59e0b", paddingLeft: 10 } : {}}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span className="session-date">{fmtDate(s.date)}</span>
+          <span className="session-date">
+            {s.date ? (() => {
+              const [y,m,d] = s.date.split("-");
+              const dow = new Date(+y, +m-1, +d).getDay();
+              const dayName = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][dow];
+              const monthName = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][+m-1];
+              return `${dayName} ${+d} de ${monthName} del ${y}`;
+            })() : ""}
+          </span>
           <span className="session-workout">{s.workout}</span>
           {prs.size > 0 && (
             <span style={{ fontSize: 11, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.6)", color: "#f59e0b", borderRadius: 8, padding: "3px 9px", fontWeight: 800, display:"flex", alignItems:"center", gap:4 }}>
@@ -6793,6 +7399,40 @@ if (sessWeight > prevBest && sessWeight > 0) prs.add(ex.name);
               </div>
             );
           })}
+          {/* ── Resumen de sesión ── */}
+          {(() => {
+            const totalSets = (s.exercises||[]).reduce((a, ex) => a + (ex.sets?.length || 1), 0);
+            const totalVol  = Math.round(calcSessionVolume(s));
+            const durMins   = s.durationSecs ? Math.round(s.durationSecs / 60) : null;
+            const topEx     = (s.exercises||[]).reduce((best, ex) => {
+              const w = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
+              return w > (best?.w||0) ? { name: ex.name, w } : best;
+            }, null);
+            const stats = [
+              { icon: "⏱", label: "Duración",  value: durMins ? `${durMins} min` : "—" },
+              totalVol  && { icon: "🏋️", label: "Volumen",   value: totalVol >= 1000 ? `${(totalVol/1000).toFixed(1)}t` : `${totalVol}kg` },
+              { icon: "🔁", label: "Series",    value: `${totalSets} series` },
+              { icon: "💪", label: "Ejercicios", value: `${(s.exercises||[]).length}` },
+              topEx     && { icon: "⭐", label: "Top peso",  value: `${topEx.name} ${topEx.w}kg` },
+              prs.size  && { icon: "🏆", label: "PRs",       value: `${[...prs].join(", ")}` },
+            ].filter(Boolean);
+            return (
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+                gap: 8, margin: "14px 0 10px",
+                padding: "12px 14px",
+                background: "var(--input-bg)", borderRadius: 12,
+                border: "1px solid var(--border)",
+              }}>
+                {stats.map((st, i) => (
+                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{st.icon} {st.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{st.value}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           <div className="session-actions">
             <button className="btn-ghost" onClick={() => onEdit(s)}>✏️ Editar sesión</button>
             <button className="btn-ghost" onClick={() => onDuplicate(s)}>📋 Duplicar</button>
@@ -6953,9 +7593,12 @@ function LiveTrainMode({
   const [exData, setExData] = useState(() =>
     exercises.map(ex => ({
       ...ex,
+      restSecs: ex.restSecs || null, // null = usar defaultRest global
       sets: ex.sets?.length
         ? ex.sets.map(s => ({ ...s, done: false }))
-        : [{ id: uid(), weight: "", reps: "", done: false }],
+        : Array.from({ length: parseInt(ex.series) || 3 }, () => ({
+            id: uid(), weight: ex.weight || "", reps: ex.reps || "", done: false
+          })),
     }))
   );
   const [showSummary, setShowSummary] = useState(false);
@@ -6987,6 +7630,12 @@ function LiveTrainMode({
     { label: "2m", secs: 120 },
     { label: "3m", secs: 180 },
   ];
+  const [defaultRest, setDefaultRest] = useState(() => load("gym_default_rest", 90));
+
+  function saveDefaultRest(secs) {
+    setDefaultRest(secs);
+    store("gym_default_rest", secs);
+  }
 
   useEffect(() => {
     if (running) timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -7009,7 +7658,8 @@ function LiveTrainMode({
     ));
     // Auto-lanzar timer de descanso al COMPLETAR una serie
     if (!wasDone) {
-      startRest(90);
+      const exRestSecs = exData[exIdx]?.restSecs ?? defaultRest;
+      startRest(exRestSecs);
       if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
       }
@@ -7061,10 +7711,40 @@ function LiveTrainMode({
       : BRUX_MOODS.happy;
 
     const celebMessages = completionPct >= 90
-      ? ["¡Lo completaste todo! Eso es nivel élite 🔥", "¡100%! Eres una bestia del gym 🏆", "¡Brutal! Brux está sin palabras. Buenas, claro. 💪"]
+      ? [
+          "¡Lo completaste todo! Eso es nivel élite 🔥",
+          "¡100%! Eres una bestia del gym 🏆",
+          "¡Brutal! Brux está sin palabras. Buenas, claro. 💪",
+          "Sesión perfecta. Así se construye un cuerpo de acero. 🔩",
+          "Todo completado. Cada rep contó. Brux lo vio todo.",
+          "¡Imparable! Eso no lo hace cualquiera. Bien hecho. 🎯",
+          "Nivel desbloqueado. Brux actualiza tu expediente. 📋",
+          "¿100%? Brux se quita el sombrero. Literalmente. 🎩",
+          "Completaste todo. El gym te debe una reverencia. 🙇",
+        ]
       : completionPct >= 60
-      ? ["¡Buen trabajo! Cada serie cuenta 👊", "¡Sesión completada! Mañana más 💪", "¡Así se hace! Consistencia es la clave 🗝️"]
-      : ["Algo es algo. Lo importante es aparecer 💯", "¡Viniste y eso ya es una victoria! 🌟", "El primer paso siempre es el más difícil. ¡Seguí! 🚀"];
+      ? [
+          "¡Buen trabajo! Cada serie cuenta 👊",
+          "¡Sesión completada! Mañana más 💪",
+          "¡Así se hace! Consistencia es la clave 🗝️",
+          "Más de la mitad bien ejecutada. Eso se llama progreso real.",
+          "Sólido. No todos los días son perfectos y está bien. ✅",
+          "Trabajo hecho. Brux anota el esfuerzo, no solo el resultado.",
+          "Buen ritmo hoy. Con esto se construyen hábitos de hierro. 🏗️",
+          "Sesión cerrada. Tu yo del futuro te lo va a agradecer. ⏳",
+          "No fue el 100%, pero fue tuyo. Y eso vale mucho. 💛",
+        ]
+      : [
+          "Algo es algo. Lo importante es aparecer 💯",
+          "¡Viniste y eso ya es una victoria! 🌟",
+          "El primer paso siempre es el más difícil. ¡Seguí! 🚀",
+          "Días difíciles también cuentan. Brux lo respeta.",
+          "Hoy no fue tu mejor día y de todas formas entrenaste. Eso es carácter. 💪",
+          "Medio entrenamiento sigue siendo mejor que ninguno. Siempre.",
+          "El cuerpo no siempre coopera. Lo que importa es que volviste. 🔄",
+          "Brux sabe que no fue fácil hoy. Por eso vale más. 🙌",
+          "Apareciste. Eso ya te pone en el top. El resto viene solo. 📈",
+        ];
     const celebMsg = celebMessages[Math.floor(Date.now()/86400000) % celebMessages.length];
 
     return (
@@ -7267,7 +7947,13 @@ function LiveTrainMode({
         flexShrink: 0, position: "fixed", top: 0, left: 0, right: 0, zIndex: 500,
       }}>
         <button
-          onClick={onBack}
+          onClick={() => {
+            const hasDone = exData.some(ex => ex.sets.some(s => s.done));
+            if (hasDone) {
+              if (!window.confirm("¿Salir del entrenamiento? Perderás el progreso no guardado.")) return;
+            }
+            onBack();
+          }}
           style={{
             background: "none", border: "1px solid var(--border)",
             color: "var(--text-muted)", borderRadius: 8, padding: "6px 10px",
@@ -7388,6 +8074,24 @@ function LiveTrainMode({
                       🏆 Mejor: {bestPrev}kg 1RM
                     </div>
                   )}
+                  {/* Per-exercise rest time selector */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>⏱ Descanso:</span>
+                    {[60, 90, 120, 180].map(secs => {
+                      const active = (ex.restSecs ?? defaultRest) === secs;
+                      return (
+                        <button key={secs} onClick={() => setExData(prev => prev.map((e, i) => i !== currentEx ? e : { ...e, restSecs: secs }))}
+                          style={{
+                            background: active ? "var(--accent)" : "var(--input-bg)",
+                            border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                            color: active ? "white" : "var(--text-muted)",
+                            borderRadius: 20, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                          }}>
+                          {secs < 120 ? `${secs}s` : `${secs/60}m`}
+                        </button>
+                      );
+                    })}
+                  </div>
               </div>
 
               {/* Sets table */}
@@ -7530,14 +8234,26 @@ function LiveTrainMode({
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <span style={{ fontSize: 18 }}>⏱️</span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
-                        Iniciar descanso
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>
+                          Iniciar descanso
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                          Auto: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{defaultRest < 60 ? `${defaultRest}s` : `${defaultRest/60}m`}</span>
+                          <span style={{ margin: "0 4px", opacity: 0.4 }}>·</span>
+                          {REST_OPTS_LIVE.map(o => (
+                            <button key={o.secs} onClick={() => saveDefaultRest(o.secs)}
+                              style={{ background: defaultRest === o.secs ? "var(--accent-dim)" : "none", border: "none", color: defaultRest === o.secs ? "var(--accent)" : "var(--text-muted)", borderRadius: 4, padding: "1px 5px", cursor: "pointer", fontSize: 10, fontWeight: defaultRest === o.secs ? 800 : 400 }}>
+                              {o.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {REST_OPTS_LIVE.map(o => (
                           <button key={o.label} onClick={() => startRest(o.secs)}
-                            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontWeight: 600 }}>
-                            {o.label}
+                            style={{ background: o.secs === defaultRest ? "var(--accent-dim)" : "var(--input-bg)", border: `1px solid ${o.secs === defaultRest ? "var(--accent)" : "var(--border)"}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: o.secs === defaultRest ? "var(--accent)" : "var(--text-muted)", fontSize: 11, fontWeight: o.secs === defaultRest ? 700 : 600 }}>
+                            {o.label}{o.secs === defaultRest ? " ⭐" : ""}
                           </button>
                         ))}
                       </div>
@@ -8000,6 +8716,8 @@ const [histPage, setHistPage] = useState(0);
   const [suggestions, setSuggestions] = useState([]);
   const [showSugg, setShowSugg] = useState(false);
   const [progressEx, setProgressEx] = useState(null);
+  const [showProgressPicker, setShowProgressPicker] = useState(false);
+  const [pickerMuscle, setPickerMuscle] = useState("");
   const [showTimer, setShowTimer] = useState(false);
   const [showOneRM, setShowOneRM] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
@@ -8031,16 +8749,10 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     loadCustomExercises().then(customs => {
       const map = {};
       customs.forEach(ex => {
-        if (!EXERCISE_DB.find(e => e.name === ex.name)) {
-          EXERCISE_DB.push({ name: ex.name, muscle: ex.muscle, machine: false, equipment: "Personalizado" });
-        }
+        registerCustomExercise(ex.name, ex.muscle);
         if (ex.gifUrl) map[ex.name] = ex.gifUrl;
       });
       setCustomGifsMap(map);
-      console.log("[GymApp] setCustomGifsMap keys:", Object.keys(map));
-      customs.forEach(ex => {
-        console.log("[GymApp] doc →", JSON.stringify({ id: ex.id, name: ex.name, gifUrl: ex.gifUrl ? ex.gifUrl.slice(0,50) : "EMPTY" }));
-      });
     });
   }, []);
 
@@ -8136,7 +8848,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
   const allExNames = [...new Set(sessions.flatMap(s => (s.exercises || []).map(e => e.name)))];
   const isGuest = user.isGuest;
-  const canAdd = isGuest ? sessions.length < 3 : true;
+  const GUEST_MAX = 3;
+  const canAdd = isGuest ? sessions.length < GUEST_MAX : true;
   const canExport = !isGuest;
   const canCharts = !isGuest;
 
@@ -8173,7 +8886,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     const sets = Array.from({ length: count }, () => ({ id: uid(), weight: exWeight, reps: exReps }));
     if (exName === "__custom__" && exCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
       saveCustomExercise(finalName, exCustomMuscle);
-      EXERCISE_DB.push({ name: finalName, muscle: exCustomMuscle, machine: false, equipment: "Personalizado" });
+      registerCustomExercise(finalName, exCustomMuscle);
     }
     setCurrentExercises(prev => [...prev, { id: uid(), name: finalName, sets, weight: exWeight, reps: exReps, note: exNote }]);
     setExName(""); setExCustom(""); setExCustomMuscle(""); setExWeight(""); setExReps(""); setExSets([]); setExSeriesCount("3"); setExNote(""); setShowSugg(false);
@@ -8190,6 +8903,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   function saveSession() {
     if (!date || !workout) { showToast("⚠️ Faltan fecha o tipo de entrenamiento"); return; }
     if (currentExercises.length === 0) { showToast("⚠️ Agrega al menos un ejercicio"); return; }
+    if (isGuest && !editingId && sessions.length >= GUEST_MAX) { showToast("⛔ Límite de 3 sesiones en modo invitado. Crea una cuenta para continuar."); return; }
     if (!canAdd && !editingId) { showToast("⚠️ Límite de 5 sesiones en plan Free"); setShowPlans(true); return; }
     if (editingId) {
       setSessions(prev => prev.map(s => s.id === editingId ? { ...s, date, workout, notes, exercises: currentExercises } : s));
@@ -8309,7 +9023,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   ))}
 
   {[
-      { label: "📅 PLANIFICACIÓN", items: [
+      { label: "📅 ORGANIZAR", items: [
         { icon: "📅", label: "Planificador", action: () => openPlanner("plan") },
         { icon: "📋", label: "Plantillas", action: () => setShowTemplates(true) },
       ]},
@@ -8318,6 +9032,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         { icon: "⚔️", label: "Reto semanal", action: () => setShowChallenge(true) },
       ]},
       { label: "⚙️ PERSONAL", items: [
+        { icon: "📈", label: "Progreso", action: () => setShowProgressPicker(true) },
         { icon: "⚖️", label: "Peso & Estatura", action: () => setShowBodyStats(true) },
         { icon: "🎽", label: "Mi Coach", action: () => setShowAthleteCoach(true) },
         ...(user.isCoach ? [{ icon: "🏅", label: "Panel Coach", action: () => setShowCoach(true) }] : []),
@@ -8374,7 +9089,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 </div>
             <div style={{ minWidth: 0 }}>
               <div className="user-name">{user.name}</div>
-              {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}></span>}
+              {!isGuest && <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}></span>}
             </div>
           </div>
           <button className="nav-item" onClick={logout}>
@@ -8513,6 +9228,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         onBack={() => setLiveActive(false)}
         onSaveSession={(finalExercises, elapsedSecs) => {
           if (!workout) { showToast("⚠️ Falta el nombre del entrenamiento"); return; }
+          if (isGuest && sessions.length >= GUEST_MAX) { showToast("⛔ Límite de 3 sesiones en modo invitado. Crea una cuenta para continuar."); return; }
           const newSession = {
             id: uid(), date, workout, notes,
             exercises: finalExercises, unit,
@@ -8542,7 +9258,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
           {isGuest && (
             <div className="guest-banner">
-              <span>👤 Modo invitado — máx. 3 sesiones.</span>
+              <span>👤 Modo invitado — {Math.min(sessions.length, GUEST_MAX)}/{GUEST_MAX} sesiones usadas{sessions.length >= GUEST_MAX - 1 ? (sessions.length >= GUEST_MAX ? " · ⛔ Sin espacio" : " · ⚠️ Última sesión disponible") : ""}.</span>
               <button className="link-btn" onClick={logout} style={{ color: "#f59e0b", marginLeft: 8 }}>
                 Crear cuenta →
               </button>
@@ -8918,23 +9634,37 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
             {currentExercises.length > 0 && (
               <div className="ex-list" style={{ marginTop: 10 }}>
-                {currentExercises.map((ex, idx) => (
-                  <div key={ex.id} style={{
-                    background: "var(--input-bg)", border: "1px solid var(--border)",
-                    borderRadius: 10, marginBottom: 8, padding: "10px 14px",
-                    display: "flex", alignItems: "center", gap: 12,
-                  }}>
-
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{ex.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        {ex.sets?.length > 1 ? `${ex.sets.length} series` : `${ex.weight || "—"}kg × ${ex.reps || "—"}`}
+                {currentExercises.map((ex) => (
+                  <div key={ex.id} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
+                      <ExerciseGif exName={ex.name} size={32} />
+                      <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{ex.name}</span>
+                      <button className="chip-del" style={{ fontSize: 16 }}
+                        onClick={() => setCurrentExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "8px 12px" }}>
+                      <div>
+                        <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>PESO (kg)</label>
+                        <input className="input" type="number" inputMode="decimal" placeholder="0"
+                          value={ex.weight || ""}
+                          onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, weight: e.target.value }))}
+                          style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>REPS</label>
+                        <input className="input" type="number" inputMode="decimal" placeholder="0"
+                          value={ex.reps || ""}
+                          onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, reps: e.target.value }))}
+                          style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>SERIES</label>
+                        <input className="input" type="number" inputMode="decimal" placeholder="3"
+                          value={ex.series || ex.sets?.length || "3"}
+                          onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, series: e.target.value }))}
+                          style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
                       </div>
                     </div>
-                    <button className="chip-del" style={{ fontSize: 16 }}
-                      onClick={() => setCurrentExercises(p => p.filter(e => e.id !== ex.id))}>
-                      ✕
-                    </button>
                   </div>
                 ))}
               </div>
@@ -8985,9 +9715,15 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </div>
           </div>
 
+          {isGuest && !editingId && sessions.length === 2 && canAdd && (
+            <div className="upgrade-banner" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.35)", color: "#fbbf24" }}>
+              ⚠️ Esta es tu última sesión disponible en modo invitado.{" "}
+              <button className="link-btn" onClick={logout}>Crear cuenta gratis →</button>
+            </div>
+          )}
           {!canAdd && !editingId && isGuest && (
             <div className="upgrade-banner">
-              ⚠️ Límite de 3 sesiones.{" "}
+              ⛔ Has alcanzado el límite de 3 sesiones.{" "}
               <button className="link-btn" onClick={logout}>Crear cuenta →</button>
             </div>
           )}
@@ -9395,11 +10131,11 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       {showTemplates && (
         <TemplatesModal
           sessions={sessions}
-          onLoad={(workout, exercises) => {
+          onLoad={(workout, exercises, mode = "live") => {
             setWorkout(workout);
             setCurrentExercises(exercises.map(e => ({ ...e, id: uid() })));
             setActiveTab("new");
-            setSessionMode("register");
+            setSessionMode(mode);
           }}
           onClose={() => setShowTemplates(false)}
         />
@@ -9431,6 +10167,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       {showBodyStats && (
         <BodyStatsModal
           stats={bodyStats}
+          uid={user.uid}
+          isGuest={user.isGuest}
           onSave={s => setBodyStats(s)}
           onClose={() => setShowBodyStats(false)}
         />
@@ -9481,10 +10219,75 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           onClose={() => setShowProfile(false)}
         />
       )}
+      {showProgressPicker && (() => {
+        const exNames = [...new Set(sessions.flatMap(s => (s.exercises||[]).map(e => e.name)))];
+        const grouped = {};
+        exNames.forEach(name => {
+          const muscle = EXERCISE_DB.find(e => e.name === name)?.muscle || "Otros";
+          if (!grouped[muscle]) grouped[muscle] = [];
+          grouped[muscle].push(name);
+        });
+        const muscleOrder = [...MUSCLES, "Otros"].filter(m => grouped[m]);
+        const activeMuscle = (pickerMuscle && grouped[pickerMuscle]) ? pickerMuscle : muscleOrder[0] || "";
+        const muscleIcons = { Pecho:"💪", Espalda:"🏋️", Hombros:"🔺", Bíceps:"💥", Tríceps:"🔱", Cuádriceps:"🦵", Femoral:"🦵", Glúteos:"🍑", Pantorrillas:"🦶", Core:"🎯", Cardio:"❤️", Otros:"📌" };
+        return (
+          <div className="overlay" onClick={() => setShowProgressPicker(false)}>
+            <div className="modal modal-wide" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">📈 Progreso</h3>
+                <button className="close-btn" onClick={() => setShowProgressPicker(false)}>✕</button>
+              </div>
+
+              {/* Main tabs */}
+              <div style={{ display:"flex", gap:0, marginBottom:16, background:"var(--input-bg)", borderRadius:10, padding:3 }}>
+                {[["actividad","📅 Actividad"],["ejercicio","💪 Por ejercicio"]].map(([k,l]) => (
+                  <button key={k} onClick={() => setPickerMuscle(k === "actividad" ? "__actividad__" : activeMuscle)}
+                    style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: (k==="actividad"?pickerMuscle==="__actividad__":pickerMuscle!=="__actividad__") ? "var(--accent)" : "transparent", color: (k==="actividad"?pickerMuscle==="__actividad__":pickerMuscle!=="__actividad__") ? "white" : "var(--text-muted)", fontWeight:700, fontSize:13, cursor:"pointer", transition:"all 0.2s" }}>{l}</button>
+                ))}
+              </div>
+
+              {pickerMuscle === "__actividad__" ? (
+                <WeeklyChart sessions={sessions} />
+              ) : (
+                exNames.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>Sin ejercicios registrados aún.</p>
+                ) : (<>
+                  {/* Muscle chips */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 16 }}>
+                    {muscleOrder.map(m => (
+                      <button key={m} onClick={() => setPickerMuscle(m)}
+                        style={{ padding: "6px 13px", borderRadius: 20, border: `1px solid ${activeMuscle === m ? "var(--accent)" : "var(--border)"}`, background: activeMuscle === m ? "var(--accent-dim)" : "var(--input-bg)", color: activeMuscle === m ? "var(--accent)" : "var(--text-muted)", fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s" }}>
+                        {muscleIcons[m] || "•"} {m}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Exercise list */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {(grouped[activeMuscle] || []).map(name => {
+                      const count = sessions.filter(s => (s.exercises||[]).some(e => e.name === name)).length;
+                      return (
+                        <button key={name} onClick={() => { setProgressEx(name); setShowProgressPicker(false); }}
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", color: "var(--text)", fontSize: 13, fontWeight: 600, transition: "all 0.15s" }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-dim)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--input-bg)"; }}
+                        >
+                          <span>{name}</span>
+                          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>{count} sesión{count !== 1 ? "es" : ""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>)
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {progressEx && (
         <ProgressModal
           exName={progressEx}
           sessions={sessions}
+          onBack={() => { setProgressEx(null); setShowProgressPicker(true); }}
           onClose={() => setProgressEx(null)}
         />
       )}
@@ -9596,7 +10399,14 @@ export default function App() {
   async function loginWithGoogle() {
     try {
       googleProvider.setCustomParameters({ prompt: "select_account" });
-      const cred = await signInWithPopup(auth, googleProvider);
+      let cred;
+      if (Capacitor.isNativePlatform()) {
+        await signInWithRedirect(auth, googleProvider);
+        cred = await getRedirectResult(auth);
+        if (!cred) return { ok: false, msg: "No se pudo completar el login" };
+      } else {
+        cred = await signInWithPopup(auth, googleProvider);
+      }
       const firebaseUser = cred.user;
       let profile = null;
       try {
