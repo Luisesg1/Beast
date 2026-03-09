@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import GIF_MAP from './assets/gif/gifMap.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithCredential } from "firebase/auth";
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { getFirestore, initializeFirestore, persistentLocalCache, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const firebaseConfig = {
@@ -13,7 +15,6 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
-const ADMIN_EMAILS = ["luiseduardooo2000@gmail.com"]; // reemplaza con tu email real
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(firebaseApp);
 const db = initializeFirestore(firebaseApp, { localCache: persistentLocalCache() });
@@ -35,6 +36,7 @@ const numDot = (v) => v.replace(/[^0-9.]/g, "");
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 const DAYS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+const LIVE_DRAFT_KEY = "gym_live_draft";
 
 const ACCENT_COLORS = [
   { name: "Azul",    value: "#3b82f6", dim: "#1a2f52" },
@@ -122,7 +124,29 @@ function ExerciseGif({ exName, size = 120 }) {
   const [expanded, setExpanded] = useState(false);
   const { gifs } = useCustomGifs();
   const src = gifs[exName] || GIF_MAP[exName];
-  if (!src || !exName || exName === "__custom__") return null;
+
+  // Placeholder cuando no hay GIF
+  if (!src || !exName || exName === "__custom__") {
+    if (!exName || exName === "__custom__") return null;
+    const muscle = EXERCISE_DB.find(e => e.name === exName)?.muscle || "";
+    const muscleIcon = { Pecho:"💪", Espalda:"🔙", Hombros:"🏋️", Bíceps:"💪", Tríceps:"💪", Cuádriceps:"🦵", Femoral:"🦵", Glúteos:"🍑", Pantorrillas:"🦵", Core:"🎯", Cardio:"🏃" }[muscle] || "🏋️";
+    return (
+      <div style={{
+        width: size, height: size,
+        borderRadius: size > 60 ? 16 : 10,
+        border: "2px dashed var(--border)",
+        background: "var(--input-bg)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+        fontSize: size > 60 ? size * 0.35 : size * 0.45,
+        color: "var(--text-muted)",
+        opacity: 0.5,
+      }}>
+        {muscleIcon}
+      </div>
+    );
+  }
+
   return (
     <>
       <img
@@ -136,6 +160,7 @@ function ExerciseGif({ exName, size = 120 }) {
           flexShrink: 0,
           background: "var(--input-bg)",
           cursor: "zoom-in",
+          mixBlendMode: "luminosity",
           transition: "transform 0.2s, border-color 0.2s",
         }}
         onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.borderColor = "var(--accent)"; }}
@@ -246,6 +271,43 @@ function Sparkline({ data }) {
 }
 
 // ─── PR Confetti ──────────────────────────────────────────────────────────────
+// ─── Email Verify Wall ────────────────────────────────────────────────────────
+function EmailVerifyWall({ user, children }) {
+  const [resent, setResent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  // Google users are always verified
+  if (!user || user.emailVerified || user.isGuest) return children;
+
+  async function resendVerification() {
+    setSending(true);
+    try {
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser) await sendEmailVerification(firebaseUser);
+      setResent(true);
+    } catch(e) { console.error(e); }
+    setSending(false);
+  }
+
+  return (
+    <div style={{ padding: "32px 20px", textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>✉️</div>
+      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
+        Verifica tu email
+      </div>
+      <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 20, maxWidth: 320, margin: "0 auto 20px" }}>
+        Esta función requiere un email verificado. Revisa tu bandeja de entrada y haz clic en el enlace que te enviamos a <strong style={{ color: "var(--text)" }}>{user.email}</strong>.
+      </div>
+      {resent
+        ? <div style={{ color: "#22c55e", fontSize: 13, fontWeight: 700 }}>✅ Email reenviado. Revisa tu bandeja.</div>
+        : <button className="btn-ghost" onClick={resendVerification} disabled={sending}>
+            {sending ? "⏳ Enviando..." : "Reenviar email de verificación"}
+          </button>
+      }
+    </div>
+  );
+}
+
 function PRConfetti({ prs, onDone }) {
   const canvasRef = useRef();
   useEffect(() => {
@@ -318,17 +380,24 @@ function PRConfetti({ prs, onDone }) {
 function encodeTemplate(t) {
   try {
     const mini = { n: t.name, d: t.day ?? "", e: (t.exercises||[]).map(ex => ({ n: ex.name, w: ex.weight, r: ex.reps, s: ex.series || ex.sets?.length || 3 })) };
-    return btoa(unescape(encodeURIComponent(JSON.stringify(mini)))).replace(/=/g,"");
+    const bytes = new TextEncoder().encode(JSON.stringify(mini));
+    return btoa(String.fromCharCode(...bytes)).replace(/=/g,"");
   } catch { return null; }
 }
 
 function decodeTemplate(code) {
   try {
     const padded = code + "===".slice(0, (4 - code.length % 4) % 4);
-    const obj = JSON.parse(decodeURIComponent(escape(atob(padded))));
+    const bytes = Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+    const obj = JSON.parse(new TextDecoder().decode(bytes));
+    if (!obj || typeof obj.n !== "string") return null;
     return {
-      id: uid(), name: obj.n, workout: obj.n, day: obj.d ?? "",
-      exercises: (obj.e||[]).map(e => ({ id: uid(), name: e.n, weight: e.w||"", reps: e.r||"", series: String(e.s||3), sets:[] })),
+      id: uid(), name: obj.n.slice(0, 100), workout: obj.n.slice(0, 100), day: obj.d ?? "",
+      exercises: (Array.isArray(obj.e) ? obj.e : []).slice(0, 50).map(e => ({
+        id: uid(),
+        name: typeof e.n === "string" ? e.n.slice(0, 100) : "",
+        weight: e.w || "", reps: e.r || "", series: String(e.s || 3), sets: []
+      })),
       createdAt: todayStr()
     };
   } catch { return null; }
@@ -408,7 +477,7 @@ const [newWeight, setNewWeight] = useState("");
     saveTemplates([...templates, t]);
     setImportCode("");
     setImportMsg(`✅ Plantilla "${t.name}" importada!`);
-    setTimeout(() => setImportMsg(""), 3000);
+    const _t = setTimeout(() => setImportMsg(""), 3000); return () => clearTimeout(_t);
   }
   const [exCustomInput, setExCustomInput] = useState("");
   const [exCustomMuscleTpl, setExCustomMuscleTpl] = useState("");
@@ -1831,7 +1900,7 @@ function InfoPill({ title, lines, color = "var(--accent)" }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button onClick={e=>{e.preventDefault();e.stopPropagation();setOpen(true);}} style={{ background:"rgba(255,255,255,0.1)", border:"none", cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", width:16, height:16, borderRadius:"50%", color:"var(--text-muted)", fontSize:10, fontWeight:800, verticalAlign:"middle", marginLeft:5, flexShrink:0, lineHeight:1 }}>?</button>
+      <button onClick={e=>{e.preventDefault();e.stopPropagation();setOpen(true);}} style={{ background:"var(--card)", border:"none", cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", width:16, height:16, borderRadius:"50%", color:"var(--text-muted)", fontSize:10, fontWeight:800, verticalAlign:"middle", marginLeft:5, flexShrink:0, lineHeight:1 }}>?</button>
       {open && (<div className="overlay" style={{zIndex:99999}} onClick={e=>{e.stopPropagation();setOpen(false);}}><div className="modal" style={{maxWidth:320,padding:20}} onClick={e=>e.stopPropagation()}><div style={{fontSize:13,fontWeight:800,color,marginBottom:10}}>{title}</div>{lines.map((l,i)=><div key={i} style={{fontSize:12,color:"var(--text-muted)",lineHeight:1.6,marginBottom:4}}>{l}</div>)}<button className="btn-primary" style={{width:"100%",marginTop:12,fontSize:13}} onClick={e=>{e.stopPropagation();setOpen(false);}}>Entendido</button></div></div>)}
     </>
   );
@@ -1883,7 +1952,7 @@ const [age, setAge] = useState(stats.age || "25");
     onSave(newStats);
     setWeight("");
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const _st = setTimeout(() => setSaved(false), 2000); return () => clearTimeout(_st);
   }
 
   const entries = [...(stats.entries || [])].sort((a, b) => a.date.localeCompare(b.date));
@@ -2072,7 +2141,7 @@ const [age, setAge] = useState(stats.age || "25");
 
               {measureEntries.length > 0 && (
                 <div>
-                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Historial</div>
+                  <div style={{ fontSize:9, fontWeight:800, letterSpacing:3, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:6, opacity:0.5 }}>Historial</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {[...measureEntries].reverse().map((e,i) => (
                       <div key={e.date} style={{ display:"flex", alignItems:"center", gap:8, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px" }}>
@@ -2503,18 +2572,11 @@ function ExerciseEditor({ dayKey, exercises, isWeekly, removeExFromDay, addExToD
         <div style={{ flex: 1, minWidth: 60 }}>
           <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Reps" value={exReps} onChange={e => setExReps(numDot(e.target.value))} inputMode="decimal" />
         </div>
-        <button className="btn-ghost small" onClick={addSet}>+ Serie</button>
-      </div>
-      {exSets.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 8 }}>
-          {exSets.map((s, i) => (
-            <span key={s.id} className="set-chip">S{i+1}: {s.weight}kg×{s.reps}
-              <button className="chip-del" onClick={() => setExSets(p => p.filter(x => x.id !== s.id))}>×</button>
-            </span>
-          ))}
+        <div style={{ flex: 1, minWidth: 60 }}>
+          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Series" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value)} inputMode="numeric" />
         </div>
-      )}
-      <button className="btn-add-ex" style={{ fontSize: 12, padding: "7px" }} onClick={() => addExToDay(dayKey, isWeekly)}>+ Agregar ejercicio</button>
+      </div>
+      <button className="btn-add-ex" style={{ fontSize: 12, padding: "7px" }} onClick={handleAdd}>+ Agregar ejercicio</button>
     </div>
   );
 }
@@ -3100,7 +3162,7 @@ function ProgressModal({ exName, sessions, onClose, onBack }) {
           </div>
 
           {/* Historial tabla */}
-          <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:8 }}>Historial</div>
+          <div style={{ fontSize:9, fontWeight:800, letterSpacing:3, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:6, opacity:0.5 }}>Historial</div>
           <div style={{ maxHeight:180, overflowY:"auto" }}>
             {[...history].reverse().map((h,i) => {
               const prev = history[history.length-2-i];
@@ -3792,7 +3854,7 @@ function ShareCardModal({ session, user, unit, onClose }) {
       const canvas = canvasRef.current;
       canvas.toBlob(async blob => {
         await navigator.clipboard.write([new ClipboardItem({"image/png": blob})]);
-        setCopied(true); setTimeout(()=>setCopied(false), 2000);
+        setCopied(true); const _ct = setTimeout(()=>setCopied(false), 2000); return () => clearTimeout(_ct);
       });
     } catch { download(); }
   }
@@ -3866,7 +3928,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
       const quickStats = {};
       await Promise.all(athletesList.map(async (a) => {
         const [routinesSnap, data] = await Promise.all([
-          getDocs(collection(db, "athlete_routines", a.uid, "routines")),
+          getDocs(collection(db, "athlete_routines", a.uid, "routines")).catch(() => ({ docs: [] })),
           getAthleteData(a.uid),
         ]);
         map[a.uid] = routinesSnap.docs.map(d => d.data());
@@ -3894,7 +3956,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
 
   async function activateCoach() {
-  if (!ADMIN_EMAILS.includes(user.email)) {
+  if (!user.isAdmin) {
     setActivateError("❌ Solo administradores pueden activar el modo Coach.");
     return;
   }
@@ -3977,6 +4039,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
   async function handleAddAthlete() {
     if (!addAthleteEmail) return;
+    if (!user.isGuest && auth.currentUser && !auth.currentUser.emailVerified) {
+      setAddAthleteMsg("⚠️ Verifica tu email para usar funciones de coach. Revisa tu bandeja de entrada.");
+      return;
+    }
     if (athletes.some(a=>a.email?.toLowerCase()===addAthleteEmail.trim().toLowerCase())){setAddAthleteMsg("⚠️ Este atleta ya está en tu lista");return;}
     const result=await assignRoutineToAthlete(user.uid,addAthleteEmail.trim(),"","");
     if (result.ok){setAddAthleteMsg("✅ Atleta agregado");setAddAthleteEmail("");const p=await getCoachProfile(user.uid);setCoachProfile(p);}
@@ -4003,7 +4069,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
 
   function copyCode() {
     navigator.clipboard.writeText(coachProfile.code);
-    setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000);
+    setCodeCopied(true); const _cct = setTimeout(() => setCodeCopied(false), 2000); return () => clearTimeout(_cct);
   }
 
   const athletes=coachProfile?Object.values(Object.values(coachProfile.athletes||{}).reduce((acc,a)=>{const k=a.email?.toLowerCase()||a.uid;if(!acc[k]||(a.addedAt||"")>(acc[k].addedAt||""))acc[k]=a;return acc;},{})):[];
@@ -4494,24 +4560,24 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
   const defaultRest = load("gym_default_rest", 90);
 
   const REST_OPTS = [
-    { label: "1m Cardio", secs: 60 },
-    { label: "1.5m Hiper ⭐", secs: 90 },
-    { label: "2m Fuerza", secs: 120 },
-    { label: "3m Pesado", secs: 180 },
+    { label: "1M", secs: 60 },
+    { label: "1.5M", secs: 90 },
+    { label: "2M", secs: 120 },
+    { label: "3M", secs: 180 },
   ];
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 3000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
       {/* Header */}
-      <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+      <div style={{ background: "var(--sidebar-bg)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
         <button onClick={() => {
           const hasDone = exData.some(ex => ex.sets.some(s => s.done));
           if (hasDone) {
             if (!window.confirm("¿Salir del entrenamiento? Perderás el progreso no guardado.")) return;
           }
           onClose();
-        }} style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, display:"flex", alignItems:"center", gap:4 }}>← Salir</button>
+        }} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 12, display:"flex", alignItems:"center", gap:4, fontWeight: 600 }}>← Salir</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>⚡ {routine.name}</div>
           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series completadas</div>
@@ -4533,10 +4599,10 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
           const done = e.sets.every(s => s.done) && e.sets.length > 0;
           return (
             <button key={i} onClick={() => setCurrentEx(i)} style={{
-              background: currentEx === i ? "var(--accent)" : done ? "rgba(34,197,94,0.15)" : "var(--card)",
-              border: `1px solid ${currentEx === i ? "var(--accent)" : done ? "#22c55e" : "var(--border)"}`,
-              color: currentEx === i ? "white" : done ? "#22c55e" : "var(--text-muted)",
-              borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0
+              background: currentEx === i ? "var(--accent)" : done ? "rgba(232,255,0,0.08)" : "var(--card)",
+              border: `1px solid ${currentEx === i ? "var(--accent)" : done ? "rgba(232,255,0,0.3)" : "var(--border)"}`,
+              color: currentEx === i ? "#0a0a0a" : done ? "var(--accent)" : "var(--text-muted)",
+              borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1, textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif"
             }}>
               {done ? "✓ " : ""}{e.name}
             </button>
@@ -4551,13 +4617,15 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
 
             {/* GIF + nombre */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
-              <ExerciseGif exName={ex.name} size={120} />
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 900, marginTop: 10, textAlign: "center" }}>{ex.name}</div>
+              <div style={{ background: "var(--card)", borderRadius: 8, padding: 4, border: "1px solid var(--border)" }}>
+                <ExerciseGif exName={ex.name} size={112} style={{ display:"block", borderRadius:6 }} />
+              </div>
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 900, marginTop: 10, textAlign: "center", color: "var(--text)", letterSpacing: 1, textTransform: "uppercase" }}>{ex.name}</div>
               <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series · {ex.sets.filter(s=>s.done).length}/{ex.sets.length} de este ejercicio</div>
-              {ex.comment && <div style={{ fontSize: 12, color: "var(--accent)", fontStyle: "italic", marginTop: 4 }}>💬 {ex.comment}</div>}
+              {ex.comment && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: 4 }}>"{ex.comment}"</div>}
               {/* Per-exercise rest time selector */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
-                <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>⏱ Descanso:</span>
+                <span style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 800, letterSpacing: 3, textTransform:"uppercase" }}>DESCANSO</span>
                 {[60, 90, 120, 180].map(secs => {
                   const active = (ex.restSecs ?? defaultRest) === secs;
                   return (
@@ -4565,8 +4633,8 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
                       style={{
                         background: active ? "var(--accent)" : "var(--input-bg)",
                         border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                        color: active ? "white" : "var(--text-muted)",
-                        borderRadius: 20, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                        color: active ? "#0a0a0a" : "var(--text-muted)",
+                        borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700,
                       }}>
                       {secs < 120 ? `${secs}s` : `${secs/60}m`}
                     </button>
@@ -4576,73 +4644,73 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
             </div>
 
             {/* Tabla series */}
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginBottom: 12 }}>
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", marginBottom: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 0, padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>#</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>PESO (KG)</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>REPS</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>✓</div>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>#</div>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>PESO (KG)</div>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>REPS</div>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800 }}>✓</div>
               </div>
               {ex.sets.map((s, j) => (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 8, padding: "8px 12px", alignItems: "center", background: s.done ? "rgba(34,197,94,0.07)" : "transparent", borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: s.done ? "#22c55e" : "var(--text-muted)" }}>S{j+1}</div>
+                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 8, padding: "8px 12px", alignItems: "center", background: s.done ? "rgba(232,255,0,0.05)" : "transparent", borderBottom: "1px solid var(--border)" }}>
+                  <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: s.done ? "var(--accent)" : "var(--text-muted)" }}>S{j+1}</div>
                   <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} inputMode="decimal"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
                   <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} inputMode="decimal"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
-                  <button onClick={() => toggleSet(currentEx, j)} style={{ width: 44, height: 40, background: s.done ? "#22c55e" : "var(--input-bg)", border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`, borderRadius: 10, cursor: "pointer", fontSize: 18, margin: "0 auto" }}>
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
+                  <button onClick={() => toggleSet(currentEx, j)} style={{ width: 44, height: 40, background: s.done ? "var(--accent)" : "var(--input-bg)", border: `2px solid ${s.done ? "var(--accent)" : "var(--border)"}`, borderRadius: 4, cursor: "pointer", fontSize: 18, margin: "0 auto", color: s.done ? "#0a0a0a" : "var(--text-muted)" }}>
                     {s.done ? "✓" : "○"}
                   </button>
                 </div>
               ))}
               <div style={{ display: "flex", gap: 0 }}>
-                <button onClick={() => addSet(currentEx)} style={{ flex: 1, background: "none", border: "none", borderTop: "1px dashed var(--border)", color: "var(--text-muted)", padding: 10, cursor: "pointer", fontSize: 13 }}>+ Añadir serie</button>
-                <button onClick={() => removeSet(currentEx)} style={{ background: "none", border: "none", borderTop: "1px dashed var(--border)", borderLeft: "1px solid var(--border)", color: "#ef4444", padding: "10px 16px", cursor: "pointer", fontSize: 13 }}>− Quitar</button>
+                <button onClick={() => addSet(currentEx)} style={{ flex: 1, background: "none", border: "none", borderTop: "1px dashed var(--border)", color: "var(--text-muted)", padding: 10, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ Añadir serie</button>
+                <button onClick={() => removeSet(currentEx)} style={{ background: "none", border: "none", borderTop: "1px dashed var(--border)", borderLeft: "1px solid var(--border)", color: "#ef4444", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>− Quitar</button>
               </div>
             </div>
 
             {/* Timer de descanso */}
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: "14px 16px", marginBottom: 16 }}>
               {restTimer ? (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>⏱ DESCANSANDO</div>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 4, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>DESCANSANDO</div>
                   {/* Barra de progreso */}
                   <div style={{ height: 6, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
-                    <div style={{ height: "100%", background: restTimer.left === 0 ? "#22c55e" : "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
+                    <div style={{ height: "100%", background: "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
                   </div>
                   {/* Timer + controles */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {/* -15s */}
                     <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
                     {/* Tiempo */}
-                    <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 36, fontWeight: 800, color: restTimer.left === 0 ? "#22c55e" : "var(--accent)" }}>
+                    <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 36, fontWeight: 800, color: "var(--accent)" }}>
                       {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
                     </div>
                     {/* +15s */}
                     <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
                   </div>
                   {/* Presets + cerrar */}
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
                     {REST_OPTS.map(o => (
                       <button key={o.label} onClick={() => startRest(o.secs)}
-                        style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "white" : "var(--text-muted)", borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                        style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#0a0a0a" : "var(--text-muted)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                         {o.label}
                       </button>
                     ))}
                     <button onClick={() => setRestTimer(null)}
-                      style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+                      style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
                       ✕ Quitar
                     </button>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>INICIAR DESCANSO</div>
+                  <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, fontWeight: 800, letterSpacing: 4, fontFamily: "Barlow Condensed, sans-serif", textTransform:"uppercase" }}>DESCANSO</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {REST_OPTS.map(o => (
-                      <button key={o.label} onClick={() => startRest(o.secs)} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 20, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{o.label}</button>
+                      <button key={o.label} onClick={() => startRest(o.secs)} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 3, padding: "5px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, letterSpacing: 0.5 }}>{o.label}</button>
                     ))}
                   </div>
                 </div>
@@ -4651,8 +4719,8 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
 
             {/* Nav ejercicios */}
             <div style={{ display: "flex", gap: 10 }}>
-              {currentEx > 0 && <button onClick={() => setCurrentEx(i => i-1)} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 10, padding: 10, cursor: "pointer", fontSize: 13 }}>← Anterior</button>}
-              {currentEx < exData.length - 1 && <button onClick={() => setCurrentEx(i => i+1)} style={{ flex: 1, background: "var(--accent)", border: "none", color: "white", borderRadius: 10, padding: 10, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700 }}>Siguiente →</button>}
+              {currentEx > 0 && <button onClick={() => setCurrentEx(i => i-1)} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: 12, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>← Anterior</button>}
+              {currentEx < exData.length - 1 && <button onClick={() => setCurrentEx(i => i+1)} style={{ flex: 1, background: "var(--accent)", border: "none", color: "#0a0a0a", borderRadius: 4, padding: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", boxShadow: "0 0 20px rgba(232,255,0,0.25)" }}>Siguiente →</button>}
             </div>
           </div>
         )}
@@ -4660,9 +4728,9 @@ function AthleteWorkoutRunner({ routine, onClose, onSave }) {
 
       {/* Boton Finalizar fijo abajo */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px 16px", background: "var(--bg)", borderTop: "1px solid var(--border)" }}>
-        <button onClick={() => { setRunning(false); onSave(exData, elapsed); }}
-          style={{ width: "100%", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", color: "white", borderRadius: 14, padding: "16px 0", fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800, cursor: "pointer", letterSpacing: 1 }}>
-          🏁 Finalizar
+        <button onClick={() => { setRunning(false); try { localStorage.removeItem(LIVE_DRAFT_KEY); } catch {} onSave(exData, elapsed); }}
+          style={{ width: "100%", background: "var(--accent)", border: "none", color: "#0a0a0a", borderRadius: 4, padding: "16px 0", fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, cursor: "pointer", letterSpacing: 4, textTransform: "uppercase", boxShadow: "0 0 24px rgba(232,255,0,0.2)" }}>
+          FINALIZAR →
         </button>
       </div>
     </div>
@@ -4699,6 +4767,10 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null }) {
 
   async function handleJoin() {
     if (!joinCode.trim()) { setJoinMsg("Ingresa un código"); return; }
+    if (!user.isGuest && auth.currentUser && !auth.currentUser.emailVerified) {
+      setJoinMsg("⚠️ Verifica tu email antes de conectarte con un coach. Revisa tu bandeja de entrada.");
+      return;
+    }
     setJoining(true);
     const result = await joinCoachByCode(user.uid, user.name, user.email, joinCode.trim().toUpperCase());
     setJoining(false);
@@ -4961,9 +5033,10 @@ async function deleteCoachRoutine(coachUid, routineId) {
 
 async function assignRoutineToAthlete(coachUid, athleteEmail, routineId, routineName, dayOfWeek = -1) {
   try {
-    const usersSnap = await getDocs(collection(db, "users"));
-    const athleteDoc = usersSnap.docs.find(d => d.data().email === athleteEmail);
-    if (!athleteDoc) return { ok: false, msg: "Atleta no encontrado" };
+    const usersQ = query(collection(db, "users"), where("email", "==", athleteEmail.trim().toLowerCase()));
+    const usersSnap = await getDocs(usersQ);
+    const athleteDoc = usersSnap.empty ? null : usersSnap.docs[0];
+    if (!athleteDoc) return { ok: false, msg: "Atleta no encontrado. Asegúrate de que el email sea correcto y que el atleta tenga cuenta." };
     const athleteUid = athleteDoc.id;
 
     const docId = routineId && routineId !== "" ? routineId : uid();
@@ -5159,24 +5232,40 @@ async function teamsSet(code, val) {
   } catch(e) { console.error("teamsSet:", e); return false; }
 }
 
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+const AVATAR_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
 function AvatarEditor({ user, onPhotoUpdate }) {
   const [uploading, setUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
   const fileRef = useRef();
 
   async function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
+    setAvatarError("");
+
+    if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
+      setAvatarError("Solo se aceptan imágenes JPG, PNG, WebP o GIF.");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarError("La imagen no puede superar 2 MB.");
+      return;
+    }
+
     setUploading(true);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result;
-      try {
-        await updateDoc(doc(db, "users", user.uid), { photoURL: base64 });
-        onPhotoUpdate(base64);
-      } catch(e) { console.error(e); }
-      setUploading(false);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const storageRef = ref(storage, `avatars/${user.uid}`);
+      await uploadBytes(storageRef, file, { contentType: file.type });
+      const downloadURL = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, "users", user.uid), { photoURL: downloadURL });
+      onPhotoUpdate(downloadURL);
+    } catch(err) {
+      console.error(err);
+      setAvatarError("Error al subir la foto. Intenta de nuevo.");
+    }
+    setUploading(false);
   }
 
   return (
@@ -5187,14 +5276,15 @@ function AvatarEditor({ user, onPhotoUpdate }) {
           : user.name?.[0]?.toUpperCase()
         }
       </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile} />
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{display:"none"}} onChange={handleFile} />
       <button className="btn-ghost small" onClick={() => fileRef.current.click()} disabled={uploading}>
         {uploading ? "⏳ Subiendo..." : "📷 Cambiar foto"}
       </button>
+      {avatarError && <div style={{fontSize:11,color:"var(--danger)",maxWidth:200,textAlign:"center"}}>{avatarError}</div>}
     </div>
   );
 }
-function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose }) {
+function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose, onPhotoUpdate }) {
   const prs = getPRs(sessions);
   const streak = getStreak(sessions);
   const lastEntry = bodyStats.entries?.slice(-1)[0];
@@ -5219,7 +5309,7 @@ function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose 
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
         <div style={{textAlign:"center",marginBottom:20}}>
-          <AvatarEditor user={user} onPhotoUpdate={(url) => { user.photoURL = url; }} />
+          <AvatarEditor user={user} onPhotoUpdate={(url) => { onPhotoUpdate && onPhotoUpdate(url); }} />
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:800}}>{user.name}</div>
           <div style={{fontSize:12,color:"var(--text-muted)"}}>{user.email}</div>
         </div>
@@ -5403,6 +5493,10 @@ function TeamsModal({ user, sessions, onClose }) {
   async function joinTeam() {
     const code = joinCode.trim().toUpperCase();
     if (!code) { setErr("Ingresa el código"); return; }
+    if (!user.isGuest && auth.currentUser && !auth.currentUser.emailVerified) {
+      setErr("⚠️ Verifica tu email antes de unirte a un team. Revisa tu bandeja de entrada.");
+      return;
+    }
     if (myTeams.length >= 3) { setErr("Puedes estar en un máximo de 3 teams."); return; }
     setLoading(true);
     const data = await teamsGet(`team_${code}`);
@@ -6154,6 +6248,259 @@ function AdminExercisesModal({ onClose }) {
   );
 }
 
+function ParticlesBackground() {
+  const canvasRef = useRef();
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let W = canvas.width = window.innerWidth;
+    let H = canvas.height = window.innerHeight;
+
+    const WORDS = [
+      "YEAH BUDDY", "LIGHT WEIGHT", "AIN'T NOTHIN'", "GET SOME",
+      "NO PAIN NO GAIN", "EAT BIG GET BIG", "BEAST MODE",
+      "DO YOU EVEN LIFT", "STAY HUNGRY", "ONE MORE REP",
+      "BUILT DIFFERENT", "NO DAYS OFF", "EMBRACE THE GRIND",
+      "1RM", "PR!", "5x5", "AMRAP", "DROP SET",
+      "100KG", "200KG", "315KG", "140KG", "180KG",
+      "SQUAT", "BENCH", "DEADLIFT", "OHP",
+      "GAINS", "SWOLE", "GRIND", "SHRED", "BULK",
+      "💪", "🔥", "⚡", "🏋️",
+      "DALE DURO", "SIN EXCUSAS", "A TOPE", "TÚ PUEDES",
+      "MÁS PESO", "UNA MÁS", "NO TE RINDAS", "MODO BESTIA",
+      "SIN DOLOR SIN GLORIA", "ENTRENA DURO", "SUDA MÁS",
+      "HOY ES DÍA DE PIERNA", "EL QUE PARA PIERDE",
+      "CONSISTENCIA", "DISCIPLINA", "SACRIFICIO",
+      "YA VIENE EL PR", "SUPÉRATE", "ROMPE LÍMITES",
+      "COME DUERME ENTRENA",
+    ];
+
+    // Speed tiers: slow, medium, fast, shooting star
+    function randomDrop() {
+      const tier = Math.random();
+      let speed, fontSize, alpha, trailLength;
+      if (tier < 0.5) {
+        // slow
+        speed = 0.3 + Math.random() * 0.4;
+        fontSize = 14 + Math.floor(Math.random() * 4);
+        alpha = 0.4 + Math.random() * 0.3;
+        trailLength = 0;
+      } else if (tier < 0.8) {
+        // medium
+        speed = 1.2 + Math.random() * 1.0;
+        fontSize = 16 + Math.floor(Math.random() * 5);
+        alpha = 0.6 + Math.random() * 0.3;
+        trailLength = 20;
+      } else if (tier < 0.95) {
+        // fast
+        speed = 3.5 + Math.random() * 2.0;
+        fontSize = 18 + Math.floor(Math.random() * 4);
+        alpha = 0.8 + Math.random() * 0.2;
+        trailLength = 50;
+      } else {
+        // shooting star — very fast, bright, long trail
+        speed = 8 + Math.random() * 6;
+        fontSize = 20;
+        alpha = 1.0;
+        trailLength = 120;
+      }
+      return {
+        x: Math.random() * W,
+        y: -40 - Math.random() * H * 0.5,
+        speed,
+        fontSize,
+        alpha,
+        trailLength,
+        word: WORDS[Math.floor(Math.random() * WORDS.length)],
+        color: Math.random() < 0.15 ? "#ffffff" : Math.random() < 0.5 ? "#60a5fa" : "#a78bfa",
+        trail: [], // stores previous y positions for shooting star effect
+      };
+    }
+
+    const NUM_DROPS = Math.floor(W / 22);
+    const drops = Array.from({ length: NUM_DROPS }, (_, i) => {
+      const d = randomDrop();
+      d.x = (i / NUM_DROPS) * W + Math.random() * (W / NUM_DROPS);
+      d.y = -40 - Math.random() * H; // stagger start positions
+      return d;
+    });
+
+    // ── YEAH BUDDY special state ──
+    let yeahBuddyFreeze = 0;   // frames remaining in freeze
+    let shockwave = null;      // { x, y, r, alpha } explosion ring
+    let flashAlpha = 0;        // screen flash
+    const FREEZE_FRAMES = 48;  // ~0.8s at 60fps
+    let yeahBuddyHits = 0;     // 0 = first drop, 1 = encore, 2 = gone forever
+
+    // Make one random drop always be YEAH BUDDY at start
+    const yeahDrop = drops[Math.floor(Math.random() * drops.length)];
+    yeahDrop.word = "YEAH BUDDY";
+    yeahDrop.isYeah = true;
+    yeahDrop.color = "#e8ff00";
+    yeahDrop.fontSize = 14;        // small, subtle
+    yeahDrop.alpha = 0.45;         // barely visible
+    yeahDrop.speed = 0.4;          // very slow
+    yeahDrop.trailLength = 0;      // no trail
+    yeahDrop.trail = [];
+
+    function spawnYeahBuddyEncore(drop) {
+      // Encore — HUGE, fast, epic
+      drop.y = -120;
+      drop.x = W * 0.1 + Math.random() * W * 0.8;
+      drop.word = "YEAH BUDDY";
+      drop.isYeah = true;
+      drop.color = "#e8ff00";
+      drop.fontSize = 48;        // big and proud
+      drop.alpha = 1.0;
+      drop.speed = 5 + Math.random() * 2;
+      drop.trailLength = 140;
+      drop.trail = [];
+    }
+
+    let raf;
+    function loop() {
+      const frozen = yeahBuddyFreeze > 0;
+
+      // Dark fade
+      ctx.fillStyle = frozen
+        ? "rgba(6,13,24,0.04)"   // slower fade during freeze = longer afterglow
+        : "rgba(6,13,24,0.15)";
+      ctx.fillRect(0, 0, W, H);
+
+      // Screen flash on impact
+      if (flashAlpha > 0) {
+        ctx.fillStyle = `rgba(232,255,0,${flashAlpha})`;
+        ctx.fillRect(0, 0, W, H);
+        flashAlpha = Math.max(0, flashAlpha - 0.06);
+      }
+
+      // Shockwave ring
+      if (shockwave) {
+        shockwave.r += 12;
+        shockwave.alpha -= 0.035;
+        if (shockwave.alpha <= 0) {
+          shockwave = null;
+        } else {
+          ctx.beginPath();
+          ctx.arc(shockwave.x, shockwave.y, shockwave.r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(232,255,0,${shockwave.alpha})`;
+          ctx.lineWidth = 3;
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = "#e8ff00";
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.lineWidth = 1;
+        }
+      }
+
+      drops.forEach(drop => {
+        const isYeah = drop.isYeah;
+
+        // Freeze all non-yeah drops
+        if (frozen && !isYeah) {
+          // Just redraw in place, fading out slowly
+          ctx.font = `800 ${drop.fontSize}px "Barlow Condensed", sans-serif`;
+          ctx.globalAlpha = drop.alpha * (yeahBuddyFreeze / FREEZE_FRAMES) * 0.5;
+          ctx.fillStyle = drop.color;
+          ctx.fillText(drop.word, Math.min(drop.x, W - ctx.measureText(drop.word).width - 4), drop.y);
+          ctx.globalAlpha = 1;
+          return;
+        }
+
+        // Draw trail
+        if (drop.trailLength > 0 && drop.trail.length > 1) {
+          for (let t = 0; t < drop.trail.length; t++) {
+            const ratio = t / drop.trail.length;
+            const trailAlpha = drop.alpha * ratio * (isYeah ? 0.6 : 0.4);
+            ctx.font = `800 ${drop.fontSize * (0.5 + ratio * 0.5)}px "Barlow Condensed", sans-serif`;
+            if (isYeah) {
+              ctx.fillStyle = `rgba(232,255,0,${trailAlpha})`;
+            } else {
+              ctx.fillStyle = drop.color.startsWith("#fff")
+                ? `rgba(255,255,255,${trailAlpha})`
+                : drop.color.includes("a7")
+                ? `rgba(167,139,250,${trailAlpha})`
+                : `rgba(96,165,250,${trailAlpha})`;
+            }
+            ctx.shadowBlur = 0;
+            ctx.fillText(drop.word, Math.min(drop.x, W - ctx.measureText(drop.word).width - 4), drop.trail[t]);
+          }
+        }
+
+        // Draw main word
+        ctx.font = `800 ${drop.fontSize}px "Barlow Condensed", sans-serif`;
+        if (isYeah) {
+          ctx.shadowBlur = 30;
+          ctx.shadowColor = "#e8ff00";
+          ctx.globalAlpha = drop.alpha;
+          ctx.fillStyle = "#e8ff00";
+        } else {
+          ctx.shadowBlur = drop.trailLength > 80 ? 24 : drop.trailLength > 0 ? 10 : 4;
+          ctx.shadowColor = drop.color;
+          ctx.globalAlpha = drop.alpha;
+          ctx.fillStyle = drop.color;
+        }
+        ctx.fillText(drop.word, Math.min(drop.x, W - ctx.measureText(drop.word).width - 4), drop.y);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+
+        // Update trail
+        if (drop.trailLength > 0) {
+          drop.trail.push(drop.y);
+          if (drop.trail.length > Math.floor(drop.trailLength / drop.speed)) {
+            drop.trail.shift();
+          }
+        }
+
+        drop.y += drop.speed;
+
+        // YEAH BUDDY hits bottom → trigger impact
+        if (isYeah && drop.y > H + 10) {
+          yeahBuddyHits++;
+          flashAlpha = yeahBuddyHits === 1 ? 0.22 : 0.35;
+          shockwave = { x: drop.x, y: H, r: 10, alpha: 0.9 };
+          yeahBuddyFreeze = FREEZE_FRAMES;
+
+          if (yeahBuddyHits === 1) {
+            // First hit → spawn encore
+            spawnYeahBuddyEncore(drop);
+          } else {
+            // Second hit (encore) → retire forever, become normal drop
+            drop.isYeah = false;
+            Object.assign(drop, randomDrop());
+          }
+          return;
+        }
+
+        if (!isYeah && drop.y > H + 60) {
+          const laneX = drop.x;
+          Object.assign(drop, randomDrop());
+          drop.x = laneX + (Math.random() - 0.5) * 30;
+        }
+      });
+
+      if (frozen) yeahBuddyFreeze--;
+
+      raf = requestAnimationFrame(loop);
+    }
+
+    ctx.fillStyle = "#060d18";
+    ctx.fillRect(0, 0, W, H);
+    loop();
+
+    const onResize = () => {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      ctx.fillStyle = "#060d18";
+      ctx.fillRect(0, 0, W, H);
+    };
+    window.addEventListener("resize", onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, []);
+  return <canvas ref={canvasRef} style={{ position:"fixed", top:0, left:0, width:"100vw", height:"100vh", zIndex:1, pointerEvents:"none" }} />;
+}
+
 function LoginScreen() {
   const { loginWithFirebase, registerWithFirebase, loginAsGuest, resetPassword, loginWithGoogle } = useAuth();
   const [mode, setMode] = useState("login");
@@ -6165,8 +6512,13 @@ function LoginScreen() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
+  const [animKey, setAnimKey] = useState(0);
 
-  function switchMode(m) { setMode(m); setErr(""); setMsg(""); }
+  function switchMode(m) {
+    setMode(m); setErr(""); setMsg("");
+    setAnimKey(k => k + 1);
+  }
 
   async function submit() {
     setErr(""); setMsg("");
@@ -6195,104 +6547,547 @@ function LoginScreen() {
     }
   }
 
+  const SLOGANS = [
+    { top: "ROMPE", bottom: "TUS LÍMITES" },
+    { top: "MODO", bottom: "BESTIA" },
+    { top: "SIN", bottom: "EXCUSAS" },
+    { top: "DALE", bottom: "DURO" },
+  ];
+  const slogan = SLOGANS[Math.floor(Date.now() / 86400000) % SLOGANS.length];
+
+  const inputStyle = (field) => ({
+    width: "100%",
+    background: "transparent",
+    border: "none",
+    borderBottom: `2px solid ${focusedField === field ? "#e8ff00" : "rgba(255,255,255,0.2)"}`,
+    color: "white",
+    fontFamily: "'Barlow', sans-serif",
+    fontSize: 15,
+    fontWeight: 500,
+    padding: "10px 0 8px",
+    outline: "none",
+    transition: "border-color 0.25s",
+    letterSpacing: 0.5,
+  });
+
+  const labelStyle = (field) => ({
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    color: focusedField === field ? "#e8ff00" : "rgba(255,255,255,0.4)",
+    display: "block",
+    marginBottom: 4,
+    transition: "color 0.25s",
+  });
+
   return (
-    <div className="login-page">
-      <div className="login-box">
-        <div className="login-logo">
-          <span style={{ fontSize: 36 }}>⚡</span>
-          <span className="logo-text">GymTracker</span>
+    <div style={{
+      minHeight: "100dvh",
+      width: "100vw",
+      maxWidth: "100%",
+      background: "#0a0a0a",
+      display: "flex",
+      flexDirection: "row",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* Background particles */}
+      <ParticlesBackground />
+
+      {/* Diagonal red accent */}
+      <div style={{
+        position: "fixed",
+        top: 0, right: 0,
+        width: "45vw",
+        height: "100vh",
+        background: "linear-gradient(135deg, transparent 0%, rgba(220,38,38,0.06) 100%)",
+        pointerEvents: "none",
+        zIndex: 2,
+      }} />
+
+      {/* Left panel - branding */}
+      <div style={{
+        width: "42%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+        padding: "60px 48px",
+        position: "relative",
+        zIndex: 10,
+        flexShrink: 0,
+      }}
+        className="login-left-panel"
+      >
+        {/* Logo top-left */}
+        <div style={{
+          position: "absolute", top: 32, left: 40,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 6,
+            background: "linear-gradient(135deg, #e8ff00, #facc15)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 15, fontWeight: 900, flexShrink: 0,
+          }}>⚡</div>
+          <span style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 15, fontWeight: 900, letterSpacing: 6,
+            color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
+          }}>GYMTRACKER</span>
         </div>
-        <p className="text-muted" style={{ marginBottom: 20, fontSize: 14 }}>Tu entrenamiento. Tu progreso.</p>
 
-        {mode !== "forgot" && (
-          <div className="tab-row" style={{ marginBottom: 20 }}>
-            <button className={`tab-btn ${mode === "login" ? "active" : ""}`} onClick={() => switchMode("login")}>Iniciar sesión</button>
-            <button className={`tab-btn ${mode === "register" ? "active" : ""}`} onClick={() => switchMode("register")}>Registrarse</button>
+        {/* Giant slogan */}
+        <div>
+          <div style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: "clamp(56px, 7.5vw, 96px)",
+            fontWeight: 900,
+            lineHeight: 0.88,
+            letterSpacing: "-2px",
+            color: "white",
+            textTransform: "uppercase",
+            whiteSpace: "nowrap",
+          }}>
+            {slogan.top}
           </div>
-        )}
-
-        {mode === "forgot" && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:700, marginBottom:6 }}>🔑 Recuperar contraseña</div>
-            <p style={{ fontSize:13, color:"var(--text-muted)" }}>Te enviaremos un enlace para restablecer tu contraseña.</p>
+          <div style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: "clamp(56px, 7.5vw, 96px)",
+            fontWeight: 900,
+            lineHeight: 0.88,
+            letterSpacing: "-2px",
+            WebkitTextStroke: "2.5px #e8ff00",
+            color: "transparent",
+            textShadow: "0 0 0 transparent",
+            textTransform: "uppercase",
+            whiteSpace: "nowrap",
+            paintOrder: "stroke fill",
+          }}>
+            {slogan.bottom}
           </div>
-        )}
 
-        {mode === "register" && (
-        <div className="field">
-          <label className="field-label">Nombre</label>
-          <input className="input" type="text" placeholder="Tu nombre" value={name} onChange={e => setName(lettersOnly(e.target.value))} autoComplete="name" />
+          {/* Rule + motivational phrase */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, marginBottom: 16 }}>
+            <div style={{ width: 44, height: 3, background: "#e8ff00", borderRadius: 2, flexShrink: 0 }} />
+            <span style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 14, fontWeight: 700, letterSpacing: 2,
+              color: "rgba(255,255,255,0.3)", textTransform: "uppercase",
+            }}>ENTRENA CADA MALDITO DÍA</span>
+          </div>
+
+          <p style={{
+            color: "rgba(255,255,255,0.3)",
+            fontSize: 13,
+            fontFamily: "'Barlow', sans-serif",
+            lineHeight: 1.6,
+            maxWidth: 260,
+            letterSpacing: 0.3,
+          }}>
+            Registra cada set. Rompe cada récord. Construye el cuerpo que mereces.
+          </p>
+
+          {/* Stats row */}
+          <div style={{
+            display: "flex", gap: 32, marginTop: 36,
+          }}>
+            {[["∞", "Ejercicios"], ["100%", "Gratis"], ["🏆", "Tus PRs"]].map(([val, lbl]) => (
+              <div key={lbl}>
+                <div style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontSize: 22, fontWeight: 900, color: "#e8ff00",
+                }}>{val}</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: 2, textTransform: "uppercase" }}>{lbl}</div>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
-        <div className="field">
-          <label className="field-label">Email</label>
-          
-          <input className="input" type="email" placeholder="email@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" onKeyDown={e => e.key === "Enter" && !pass && submit()} />
-        </div>
-
-        {mode !== "forgot" && (
-          <div className="field">
-            <label className="field-label">Contraseña</label>
-            <input className="input" type="password" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} autoComplete={mode === "login" ? "current-password" : "new-password"} />
-            {mode === "register" && <PasswordStrength pass={pass}/>}
-          </div>
-        )}
-        {mode === "register" && (
-  <div className="field">
-    <label className="field-label">Confirmar contraseña</label>
-    <input className="input" type="password" placeholder="••••••••"
-      value={passConfirm} onChange={e => setPassConfirm(e.target.value)} />
-    {pass && passConfirm && pass !== passConfirm && (
-      <span style={{fontSize:11,color:"#f87171"}}>❌ Las contraseñas no coinciden</span>
-    )}
-  </div>
-)}
-
-        {err && <div className="err-msg">{err}</div>}
-        {msg && <div style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.3)", color:"#22c55e", borderRadius:8, padding:"9px 12px", fontSize:13, marginBottom:10 }}>{msg}</div>}
-
-        <button className="btn-primary" style={{ width:"100%", marginTop:8 }} onClick={submit} disabled={loading}>
-          {loading ? "⏳ Cargando..." : mode === "login" ? "Entrar" : mode === "register" ? "Crear cuenta" : "Enviar enlace"}
-        </button>
-
-        {mode === "login" && (
-  <p style={{ textAlign:"center", marginTop:10, fontSize:13 }}>
-    <button className="link-btn" onClick={() => switchMode("forgot")} style={{ color:"var(--text-muted)" }}>¿Olvidaste tu contraseña?</button>
-  </p>
-)}
-{mode === "forgot" && (
-  <p style={{ textAlign:"center", marginTop:10, fontSize:13 }}>
-    <button className="link-btn" onClick={() => switchMode("login")}>← Volver al inicio</button>
-  </p>
-)}
-{mode !== "forgot" && (
-  <p className="text-muted" style={{ fontSize:13, textAlign:"center", marginTop:14 }}>
-    {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
-    <button className="link-btn" onClick={() => switchMode(mode === "login" ? "register" : "login")}>
-      {mode === "login" ? "Regístrate" : "Inicia sesión"}
-    </button>
-  </p>
-)}
-<div style={{ display:"flex", alignItems:"center", gap:12, margin:"16px 0 12px" }}>
-  <div style={{ flex:1, height:1, background:"var(--border)" }} />
-  <span style={{ fontSize:12, color:"var(--text-muted)", fontWeight:600 }}>O</span>
-  <div style={{ flex:1, height:1, background:"var(--border)" }} />
-</div>
-<button onClick={() => { loginWithGoogle(); }} 
- style={{width:"100%",background:"white",border:"1px solid #d1dce8",borderRadius:12,padding:"11px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",marginBottom:12,fontFamily:"Barlow,sans-serif",fontSize:14,fontWeight:600,color:"#1f2937"}}>
-  <img src="https://www.google.com/favicon.ico" width={18}/> Continuar con Google
-</button>
-<button className="btn-guest" onClick={loginAsGuest}>
-  <span style={{ fontSize:18 }}>👤</span>
-  <div style={{ textAlign:"left" }}>
-    <div style={{ fontWeight:700, fontSize:14 }}>Entrar como invitado</div>
-    <div style={{ fontSize:11, opacity:0.7, marginTop:1 }}>3 sesiones · Sin historial guardado</div>
-  </div>
-</button>
       </div>
+
+      {/* Right panel - form */}
+      <div className="login-right-panel" style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px 16px",
+        position: "relative",
+        zIndex: 10,
+        minHeight: "100dvh",
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+      }}>
+        {/* Vertical line divider - desktop only */}
+        <div className="login-divider" style={{
+          position: "absolute",
+          left: 0, top: "10%", bottom: "10%",
+          width: 1,
+          background: "linear-gradient(to bottom, transparent, rgba(232,255,0,0.3), transparent)",
+        }} />
+
+        <div style={{
+          width: "100%",
+          maxWidth: 380,
+          background: "rgba(10,10,10,0.55)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          border: "1px solid rgba(232,255,0,0.12)",
+          borderRadius: 16,
+          padding: "22px 20px",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
+          animation: "loginSlideIn 0.35s cubic-bezier(0.22,1,0.36,1) both",
+          boxSizing: "border-box",
+        }} key={animKey}>
+
+        {/* Mobile header — shown only on small screens */}
+        <div className="login-mobile-logo" style={{
+          display: "none",
+          flexDirection: "column",
+          alignItems: "center",
+          marginBottom: 16,
+        }}>
+          {/* Icon */}
+          <div style={{
+            width: 38, height: 38, borderRadius: 10,
+            background: "linear-gradient(135deg, #e8ff00, #facc15)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20, marginBottom: 8,
+            boxShadow: "0 0 20px rgba(232,255,0,0.3)",
+          }}>⚡</div>
+          {/* App name — protagonist */}
+          <div style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 28, fontWeight: 900, letterSpacing: 7,
+            color: "white", textTransform: "uppercase",
+            lineHeight: 1,
+          }}>GYMTRACKER</div>
+          {/* Slogan — subordinado, pequeño */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, marginTop: 10,
+          }}>
+            <div style={{ width: 20, height: 2, background: "#e8ff00", borderRadius: 1 }} />
+            <span style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 12, fontWeight: 700, letterSpacing: 3,
+              color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
+            }}>{slogan.top} {slogan.bottom}</span>
+            <div style={{ width: 20, height: 2, background: "#e8ff00", borderRadius: 1 }} />
+          </div>
+          {/* Motivational phrase */}
+          <div style={{
+            marginTop: 6,
+            fontFamily: "'Barlow', sans-serif",
+            fontSize: 11, fontWeight: 500,
+            color: "rgba(255,255,255,0.45)",
+            letterSpacing: 1.5, textTransform: "uppercase",
+          }}>Entrena cada maldito día</div>
+        </div>
+
+          {/* Mode indicator */}
+          {mode !== "forgot" && (
+            <div style={{
+              display: "flex",
+              gap: 0,
+              marginBottom: 24,
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+            }}>
+              {[["login", "Iniciar sesión"], ["register", "Crear cuenta"]].map(([m, label]) => (
+                <button key={m} onClick={() => switchMode(m)} style={{
+                  flex: 1,
+                  background: "none",
+                  border: "none",
+                  padding: "0 0 14px",
+                  fontFamily: "'Barlow', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                  color: mode === m ? "#e8ff00" : "rgba(255,255,255,0.25)",
+                  cursor: "pointer",
+                  borderBottom: mode === m ? "2px solid #e8ff00" : "2px solid transparent",
+                  marginBottom: -1,
+                  transition: "all 0.2s",
+                }}>{label}</button>
+              ))}
+            </div>
+          )}
+
+          {mode === "forgot" && (
+            <div style={{ marginBottom: 32 }}>
+              <button onClick={() => switchMode("login")} style={{
+                background: "none", border: "none", color: "rgba(255,255,255,0.4)",
+                fontFamily: "'Barlow', sans-serif", fontSize: 12, fontWeight: 700,
+                letterSpacing: 2, textTransform: "uppercase", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6, padding: 0, marginBottom: 24,
+              }}>
+                ← VOLVER
+              </button>
+              <div style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontSize: 36, fontWeight: 900, color: "white", textTransform: "uppercase",
+                letterSpacing: 1, lineHeight: 1,
+              }}>RECUPERAR<br/><span style={{ color: "#e8ff00" }}>CONTRASEÑA</span></div>
+              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>
+                Te enviaremos un enlace para restablecer tu acceso.
+              </p>
+            </div>
+          )}
+
+          {/* Fields */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {mode === "register" && (
+              <div>
+                <label style={labelStyle("name")}>Nombre</label>
+                <input
+                  style={inputStyle("name")}
+                  type="text"
+                  placeholder="Tu nombre"
+                  value={name}
+                  onChange={e => setName(lettersOnly(e.target.value))}
+                  onFocus={() => setFocusedField("name")}
+                  onBlur={() => setFocusedField(null)}
+                  autoComplete="name"
+                />
+              </div>
+            )}
+
+            <div>
+              <label style={labelStyle("email")}>Email</label>
+              <input
+                style={inputStyle("email")}
+                type="email"
+                placeholder="email@ejemplo.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onFocus={() => setFocusedField("email")}
+                onBlur={() => setFocusedField(null)}
+                autoComplete="email"
+              />
+            </div>
+
+            {mode !== "forgot" && (
+              <div>
+                <label style={labelStyle("pass")}>Contraseña</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle("pass"), paddingRight: 36 }}
+                    type={showPass ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={pass}
+                    onChange={e => setPass(e.target.value)}
+                    onFocus={() => setFocusedField("pass")}
+                    onBlur={() => setFocusedField(null)}
+                    onKeyDown={e => e.key === "Enter" && submit()}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  />
+                  <button onClick={() => setShowPass(v => !v)} style={{
+                    position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)",
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "rgba(255,255,255,0.3)", fontSize: 15, padding: 0,
+                  }}>{showPass ? "🙈" : "👁️"}</button>
+                </div>
+                {mode === "register" && <PasswordStrength pass={pass} />}
+                {mode === "login" && (
+                  <div style={{ textAlign: "right", marginTop: 8 }}>
+                    <button onClick={() => switchMode("forgot")} style={{
+                      background: "none", border: "none",
+                      color: "rgba(255,255,255,0.3)", fontSize: 11,
+                      cursor: "pointer", fontFamily: "'Barlow', sans-serif",
+                      letterSpacing: 1, textTransform: "uppercase", padding: 0,
+                      transition: "color 0.2s",
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#e8ff00"}
+                      onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
+                    >¿Olvidaste tu contraseña?</button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {mode === "register" && (
+              <div>
+                <label style={labelStyle("passConfirm")}>Confirmar contraseña</label>
+                <input
+                  style={{
+                    ...inputStyle("passConfirm"),
+                    borderBottomColor: pass && passConfirm && pass !== passConfirm
+                      ? "#ef4444"
+                      : focusedField === "passConfirm" ? "#e8ff00" : "rgba(255,255,255,0.2)",
+                  }}
+                  type="password"
+                  placeholder="••••••••"
+                  value={passConfirm}
+                  onChange={e => setPassConfirm(e.target.value)}
+                  onFocus={() => setFocusedField("passConfirm")}
+                  onBlur={() => setFocusedField(null)}
+                />
+                {pass && passConfirm && pass !== passConfirm && (
+                  <span style={{ fontSize: 11, color: "#ef4444", marginTop: 4, display: "block" }}>Las contraseñas no coinciden</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Error / Success */}
+          {err && (
+            <div style={{
+              marginTop: 16,
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              color: "#f87171",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontFamily: "'Barlow', sans-serif",
+            }}>{err}</div>
+          )}
+          {msg && (
+            <div style={{
+              marginTop: 16,
+              background: "rgba(34,197,94,0.06)",
+              border: "1px solid rgba(34,197,94,0.25)",
+              color: "#22c55e",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontFamily: "'Barlow', sans-serif",
+            }}>{msg}</div>
+          )}
+
+          {/* CTA button */}
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{
+              marginTop: 28,
+              width: "100%",
+              padding: "15px 0",
+              background: loading ? "rgba(255,255,255,0.08)" : "#e8ff00",
+              border: "none",
+              borderRadius: 4,
+              color: loading ? "rgba(255,255,255,0.3)" : "#0a0a0a",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 16,
+              fontWeight: 900,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              cursor: loading ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              boxShadow: loading ? "none" : "0 0 30px rgba(232,255,0,0.25)",
+            }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = "#f0ff40"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 40px rgba(232,255,0,0.4)"; } }}
+            onMouseLeave={e => { e.currentTarget.style.background = loading ? "rgba(255,255,255,0.08)" : "#e8ff00"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = loading ? "none" : "0 0 30px rgba(232,255,0,0.25)"; }}
+          >
+            {loading ? "⏳ Cargando..." : mode === "login" ? "ENTRAR →" : mode === "register" ? "CREAR CUENTA →" : "ENVIAR ENLACE →"}
+          </button>
+
+          {mode !== "forgot" && (
+            <>
+              {/* Divider */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 14,
+                margin: "24px 0 20px",
+              }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: 2, textTransform: "uppercase", fontFamily: "'Barlow', sans-serif" }}>O</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+              </div>
+
+              {/* Google button */}
+              <button
+                onClick={() => loginWithGoogle()}
+                style={{
+                  width: "100%",
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 4,
+                  padding: "12px 16px",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                  cursor: "pointer", marginBottom: 10,
+                  fontFamily: "'Barlow', sans-serif",
+                  fontSize: 13, fontWeight: 700,
+                  color: "rgba(255,255,255,0.7)",
+                  letterSpacing: 0.5,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 48 48">
+                  <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
+                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
+                  <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36.5 24 36.5c-5.2 0-9.6-3.4-11.2-8.1l-6.5 5C9.9 40 16.4 44 24 44z"/>
+                  <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.2 5.2C40.9 35.4 44 30.1 44 24c0-1.3-.2-2.7-.4-4z"/>
+                </svg>
+                Continuar con Google
+              </button>
+
+              {/* Guest button */}
+              <button
+                onClick={loginAsGuest}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  border: "1px dashed rgba(255,255,255,0.1)",
+                  borderRadius: 4,
+                  padding: "12px 16px",
+                  display: "flex", alignItems: "center", gap: 12,
+                  cursor: "pointer",
+                  fontFamily: "'Barlow', sans-serif",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,255,0,0.3)"; e.currentTarget.style.background = "rgba(232,255,0,0.03)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 18 }}>👤</span>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 }}>Entrar como invitado</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>3 sesiones · Sin historial guardado</div>
+                </div>
+              </button>
+
+              {/* Switch mode link */}
+              <p style={{ textAlign: "center", marginTop: 22, fontSize: 12, color: "rgba(255,255,255,0.25)", fontFamily: "'Barlow', sans-serif" }}>
+                {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
+                <button
+                  onClick={() => switchMode(mode === "login" ? "register" : "login")}
+                  style={{
+                    background: "none", border: "none",
+                    color: "#e8ff00", fontWeight: 800, cursor: "pointer",
+                    fontFamily: "'Barlow', sans-serif", fontSize: 12, padding: 0,
+                  }}
+                >
+                  {mode === "login" ? "Regístrate gratis" : "Inicia sesión"}
+                </button>
+              </p>
+            </>
+          )}
+        </div>{/* end inner card */}
+      </div>
+
+      <style>{`
+        @keyframes loginSlideIn {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 768px) {
+          .login-left-panel { display: none !important; }
+          .login-divider    { display: none !important; }
+          .login-mobile-logo { display: flex !important; }
+          .login-right-panel {
+            width: 100vw !important;
+            flex: unset !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
+
 
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -6553,7 +7348,7 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
     return {
       mood:"happy", title:"¿Doble sesión hoy? 💪",
       message: muscle && sugerido
-        ? `Ya trabajaste ${muscle.toLowerCase()} hoy. ${neglected?.days>5?`${sugerido} lleva ${neglected.days} días sin aparecer. ¿Lo sumamos?`:`¿Qué tal añadir ${sugerido.toLowerCase()} también?`}`
+        ? `Ya trabajaste ${muscle.toLowerCase()} hoy. ${neglected?.days>5?`${neglected?.never ? `Nunca has entrenado ${sugerido}. ¿Lo sumamos?` : `${sugerido} lleva ${neglected.days} días sin aparecer. ¿Lo sumamos?`}`:`¿Qué tal añadir ${sugerido.toLowerCase()} también?`}`
         : [
             "¡Volviste por más! Brux está impresionado (y orgulloso).",
             "De vuelta en el gym. Brux ya tenía preparada tu rutina.",
@@ -6633,7 +7428,7 @@ function getBruxContext(sessions, todayPlanned, streak, inNewSession = false) {
   }
 
   // ── 7. Músculo muy descuidado ──
-  if (neglected && neglected.days >= 10) {
+  if (neglected && neglected.days >= 10 && !neglected.never) {
     const sarcMsgs = [
       `${neglected.muscle} lleva ${neglected.days} días sin aparecer. Brux no va a decir nada... pero lo piensa.`,
       `¿${neglected.muscle}? Brux buscó en el historial y no lo encuentra desde hace ${neglected.days} días. Curioso.`,
@@ -6793,7 +7588,7 @@ function BruxMascot({ sessions, todayPlanned, streak, onStartSession, inNewSessi
             { label: "Racha", value: streak > 0 ? `🔥 ${streak}sem` : "0sem", color: streak>=7?"#ef4444":streak>=3?"#f97316":"var(--text-muted)" },
             { label: "Total", value: `${totalSessions}`, color: "var(--text-muted)" },
           ].map(s => (
-            <div key={s.label} style={{ flex:1, background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"5px 6px", textAlign:"center", border:"1px solid var(--border)" }}>
+            <div key={s.label} style={{ flex:1, background:"var(--card)", borderRadius:8, padding:"5px 6px", textAlign:"center", border:"1px solid var(--border)" }}>
               <div style={{ fontSize:9, color:"var(--text-muted)", marginBottom:1 }}>{s.label}</div>
               <div style={{ fontSize:12, fontWeight:800, color:s.color, fontFamily:"Barlow Condensed,sans-serif" }}>{s.value}</div>
             </div>
@@ -7183,7 +7978,7 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
               </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                 {(todayRoutine.exercises||[]).slice(0,4).map((ex,i)=>(
-                  <span key={i} style={{fontSize:10,background:"rgba(255,255,255,0.07)",
+                  <span key={i} style={{fontSize:10,background:"var(--card)",
                     borderRadius:6,padding:"2px 8px",color:"var(--text-muted)"}}>
                     {ex.name||ex}
                   </span>
@@ -7484,7 +8279,7 @@ function RestTimerFloating({ timer, setTimer }) {
       background: "var(--card)",
       border: `2px solid ${done ? "#22c55e" : "var(--accent)"}`,
       borderRadius: 18, padding: "12px 14px",
-      boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+      boxShadow: "var(--shadow)",
       display: "flex", alignItems: "center", gap: 12, minWidth: 220,
       transition: "border-color 0.3s",
     }}>
@@ -7587,20 +8382,26 @@ function LiveTrainMode({
   onSaveSession, onBack,
   floatTimer, setFloatTimer,
 }) {
-  const [elapsed, setElapsed] = useState(0);
+  // Restore draft if available
+  const draft = (() => { try { const d = localStorage.getItem(LIVE_DRAFT_KEY); return d ? JSON.parse(d) : null; } catch { return null; } })();
+  const draftMatches = draft && draft.workout === workout && draft.date === date;
+
+  const [elapsed, setElapsed] = useState(() => draftMatches ? (draft.elapsed || 0) : 0);
   const [running, setRunning] = useState(true);
-  const [currentEx, setCurrentEx] = useState(0);
-  const [exData, setExData] = useState(() =>
-    exercises.map(ex => ({
+  const [currentEx, setCurrentEx] = useState(() => draftMatches ? (draft.currentEx || 0) : 0);
+  const [exData, setExData] = useState(() => {
+    if (draftMatches && draft.exData) return draft.exData;
+    return exercises.map(ex => ({
       ...ex,
-      restSecs: ex.restSecs || null, // null = usar defaultRest global
+      restSecs: ex.restSecs || null,
       sets: ex.sets?.length
         ? ex.sets.map(s => ({ ...s, done: false }))
         : Array.from({ length: parseInt(ex.series) || 3 }, () => ({
             id: uid(), weight: ex.weight || "", reps: ex.reps || "", done: false
           })),
-    }))
-  );
+    }));
+  });
+  const [restoredDraft] = useState(draftMatches);
   const [showSummary, setShowSummary] = useState(false);
   const timerRef = useRef();
   const restRef = useRef();
@@ -7617,7 +8418,7 @@ function LiveTrainMode({
       }, 1000);
     }
     return () => clearInterval(restRef.current);
-  }, [restTimer?.total]);
+  }, [restTimer?.total, restTimer?.left]);
 
   function startRest(secs) {
     clearInterval(restRef.current);
@@ -7626,7 +8427,7 @@ function LiveTrainMode({
 
   const REST_OPTS_LIVE = [
     { label: "1m", secs: 60 },
-    { label: "1.5m ⭐", secs: 90 },
+    { label: "1.5m", secs: 90 },
     { label: "2m", secs: 120 },
     { label: "3m", secs: 180 },
   ];
@@ -7643,7 +8444,18 @@ function LiveTrainMode({
     return () => clearInterval(timerRef.current);
   }, [running]);
 
+  // Autosave draft on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(LIVE_DRAFT_KEY, JSON.stringify({ workout, date, elapsed, currentEx, exData }));
+    } catch {}
+  }, [exData, elapsed, currentEx]);
+
   const fmt = s => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  const [showRestoredBanner, setShowRestoredBanner] = useState(restoredDraft);
+  useEffect(() => {
+    if (showRestoredBanner) { const t = setTimeout(() => setShowRestoredBanner(false), 3500); return () => clearTimeout(t); }
+  }, [showRestoredBanner]);
   const totalSets = exData.reduce((a, e) => a + e.sets.length, 0);
   const doneSets  = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
   const pct = totalSets > 0 ? doneSets / totalSets : 0;
@@ -7949,8 +8761,9 @@ function LiveTrainMode({
         <button
           onClick={() => {
             const hasDone = exData.some(ex => ex.sets.some(s => s.done));
+            try { localStorage.removeItem(LIVE_DRAFT_KEY); } catch {}
             if (hasDone) {
-              if (!window.confirm("¿Salir del entrenamiento? Perderás el progreso no guardado.")) return;
+              if (!window.confirm("¿Salir del entrenamiento? El borrador guardado se eliminará.")) return;
             }
             onBack();
           }}
@@ -7967,6 +8780,11 @@ function LiveTrainMode({
             letterSpacing: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             ⚡ {workout || "Entrenamiento"}
+            {showRestoredBanner && (
+              <span style={{ marginLeft: 8, fontSize: 11, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.4)", color: "#22c55e", borderRadius: 6, padding: "2px 8px", fontWeight: 700, letterSpacing: 0.5, verticalAlign: "middle" }}>
+                ✅ Sesión restaurada
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
             {doneSets}/{totalSets} series completadas
@@ -8018,14 +8836,14 @@ function LiveTrainMode({
           return (
             <button key={i} onClick={() => setCurrentEx(i)} style={{
               background: currentEx === i ? "var(--accent)"
-                : allDone ? "rgba(34,197,94,0.12)"
-                : anyDone ? "rgba(59,130,246,0.08)"
+                : allDone ? "rgba(232,255,0,0.08)"
+                : anyDone ? "rgba(232,255,0,0.04)"
                 : "var(--card)",
-              border: `1px solid ${currentEx === i ? "var(--accent)" : allDone ? "#22c55e" : "var(--border)"}`,
-              color: currentEx === i ? "white" : allDone ? "#22c55e" : "var(--text-muted)",
-              borderRadius: 8, padding: "6px 12px", cursor: "pointer",
-              fontFamily: "Barlow, sans-serif", fontSize: 12, fontWeight: 600,
-              whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.2s",
+              border: `1px solid ${currentEx === i ? "var(--accent)" : allDone ? "rgba(232,255,0,0.3)" : "var(--border)"}`,
+              color: currentEx === i ? "#0a0a0a" : allDone ? "var(--accent)" : "var(--text-muted)",
+              borderRadius: 4, padding: "6px 12px", cursor: "pointer",
+              fontFamily: "'Barlow Condensed', sans-serif", fontSize: 12, fontWeight: 900,
+              whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1, textTransform: "uppercase",
             }}>
               {allDone ? "✓ " : anyDone ? "◑ " : ""}{ex.name}
             </button>
@@ -8068,15 +8886,15 @@ function LiveTrainMode({
                   {bestPrev > 0 && (
                     <div style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
-                      background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)",
-                      borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#fbbf24",
+                      background: "var(--accent-dim)", border: "1px solid rgba(232,255,0,0.3)",
+                      borderRadius: 4, padding: "4px 10px", fontSize: 12, color: "var(--accent)",
                     }}>
-                      🏆 Mejor: {bestPrev}kg 1RM
+                      ★ MEJOR: {bestPrev}kg 1RM
                     </div>
                   )}
                   {/* Per-exercise rest time selector */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>⏱ Descanso:</span>
+                    <span style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 800, letterSpacing: 3, textTransform:"uppercase" }}>DESCANSO</span>
                     {[60, 90, 120, 180].map(secs => {
                       const active = (ex.restSecs ?? defaultRest) === secs;
                       return (
@@ -8084,8 +8902,8 @@ function LiveTrainMode({
                           style={{
                             background: active ? "var(--accent)" : "var(--input-bg)",
                             border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                            color: active ? "white" : "var(--text-muted)",
-                            borderRadius: 20, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                            color: active ? "#0a0a0a" : "var(--text-muted)",
+                            borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600,
                           }}>
                           {secs < 120 ? `${secs}s` : `${secs/60}m`}
                         </button>
@@ -8125,7 +8943,7 @@ function LiveTrainMode({
                     <div style={{
                       textAlign: "center", fontWeight: 800, fontSize: 14,
                       fontFamily: "Barlow Condensed, sans-serif",
-                      color: s.done ? "#22c55e" : "var(--text-muted)",
+                      color: s.done ? "var(--accent)" : "var(--text-muted)",
                     }}>
                       S{j + 1}
                     </div>
@@ -8204,14 +9022,14 @@ function LiveTrainMode({
               }}>
                 {restTimer ? (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>⏱ DESCANSANDO</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 3, textTransform: "uppercase", marginBottom: 8 }}>DESCANSANDO</div>
                     <div style={{ height: 5, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 10 }}>
-                      <div style={{ height: "100%", background: restTimer.left === 0 ? "#22c55e" : "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
+                      <div style={{ height: "100%", background: "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                       <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
                         style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
-                      <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 34, fontWeight: 800, color: restTimer.left === 0 ? "#22c55e" : "var(--accent)" }}>
+                      <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 34, fontWeight: 800, color: "var(--accent)" }}>
                         {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
                       </div>
                       <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
@@ -8220,7 +9038,7 @@ function LiveTrainMode({
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                       {REST_OPTS_LIVE.map(o => (
                         <button key={o.label} onClick={() => startRest(o.secs)}
-                          style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "white" : "var(--text-muted)", borderRadius: 20, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                          style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#0a0a0a" : "var(--text-muted)", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                           {o.label}
                         </button>
                       ))}
@@ -8232,12 +9050,10 @@ function LiveTrainMode({
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 18 }}>⏱️</span>
+
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>
-                          Iniciar descanso
-                        </div>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 3, textTransform: "uppercase" }}>DESCANSO</div>
                         <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
                           Auto: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{defaultRest < 60 ? `${defaultRest}s` : `${defaultRest/60}m`}</span>
                           <span style={{ margin: "0 4px", opacity: 0.4 }}>·</span>
@@ -8253,7 +9069,7 @@ function LiveTrainMode({
                         {REST_OPTS_LIVE.map(o => (
                           <button key={o.label} onClick={() => startRest(o.secs)}
                             style={{ background: o.secs === defaultRest ? "var(--accent-dim)" : "var(--input-bg)", border: `1px solid ${o.secs === defaultRest ? "var(--accent)" : "var(--border)"}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: o.secs === defaultRest ? "var(--accent)" : "var(--text-muted)", fontSize: 11, fontWeight: o.secs === defaultRest ? 700 : 600 }}>
-                            {o.label}{o.secs === defaultRest ? " ⭐" : ""}
+                            {o.label}
                           </button>
                         ))}
                       </div>
@@ -8292,13 +9108,14 @@ function LiveTrainMode({
                   <button
                     onClick={() => { setRunning(false); setShowSummary(true); }}
                     style={{
-                      flex: 2, background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                      border: "none", color: "white", borderRadius: 10, padding: 11,
+                      flex: 2, background: "var(--accent)",
+                      border: "none", color: "#0a0a0a", borderRadius: 4, padding: 11,
                       cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
-                      fontSize: 17, fontWeight: 700,
+                      fontSize: 17, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase",
+                      boxShadow: "0 0 20px rgba(232,255,0,0.2)",
                     }}
                   >
-                    🏁 Finalizar
+                    FINALIZAR →
                   </button>
                 )}
               </div>
@@ -8779,6 +9596,19 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   const [toast, setToast] = useState(null);
   const presetRef = useRef();
 
+  // Save live draft when app goes to background (Capacitor)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let listener;
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive && liveActive) {
+        // Force a draft save by reading current state from localStorage — already handled by LiveTrainMode autosave
+        // Just ensure the key exists so we don't lose it
+      }
+    }).then(l => { listener = l; });
+    return () => { if (listener) listener.remove(); };
+  }, [liveActive]);
+
   useEffect(() => {
     if (floatTimer.running && floatTimer.visible) {
       floatTimerRef.current = setInterval(() => {
@@ -8820,19 +9650,19 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       clearInterval(floatTimerRef.current);
     }
     return () => clearInterval(floatTimerRef.current);
-  }, [floatTimer.running, floatTimer.visible]);
+  }, [floatTimer.running, floatTimer.visible, floatTimer.secs]);
 
   useEffect(() => {
     if (sessionsLoading) return;
     if (user.isGuest) { store("gym_v3_guest", sessions); return; }
     setDoc(doc(db, "sessions", user.uid), { list: sessions, updatedAt: serverTimestamp() });
-  }, [sessions]);
+  }, [sessions, sessionsLoading, user.isGuest, user.uid]);
   useEffect(() => { store("gym_unit", unit); }, [unit]);
   useEffect(() => { setHistPage(0); }, [filterWorkout, filterMuscle, filterPeriod, filterOrder]);
   useEffect(() => {
-  store(bodyKey, bodyStats);
-  if (!user.isGuest) saveBodyStatsToDB(user.uid, bodyStats);
-}, [bodyStats]);
+    store(bodyKey, bodyStats);
+    if (!user.isGuest) saveBodyStatsToDB(user.uid, bodyStats);
+  }, [bodyStats]);
   useEffect(() => { store(plannerKey, weeklyPlan); }, [weeklyPlan]);
   useEffect(() => { store(goalKey, weeklyGoal); }, [weeklyGoal]);
   useEffect(() => {
@@ -8853,7 +9683,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   const canExport = !isGuest;
   const canCharts = !isGuest;
 
-  function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2600); }
+  const toastTimerRef = useRef(null);
+  function showToast(msg) { setToast(msg); if (toastTimerRef.current) clearTimeout(toastTimerRef.current); toastTimerRef.current = setTimeout(() => setToast(null), 2600); }
 
   // Today's planned workout
   const todayDow = (new Date().getDay() + 6) % 7;
@@ -8928,8 +9759,13 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   }
 
   function startEdit(s) {
+    // Limpiar todo el estado del formulario antes de cargar
+    setExName(""); setExMuscle("Todos"); setExWeight(""); setExReps("");
+    setExSets([]); setExSeriesCount("3"); setExNote("");
+    // Cargar datos de la sesión a editar
     setEditingId(s.id); setDate(s.date); setWorkout(s.workout); setNotes(s.notes || "");
     setCurrentExercises((s.exercises || []).map(e => ({ ...e })));
+    setSessionMode("register");
     setActiveTab("new"); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -8989,9 +9825,9 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   );  
 
   const NAV = [
-    { id: "new", icon: "➕", label: "Nueva sesión" },
-    { id: "history", icon: "📋", label: "Historial" },
-    { id: "dashboard", icon: "📊", label: "Dashboard" },
+    { id: "new", icon: "⚡", label: "Nueva sesión" },
+    { id: "history", icon: "◈", label: "Historial" },
+    { id: "dashboard", icon: "◉", label: "Dashboard" },
   ];
   
   // Earned badges count for notification dot
@@ -9007,40 +9843,46 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       <aside className="sidebar desktop-only">
         <div className="sidebar-top">
           <div className="sidebar-logo">
-            <span style={{ fontSize: 20, flexShrink: 0 }}>⚡</span>
-            <span className="logo-text">GymTracker</span>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>⚡</span>
+            <span className="logo-text" style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:900, letterSpacing:6, textTransform:"uppercase", color:"var(--text)" }}>GYMTRACKER</span>
           </div>
         </div>
 
-        {todayPlanned&&(()=>{const ts=new Date().toISOString().slice(0,10);const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"0 12px 12px",padding:"10px 12px",background:dn?"rgba(34,197,94,0.1)":"rgba(59,130,246,0.1)",border:`1px solid ${dn?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.3)"}`,borderRadius:10}}><div style={{fontSize:9,fontWeight:700,letterSpacing:2,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ Completada":"Hoy toca"}</div><div style={{fontSize:14,fontWeight:700,color:dn?"#86efac":"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{todayPlanned}</div></div>);})()}
+        {todayPlanned&&(()=>{const ts=new Date().toISOString().slice(0,10);const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"0 12px 12px",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(232,255,0,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
 
         <nav className="sidebar-nav">
   {NAV.map(item => (
-    <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`} onClick={() => navClick(item.id)}>
+    <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`}
+      style={item.id === "new" ? {
+        background: "#e8ff00", color: "#0a0a0a", fontWeight: 900,
+        letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
+        borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(232,255,0,0.2)",
+      } : {}}
+      onClick={() => navClick(item.id)}>
       <span className="nav-icon">{item.icon}</span>
       <span className="nav-label">{item.label}</span>
     </button>
   ))}
 
   {[
-      { label: "📅 ORGANIZAR", items: [
-        { icon: "📅", label: "Planificador", action: () => openPlanner("plan") },
-        { icon: "📋", label: "Plantillas", action: () => setShowTemplates(true) },
+      { label: "— ORGANIZAR", items: [
+        { icon: "▦", label: "Planificador", action: () => openPlanner("plan") },
+        { icon: "▤", label: "Plantillas", action: () => setShowTemplates(true) },
       ]},
-      { label: "👥 SOCIAL", items: [
-        { icon: "👥", label: "GymTeams", action: () => setShowTeams(true) },
-        { icon: "⚔️", label: "Reto semanal", action: () => setShowChallenge(true) },
+      { label: "— SOCIAL", items: [
+        { icon: "◈", label: "GymTeams", action: () => setShowTeams(true) },
+        { icon: "✕", label: "Reto semanal", action: () => setShowChallenge(true) },
       ]},
-      { label: "⚙️ PERSONAL", items: [
-        { icon: "📈", label: "Progreso", action: () => setShowProgressPicker(true) },
-        { icon: "⚖️", label: "Peso & Estatura", action: () => setShowBodyStats(true) },
-        { icon: "🎽", label: "Mi Coach", action: () => setShowAthleteCoach(true) },
-        ...(user.isCoach ? [{ icon: "🏅", label: "Panel Coach", action: () => setShowCoach(true) }] : []),
+      { label: "— PERSONAL", items: [
+        { icon: "↑", label: "Progreso", action: () => setShowProgressPicker(true) },
+        { icon: "◎", label: "Peso & Estatura", action: () => setShowBodyStats(true) },
+        { icon: "◉", label: "Mi Coach", action: () => setShowAthleteCoach(true) },
+        ...(user.isCoach ? [{ icon: "★", label: "Panel Coach", action: () => setShowCoach(true) }] : []),
       ]},
     ].map(group => (
       <div key={group.label}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, padding: "10px 12px 6px", textTransform: "uppercase" }}>
-          {group.label}
+        <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 4, padding: "16px 12px 4px", textTransform: "uppercase", opacity: 0.5 }}>
+          {group.label.replace(/^[^\w]+/, "")}
         </div>
         {group.items.map(item => (
           <button key={item.label} className="nav-item" onClick={item.action}>
@@ -9050,9 +9892,9 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         ))}
       </div>
     ))}
-        {ADMIN_EMAILS.includes(user.email) && (
+        {user.isAdmin && (
           <button className="nav-item" onClick={() => setShowAdminExercises(true)}>
-            <span className="nav-icon">⚙️</span>
+            <span className="nav-icon">◈</span>
             <span className="nav-label">Ejercicios custom</span>
           </button>
         )}
@@ -9071,20 +9913,20 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               const { outcome } = await installPrompt.userChoice;
               if (outcome === "accepted") setInstallPrompt(null);
             }}>
-              <span className="nav-icon">📲</span>
+              <span className="nav-icon">↓</span>
               <span className="nav-label">Instalar app</span>
             </button>
           )}
           {/* Re-trigger tutorial */}
           <button className="nav-item" style={{ marginBottom:2 }} onClick={() => setShowOnboarding(true)}>
-            <span className="nav-icon">❓</span>
+            <span className="nav-icon">?</span>
             <span className="nav-label">Ver tutorial</span>
           </button>
 
           <div className="user-card">
-            <div className="user-avatar" style={{cursor:"pointer", overflow:"hidden", padding:0}} onClick={() => setShowProfile(true)}>
+            <div className="user-avatar" style={{cursor:"pointer", overflow:"hidden", padding:0, borderRadius:4}} onClick={() => setShowProfile(true)}>
   {user.photoURL
-    ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}} referrerPolicy="no-referrer" />
+    ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:0}} referrerPolicy="no-referrer" />
     : user.name?.[0]?.toUpperCase() || "U"}
 </div>
             <div style={{ minWidth: 0 }}>
@@ -9093,7 +9935,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             </div>
           </div>
           <button className="nav-item" onClick={logout}>
-            <span className="nav-icon">🚪</span>
+            <span className="nav-icon">→</span>
             <span className="nav-label">Salir</span>
           </button>
         </div>
@@ -9134,30 +9976,36 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
               <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 20 }}>⚡</span>
-                  <span className="logo-text">GymTracker</span>
+                  <span style={{ fontSize: 18 }}>⚡</span>
+                  <span className="logo-text" style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:900, letterSpacing:6, textTransform:"uppercase", color:"var(--text)" }}>GYMTRACKER</span>
                 </div>
-                <button className="close-btn" onClick={() => setMobileNavOpen(false)}>✕</button>
+                <button onClick={() => setMobileNavOpen(false)} style={{ background:"none", border:"none", color:"var(--text-muted)", fontSize:18, cursor:"pointer", padding:"4px 8px", lineHeight:1 }}>✕</button>
               </div>
 
-              {todayPlanned&&(()=>{const ts=new Date().toISOString().slice(0,10);const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"12px 12px 0",padding:"10px 12px",background:dn?"rgba(34,197,94,0.1)":"rgba(59,130,246,0.1)",border:`1px solid ${dn?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.3)"}`,borderRadius:10}}><div style={{fontSize:9,fontWeight:700,letterSpacing:2,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ Completada":"Hoy toca"}</div><div style={{fontSize:14,fontWeight:700,color:dn?"#86efac":"var(--text)"}}>{todayPlanned}</div></div>);})()}
+              {todayPlanned&&(()=>{const ts=new Date().toISOString().slice(0,10);const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"12px 12px 0",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(232,255,0,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
 
               <nav style={{ padding: "12px 8px", flex: 1 }}>
                 {NAV.map(item => (
-                  <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`} style={{ marginBottom: 2 }} onClick={() => navClick(item.id)}>
+                  <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`}
+                    style={item.id === "new" ? {
+                      background: "#e8ff00", color: "#0a0a0a", fontWeight: 900,
+                      letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
+                      borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(232,255,0,0.2)",
+                    } : { marginBottom: 2 }}
+                    onClick={() => navClick(item.id)}>
                     <span className="nav-icon">{item.icon}</span>
                     <span className="nav-label">{item.label}</span>
                   </button>
                 ))}
                 <div style={{ height: 1, background: "var(--border)", margin: "8px 12px" }} />
                 {[
-                  { icon: "📅", label: "Planificador", action: () => { openPlanner("plan"); setMobileNavOpen(false); } },
-                  { icon: "⚖️", label: "Peso & Estatura", action: () => { setShowBodyStats(true); setMobileNavOpen(false); } },
-                  { icon: "👥", label: "GymTeams", action: () => { setShowTeams(true); setMobileNavOpen(false); } },
-                  { icon: "⚔️", label: "Reto semanal", action: () => { setShowChallenge(true); setMobileNavOpen(false); } },
-                  ...(user.isCoach ? [{ icon: "🏅", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
-                  { icon: "🎽", label: "Mi Coach", action: () => { setShowAthleteCoach(true); setMobileNavOpen(false); } },
-                  ...(ADMIN_EMAILS.includes(user.email) ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => { setShowAdminExercises(true); setMobileNavOpen(false); } }] : []),
+                  { icon: "▦", label: "Planificador", action: () => { openPlanner("plan"); setMobileNavOpen(false); } },
+                  { icon: "◎", label: "Peso & Estatura", action: () => { setShowBodyStats(true); setMobileNavOpen(false); } },
+                  { icon: "◈", label: "GymTeams", action: () => { setShowTeams(true); setMobileNavOpen(false); } },
+                  { icon: "✕", label: "Reto semanal", action: () => { setShowChallenge(true); setMobileNavOpen(false); } },
+                  ...(user.isCoach ? [{ icon: "★", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
+                  { icon: "◉", label: "Mi Coach", action: () => { setShowAthleteCoach(true); setMobileNavOpen(false); } },
+                  ...(user.isAdmin ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => { setShowAdminExercises(true); setMobileNavOpen(false); } }] : []),
                 ].map(({ icon, label, action }) => (
                   <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
                     <span className="nav-icon">{icon}</span>
@@ -9179,12 +10027,12 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                     if (outcome === "accepted") setInstallPrompt(null);
                     setMobileNavOpen(false);
                   }}>
-                    <span className="nav-icon">📲</span>
+                    <span className="nav-icon">↓</span>
                     <span className="nav-label">Instalar app</span>
                   </button>
                 )}
                 <button className="nav-item" style={{ marginBottom:2 }} onClick={() => { setShowOnboarding(true); setMobileNavOpen(false); }}>
-                  <span className="nav-icon">❓</span>
+                  <span className="nav-icon">?</span>
                   <span className="nav-label">Ver tutorial</span>
                 </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, cursor: "pointer" }} onClick={() => { setShowProfile(true); setMobileNavOpen(false); }}>
@@ -9199,7 +10047,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                   </div>
                 </div>
                 <button className="nav-item" onClick={logout}>
-                  <span className="nav-icon">🚪</span>
+                  <span className="nav-icon">→</span>
                   <span className="nav-label">Salir</span>
                 </button>
               </div>
@@ -9225,7 +10073,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         calc1RM={calc1RM}
         uid={uid}
         numDot={numDot}
-        onBack={() => setLiveActive(false)}
+        onBack={() => { try { localStorage.removeItem(LIVE_DRAFT_KEY); } catch {} setLiveActive(false); }}
         onSaveSession={(finalExercises, elapsedSecs) => {
           if (!workout) { showToast("⚠️ Falta el nombre del entrenamiento"); return; }
           if (isGuest && sessions.length >= GUEST_MAX) { showToast("⛔ Límite de 3 sesiones en modo invitado. Crea una cuenta para continuar."); return; }
@@ -9272,13 +10120,13 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             if (!tplHoy) return null;
             return (
               <div style={{
-                background:"linear-gradient(135deg,rgba(168,85,247,0.12),rgba(59,130,246,0.08))",
-                border:"1px solid rgba(168,85,247,0.35)", borderRadius:14,
+                background:"var(--card)",
+                border:"1px solid rgba(232,255,0,0.15)", borderRadius:6,
                 padding:"14px 18px", marginBottom:16,
                 display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10
               }}>
                 <div>
-                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"#a855f7", textTransform:"uppercase", marginBottom:4 }}>
+                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"rgba(232,255,0,0.6)", textTransform:"uppercase", marginBottom:4, fontFamily:"Barlow Condensed,sans-serif" }}>
                     📋 Plantilla de hoy
                   </div>
                   <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:800 }}>{tplHoy.name}</div>
@@ -9317,10 +10165,10 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             const doneToday=sessions.some(s=>s.date===ts2&&s.workout?.toLowerCase()===name.toLowerCase());
             const todaySess=sessions.find(s=>s.date===ts2&&s.workout?.toLowerCase()===name.toLowerCase());
             return (
-              <div style={{background:doneToday?"rgba(34,197,94,0.08)":"rgba(59,130,246,0.08)",border:`1px solid ${doneToday?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.3)"}`,borderRadius:14,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+              <div style={{background:doneToday?"rgba(34,197,94,0.07)":"var(--card)",border:`1px solid ${doneToday?"rgba(34,197,94,0.25)":"var(--border)"}`,borderRadius:6,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:doneToday?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:4}}>{doneToday?"✅ Completada hoy":"📅 Hoy toca"}</div>
-                  <div style={{fontFamily:"Barlow Condensed, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"var(--accent)"}}>{name}</div>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:doneToday?"#22c55e":"#e8ff00",textTransform:"uppercase",marginBottom:4}}>{doneToday?"✅ Completada hoy":"📅 Hoy toca"}</div>
+                  <div style={{fontFamily:"Barlow Condensed, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"#e8ff00"}}>{name}</div>
                   {!doneToday&&planEx.length>0&&<div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{planEx.length} ejercicios planificados</div>}
                   {doneToday&&todaySess&&<div style={{fontSize:12,color:"#86efac",marginTop:3}}>{todaySess.exercises?.length||0} ejercicios · {todaySess.durationSecs?`${Math.round(todaySess.durationSecs/60)} min`:"registrada"}</div>}
                 </div>
@@ -9340,17 +10188,17 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 onClick={() => openPlanner("goal")}
                 style={{
                   cursor: "pointer",
-                  background: ok ? "rgba(34,197,94,0.08)" : "rgba(59,130,246,0.06)",
-                  border: `1px solid ${ok ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.2)"}`,
-                  borderRadius: 12, padding: "10px 16px", marginBottom: 24,
+                  background: ok ? "rgba(34,197,94,0.07)" : "var(--card)",
+                  border: `1px solid ${ok ? "rgba(34,197,94,0.25)" : "var(--border)"}`,
+                  borderRadius: 6, padding: "10px 16px", marginBottom: 24,
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
                   <span style={{ fontWeight: 600 }}>🎯 Meta semanal {ok ? "✅" : ""}</span>
                   <span style={{ color: "var(--text-muted)" }}>{tw}/{weeklyGoal.target} sesiones</span>
                 </div>
-                <div style={{ background: "var(--border)", borderRadius: 20, height: 6, overflow: "hidden" }}>
-                  <div style={{ height: "100%", background: ok ? "#22c55e" : "var(--accent)", width: `${p * 100}%`, borderRadius: 20, transition: "width 0.5s" }} />
+                <div style={{ background: "var(--border)", borderRadius: 2, height: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", background: ok ? "#22c55e" : "#e8ff00", width: `${p * 100}%`, borderRadius: 2, transition: "width 0.5s" }} />
                 </div>
               </div>
             );
@@ -9365,7 +10213,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             inNewSession={true}
           />
 
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14, fontFamily: "Barlow Condensed, sans-serif" }}>
             ¿Qué quieres hacer?
           </div>
 
@@ -9375,20 +10223,21 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             <button
               onClick={() => setSessionMode("live")}
               style={{
-                background: "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(59,130,246,0.03))",
-                border: "2px solid rgba(59,130,246,0.3)",
-                borderRadius: 18, padding: "24px 16px", cursor: "pointer",
+                background: "#e8ff00",
+                border: "none",
+                borderRadius: 8, padding: "24px 16px", cursor: "pointer",
                 textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
+                boxShadow: "0 0 30px rgba(232,255,0,0.2)",
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(59,130,246,0.3)"; e.currentTarget.style.transform = "none"; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 32px rgba(232,255,0,0.4)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 0 30px rgba(232,255,0,0.2)"; }}
             >
-              <div style={{ fontSize: 44, marginBottom: 10 }}>⚡</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 8 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "#0a0a0a", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
                 Entrenar ahora
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                Modo en vivo: timer, marca tus series al momento, alarma de descanso
+              <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)", lineHeight: 1.5 }}>
+                Timer · series · descanso
               </div>
             </button>
 
@@ -9396,27 +10245,27 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             <button
               onClick={() => setSessionMode("register")}
               style={{
-                background: "linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02))",
-                border: "2px solid rgba(34,197,94,0.2)",
-                borderRadius: 18, padding: "24px 16px", cursor: "pointer",
+                background: "var(--input-bg)",
+                border: "2px solid var(--border)",
+                borderRadius: 8, padding: "24px 16px", cursor: "pointer",
                 textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#22c55e"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(34,197,94,0.2)"; e.currentTarget.style.transform = "none"; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.background = "var(--accent-dim)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.background = "var(--input-bg)"; }}
             >
-              <div style={{ fontSize: 44, marginBottom: 10 }}>📋</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800, color: "#22c55e", letterSpacing: 1, marginBottom: 8 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>📋</div>
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "var(--text)", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
                 Registrar sesión
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                Ya entrenaste: completa los datos para guardar el historial
+              <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                Ya entrenaste · guarda el historial
               </div>
             </button>
 
           </div>
 
           {/* Herramientas rápidas */}
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12, fontFamily: "Barlow Condensed, sans-serif" }}>
             Herramientas
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -9637,7 +10486,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 {currentExercises.map((ex) => (
                   <div key={ex.id} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
-                      <ExerciseGif exName={ex.name} size={32} />
+                      <ExerciseGif exName={ex.name} size={44} />
                       <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{ex.name}</span>
                       <button className="chip-del" style={{ fontSize: 16 }}
                         onClick={() => setCurrentExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
@@ -9899,7 +10748,8 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           borderRadius: 10, marginBottom: 8, padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 12,
         }}>
-          <div style={{ flex: 1 }}>
+          <ExerciseGif exName={ex.name} size={44} />
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{ex.name}</div>
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
               {ex.sets?.length > 1
@@ -10147,11 +10997,22 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         />
       )}
       {showTeams && (
-        <TeamsModal
-          user={user}
-          sessions={sessions}
-          onClose={() => setShowTeams(false)}
-        />
+        <div className="overlay" onClick={() => setShowTeams(false)}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">◈ GymTeams</h3>
+              <button className="close-btn" onClick={() => setShowTeams(false)}>✕</button>
+            </div>
+            <EmailVerifyWall user={user}>
+              <TeamsModal
+                user={user}
+                sessions={sessions}
+                onClose={() => setShowTeams(false)}
+                embedded={true}
+              />
+            </EmailVerifyWall>
+          </div>
+        </div>
       )}
       {showOnboarding && (
         <OnboardingModal user={user} onComplete={completeOnboarding} onSetGoal={(g) => setWeeklyGoal(g)} />
@@ -10173,7 +11034,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           onClose={() => setShowBodyStats(false)}
         />
       )}
-      {showAdminExercises && ADMIN_EMAILS.includes(user.email) && (
+      {showAdminExercises && user.isAdmin && (
         <AdminExercisesModal onClose={() => setShowAdminExercises(false)} />
       )}
       {showAthleteCoach && (
@@ -10184,11 +11045,22 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         />
       )}
       {showCoach && (
-        <CoachModal
-          user={user}
-          sessions={sessions}
-          onClose={() => setShowCoach(false)}
-        />
+        <div className="overlay" onClick={() => setShowCoach(false)}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">★ Panel Coach</h3>
+              <button className="close-btn" onClick={() => setShowCoach(false)}>✕</button>
+            </div>
+            <EmailVerifyWall user={user}>
+              <CoachModal
+                user={user}
+                sessions={sessions}
+                onClose={() => setShowCoach(false)}
+                embedded={true}
+              />
+            </EmailVerifyWall>
+          </div>
+        </div>
       )}
       {showBadges && (
         <BadgesModal
@@ -10217,6 +11089,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           bodyStats={bodyStats}
           onOpenBodyStats={() => { setShowProfile(false); setShowBodyStats(true); }}
           onClose={() => setShowProfile(false)}
+          onPhotoUpdate={(url) => setCurrentUser(prev => ({ ...prev, photoURL: url }))}
         />
       )}
       {showProgressPicker && (() => {
@@ -10324,6 +11197,21 @@ export default function App() {
   const [dark, setDark] = useState(() => load("gym_dark", true));
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [splashDone, setSplashDone] = useState(false);
+  const [splashPhrase] = useState(() => {
+    const _p = [
+      "NO PARES HASTA ESTAR ORGULLOSO",
+      "LA EXCUSA NO QUEMA CALORÍAS",
+      "EL GYM NO MIENTE",
+      "UN REP MÁS SIEMPRE",
+      "ROMPE EL LÍMITE QUE PUSISTE AYER",
+      "LA CONSTANCIA VENCE AL TALENTO",
+      "LA DISCIPLINA ES EL CAMINO",
+      "YEAH BUDDY!! 🏆",
+    ];
+    return _p[Math.floor(Math.random() * _p.length)];
+  });
+  useEffect(() => { const t = setTimeout(() => setSplashDone(true), 2200); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("gym_dark");
@@ -10332,25 +11220,7 @@ export default function App() {
   useEffect(() => { document.body.setAttribute("data-theme", dark ? "dark" : "light"); }, [dark]);
   useEffect(() => { store("gym_dark", dark); }, [dark]);
 
-  // Handle Google redirect result
-  useEffect(() => {
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        const firebaseUser = result.user;
-        let profile = null;
-        try {
-          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-          profile = snap.exists() ? snap.data() : null;
-        } catch {}
-        if (!profile) {
-          profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
-          try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
-        }
-        setCurrentUser({ uid: firebaseUser.uid, name: profile?.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile?.isCoach || false, photoURL: firebaseUser.photoURL || profile?.photoURL || null });
-        setAuthLoading(false);
-      }
-    }).catch(() => {});
-  }, []);
+
 
   // Firebase auth listener
   
@@ -10366,7 +11236,7 @@ export default function App() {
           profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
           try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
         }
-        setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile.isCoach || false, photoURL: firebaseUser.photoURL || profile.photoURL || null, createdAt: firebaseUser.metadata?.creationTime ? new Date(firebaseUser.metadata.creationTime).toISOString().slice(0,10) : null });
+        setCurrentUser({ uid: firebaseUser.uid, name: profile.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile.isCoach || false, isAdmin: profile.isAdmin || false, photoURL: firebaseUser.photoURL || profile.photoURL || null, createdAt: firebaseUser.metadata?.creationTime ? new Date(firebaseUser.metadata.creationTime).toISOString().slice(0,10) : null, emailVerified: firebaseUser.emailVerified });
       } else {
         setCurrentUser(null);
       }
@@ -10398,16 +11268,22 @@ export default function App() {
 
   async function loginWithGoogle() {
     try {
-      googleProvider.setCustomParameters({ prompt: "select_account" });
-      let cred;
+      let firebaseUser;
       if (Capacitor.isNativePlatform()) {
-        await signInWithRedirect(auth, googleProvider);
-        cred = await getRedirectResult(auth);
-        if (!cred) return { ok: false, msg: "No se pudo completar el login" };
+        // Usa el plugin nativo de Capacitor — abre el selector de cuenta Google nativo
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = result.credential?.idToken;
+        const accessToken = result.credential?.accessToken;
+        if (!idToken) return { ok: false, msg: "No se pudo obtener el token de Google" };
+        const credential = GoogleAuthProvider.credential(idToken, accessToken);
+        const cred = await signInWithCredential(auth, credential);
+        firebaseUser = cred.user;
       } else {
-        cred = await signInWithPopup(auth, googleProvider);
+        // En web usa el popup normal
+        googleProvider.setCustomParameters({ prompt: "select_account" });
+        const cred = await signInWithPopup(auth, googleProvider);
+        firebaseUser = cred.user;
       }
-      const firebaseUser = cred.user;
       let profile = null;
       try {
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
@@ -10417,11 +11293,11 @@ export default function App() {
         profile = { uid: firebaseUser.uid, name: firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free" };
         try { await setDoc(doc(db, "users", firebaseUser.uid), profile, { merge: true }); } catch {}
       }
-      setCurrentUser({ uid: firebaseUser.uid, name: profile?.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile?.isCoach || false, photoURL: firebaseUser.photoURL || profile?.photoURL || null });
+      setCurrentUser({ uid: firebaseUser.uid, name: profile?.name || firebaseUser.displayName || firebaseUser.email.split("@")[0], email: firebaseUser.email, plan: "free", isCoach: profile?.isCoach || false, isAdmin: profile?.isAdmin || false, photoURL: firebaseUser.photoURL || profile?.photoURL || null, emailVerified: firebaseUser.emailVerified });
       return { ok: true };
-    } catch(e) { 
+    } catch(e) {
       console.error("Google login error:", e);
-      return { ok: false, msg: firebaseErrMsg(e.code) }; 
+      return { ok: false, msg: firebaseErrMsg(e.code) };
     }
   }
 
@@ -10436,11 +11312,97 @@ export default function App() {
     setCurrentUser(null);
   }
 
-  if (authLoading) {
+  if (authLoading || !splashDone) {
+    const _matrixPhrases = [
+      "NO HAY EXCUSAS","DALE DURO","ROMPE TUS LÍMITES","SIN DOLOR NO HAY GLORIA",
+      "ENTRENA COMO BESTIA","UN DÍA MÁS","TÚ PUEDES MÁS","MODO HARDCORE",
+      "CADA REP CUENTA","NO TE RINDAS","SUPERA TUS MARCAS","MÁS PESO",
+      "CONSTANCIA ES CLAVE","SUDOR Y SACRIFICIO","NUNCA PARES","SUBE EL PESO",
+      "HOY MÁS QUE AYER","SIN LÍMITES","DESTRUYE EL LÍMITE","FULL POWER",
+      "CERO EXCUSAS","ROMPE RECORDS","SANGRE Y HIERRO","BRUTAL",
+      "DROP SET","SUPERSET","FUERZA TOTAL","A TOPE","BEAST MODE",
+    ];
+    const _fixedPhrases = [
+      "NO PARES HASTA ESTAR ORGULLOSO",
+      "LA EXCUSA NO QUEMA CALORÍAS",
+      "EL GYM NO MIENTE",
+      "UN REP MÁS SIEMPRE",
+      "ROMPE EL LÍMITE QUE PUSISTE AYER",
+      "LA CONSTANCIA VENCE AL TALENTO",
+      "LA DISCIPLINA ES EL CAMINO",
+      "YEAH BUDDY!! 🏆",
+    ];
+    // genera columnas de frases cayendo
+    const _cols = Array.from({length: 7}, (_, ci) => ({
+      id: ci,
+      left: `${5 + ci * 13.5}%`,
+      delay: ci * 0.18,
+      duration: 2.8 + ci * 0.3,
+      phrases: Array.from({length: 6}, (_, i) => _matrixPhrases[(ci * 6 + i) % _matrixPhrases.length]),
+    }));
     return (
-      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#080f1a", flexDirection:"column", gap:16 }}>
-        <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:32, fontWeight:800, color:"#3b82f6", letterSpacing:2 }}>⚡ GymTracker</div>
-        <div style={{ color:"#4a6080", fontSize:14 }}>Iniciando...</div>
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0a0a0a", flexDirection:"column", gap:0, overflow:"hidden", position:"relative" }}>
+        <style>{`
+          @keyframes splashZoom {
+            0%   { transform: scale(0.85); opacity: 0; }
+            60%  { transform: scale(1.03); opacity: 1; }
+            100% { transform: scale(1);    opacity: 1; }
+          }
+          @keyframes splashFadeUp {
+            0%   { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes matrixFall {
+            0%   { transform: translateX(0); opacity: 0; }
+            5%   { opacity: 1; }
+            85%  { opacity: 0.8; }
+            100% { transform: translateX(220vw); opacity: 0; }
+          }
+          .splash-logo { animation: splashZoom 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards; z-index:10; position:relative; }
+          .splash-sub  { animation: splashFadeUp 0.4s ease 0.6s both; }
+        `}</style>
+
+        {/* Matrix rows - horizontal falling */}
+        {_cols.map(col => (
+          <div key={col.id} style={{
+            position:"absolute", left:"-100%",
+            top: `${8 + col.id * 13}%`,
+            display:"flex", flexDirection:"row", alignItems:"center", gap:32,
+            animation: `matrixFall ${col.duration}s linear ${col.delay}s infinite`,
+            pointerEvents:"none",
+          }}>
+            {col.phrases.map((p, i) => (
+              <span key={i} style={{
+                fontFamily:"'Barlow Condensed',sans-serif",
+                fontSize: i % 2 === 0 ? 11 : 9,
+                fontWeight: 800,
+                letterSpacing: 3,
+                textTransform:"uppercase",
+                whiteSpace:"nowrap",
+                color: i === 0 ? "rgba(232,255,0,0.45)" : `rgba(232,255,0,${0.05 + i * 0.025})`,
+              }}>{p}</span>
+            ))}
+          </div>
+        ))}
+
+        {/* Logo central */}
+        <div className="splash-logo" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:0, width:"100%", padding:"0 16px" }}>
+          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:40, lineHeight:1, marginBottom:4 }}>⚡</div>
+          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:"clamp(28px, 9vw, 48px)", fontWeight:900, color:"#f0f0f0", letterSpacing:"clamp(4px, 2vw, 8px)", textTransform:"uppercase", textAlign:"center", whiteSpace:"nowrap" }}>GYMTRACKER</div>
+          <div style={{ width:32, height:2, background:"#e8ff00", marginTop:10, borderRadius:1 }} />
+          {((_f) => (
+            <div className="splash-sub" style={{ marginTop:12, textAlign:"center",
+              color: _f === "YEAH BUDDY!! 🏆" ? "#e8ff00" : "rgba(255,255,255,0.25)",
+              fontSize: _f === "YEAH BUDDY!! 🏆" ? 18 : 10,
+              fontWeight: 900, letterSpacing: _f === "YEAH BUDDY!! 🏆" ? 3 : 5,
+              textTransform:"uppercase",
+              textShadow: _f === "YEAH BUDDY!! 🏆" ? "0 0 20px rgba(232,255,0,0.6)" : "none",
+            }}>{_f}</div>
+          ))(splashPhrase)}
+        </div>
+
+        {/* Cargando abajo */}
+        <div style={{ position:"absolute", bottom:40, color:"rgba(255,255,255,0.18)", fontSize:10, fontWeight:800, letterSpacing:5, textTransform:"uppercase", zIndex:10, animation:"splashFadeUp 0.4s ease 0.8s both" }}>CARGANDO</div>
       </div>
     );
   }
@@ -10449,73 +11411,151 @@ export default function App() {
     <ThemeCtx.Provider value={{ dark, toggleDark }}>
       <AuthCtx.Provider value={{ user: currentUser, loginWithFirebase, registerWithFirebase, logout, loginAsGuest, resetPassword, loginWithGoogle }}>
         <style>{CSS}</style>
-        {!currentUser ? <LoginScreen /> : <GymApp />}
+        {!currentUser
+          ? <LoginScreen />
+          : <>{typeof document !== "undefined" && (document.body.classList.add("app-loaded"))}<GymApp /></>
+        }
       </AuthCtx.Provider>
     </ThemeCtx.Provider>
   );
 }
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@300;400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body[data-theme="dark"] {
-  --bg: #080f1a; --surface: #0c1524; --card: #0f1c2e; --border: #1a2d45;
-  --accent: #3b82f6;
---accent-dim: #1a2f52; --accent-dim: #1a2f52; --text: #e2e8f0; --text-muted: #4a6080;
-  --danger: #ef4444; --sidebar-bg: #060d18; --input-bg: #070e1a; --shadow: 0 4px 24px rgba(0,0,0,0.5);
+  --bg:        #0a0a0a;
+  --surface:   #111111;
+  --card:      #141414;
+  --border:    rgba(255,255,255,0.08);
+  --accent:    #e8ff00;
+  --accent-2:  #facc15;
+  --accent-dim: rgba(232,255,0,0.07);
+  --text:      #f0f0f0;
+  --text-muted: rgba(255,255,255,0.35);
+  --danger:    #ef4444;
+  --sidebar-bg: #0a0a0a;
+  --sidebar-text: rgba(255,255,255,0.45);
+  --sidebar-text-hover: rgba(255,255,255,0.9);
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-hover-bg: rgba(232,255,0,0.08);
+  --input-bg:  #1a1a1a;
+  --shadow:    0 8px 40px rgba(0,0,0,0.7);
 }
 body[data-theme="light"] {
-  --bg: #f0f4f8; --surface: #ffffff; --card: #ffffff; --border: #d1dce8;
-  --accent: #2563eb; --accent-dim: #dbeafe; --text: #0f172a; --text-muted: #64748b;
-  --danger: #dc2626; --sidebar-bg: #0f172a; --input-bg: #f8fafc; --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --bg:        #f2f2f0;
+  --surface:   #ffffff;
+  --card:      #ffffff;
+  --border:    rgba(0,0,0,0.1);
+  --accent:    #c8e000;
+  --accent-2:  #ca9a04;
+  --accent-dim: rgba(200,224,0,0.1);
+  --text:      #0a0a0a;
+  --text-muted: rgba(0,0,0,0.4);
+  --danger:    #dc2626;
+  --sidebar-bg: #ffffff;
+  --sidebar-text: rgba(0,0,0,0.45);
+  --sidebar-text-hover: rgba(0,0,0,0.9);
+  --sidebar-border: rgba(0,0,0,0.08);
+  --sidebar-hover-bg: rgba(0,0,0,0.05);
+  --input-bg:  #f5f5f3;
+  --shadow:    0 4px 24px rgba(0,0,0,0.1);
 }
 
-body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--text); transition: background 0.3s, color 0.3s; }
+html, body { background: var(--bg) !important; }
+body { font-family: 'Barlow', sans-serif; color: var(--text); transition: color 0.3s; }
+body.app-loaded { background: var(--bg) !important; }
 
 /* ── Layout ── */
 .app-layout { display: flex; min-height: 100vh; }
 .main-content { flex: 1; display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); min-width: 0; margin-left: 240px; }
 
-/* ── Sidebar (desktop only) ── */
+/* ── Sidebar ── */
 .sidebar {
   position: fixed; top: 0; left: 0; height: 100vh; width: 240px;
-  background: var(--sidebar-bg); border-right: 1px solid #0f2040;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex; flex-direction: column; padding: 20px 0; z-index: 100; overflow-y: auto; overflow-x: hidden;
 }
-.sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 0 14px 20px; border-bottom: 1px solid #0f2040; margin-bottom: 12px; }
+.sidebar-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px 20px;
+  border-bottom: 1px solid var(--sidebar-border);
+  margin-bottom: 12px;
+}
 .sidebar-logo { display: flex; align-items: center; gap: 10px; }
-.logo-text { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: 2px; color: #e2e8f0; }
-.sidebar-nav { flex: 1; padding: 0 8px; display: flex; flex-direction: column; gap: 3px; }
-.sidebar-bottom { padding: 12px 8px 0; border-top: 1px solid #0f2040; margin-top: auto; }
+.logo-text {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+  font-size: 20px; letter-spacing: 6px; color: var(--sidebar-text-hover); text-transform: uppercase;
+}
+.sidebar-nav { flex: 1; padding: 0 10px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-bottom { padding: 12px 10px 0; border-top: 1px solid var(--sidebar-border); margin-top: auto; }
 .user-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 4px; }
-.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: white; flex-shrink: 0; }
-.user-name { font-size: 13px; font-weight: 600; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.user-avatar {
+  width: 32px; height: 32px; border-radius: 4px;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 13px; color: #0a0a0a; flex-shrink: 0;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+.user-name { font-size: 12px; font-weight: 600; color: var(--sidebar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; letter-spacing: 0.5px; }
 
 /* ── Nav items ── */
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: none; border: none; color: #4a6080; font-family: 'Barlow', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; text-align: left; width: 100%; transition: background 0.15s, color 0.15s; white-space: nowrap; }
-.nav-item:hover { background: #0f2040; color: #94a3b8; }
-.nav-item.active { background: #1a2f52; color: #3b82f6; }
-.nav-icon { font-size: 16px; flex-shrink: 0; }
-.plan-badge { background: none; border: 1px solid var(--pc, #3b82f6); color: var(--pc, #3b82f6); border-radius: 5px; padding: 1px 7px; font-size: 10px; font-weight: 700; cursor: pointer; font-family: 'Barlow', sans-serif; transition: background 0.2s; }
-.plan-badge:hover { background: var(--pc, #3b82f6); color: white; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-radius: 4px; background: none; border: none;
+  color: var(--sidebar-text);
+  font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700;
+  cursor: pointer; text-align: left; width: 100%;
+  transition: background 0.15s, color 0.15s; white-space: nowrap;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.nav-item:hover { background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover); }
+.nav-item.active {
+  background: var(--sidebar-hover-bg);
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
+}
+.nav-icon { font-size: 15px; flex-shrink: 0; }
+.plan-badge {
+  background: none; border: 1px solid var(--accent); color: var(--accent);
+  border-radius: 3px; padding: 1px 7px; font-size: 10px; font-weight: 800;
+  cursor: pointer; font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 1px; transition: background 0.2s;
+}
+.plan-badge:hover { background: var(--accent); color: #0a0a0a; }
 
 /* ── Topbar ── */
-.topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 10; }
-.page-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 10;
+}
+.page-title {
+  font-family: 'Barlow Condensed', sans-serif; font-size: 20px;
+  font-weight: 900; letter-spacing: 3px; text-transform: uppercase;
+}
 .topbar-actions { display: flex; gap: 6px; align-items: center; }
-.topbar-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--card); border: 1px solid var(--border); color: var(--text-muted); border-radius: 10px; padding: 6px 10px; cursor: pointer; min-width: 46px; transition: all 0.2s; }
+.topbar-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--input-bg); border: 1px solid var(--border);
+  color: var(--text-muted); border-radius: 4px;
+  padding: 6px 10px; cursor: pointer; min-width: 46px; transition: all 0.2s;
+}
 .topbar-btn:hover { border-color: var(--accent); color: var(--accent); }
 .topbar-btn-icon { font-size: 14px; line-height: 1; }
-.topbar-btn-label { font-size: 9px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
+.topbar-btn-label { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
 
 /* ── Hamburger ── */
-.hamburger { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 4px; }
-.hamburger span { display: block; width: 20px; height: 2px; background: var(--text); border-radius: 2px; }
+.hamburger { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 4px; }
+.hamburger span { display: block; width: 22px; height: 2px; background: var(--text); }
 
 /* ── Mobile drawer ── */
-.mobile-drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; backdrop-filter: blur(4px); }
-.mobile-drawer { position: absolute; top: 0; left: 0; width: 280px; height: 100vh; background: var(--sidebar-bg); display: flex; flex-direction: column; overflow-y: auto; animation: slideRight 0.25s ease; }
+.mobile-drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; backdrop-filter: blur(4px); }
+.mobile-drawer { position: absolute; top: 0; left: 0; width: 280px; height: 100vh; background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; animation: slideRight 0.25s ease; border-right: 1px solid var(--border); }
 @keyframes slideRight { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 
 /* ── Mobile bottom nav ── */
@@ -10524,10 +11564,16 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--te
   height: calc(60px + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 100;
-  background: var(--surface); border-top: 1px solid var(--border);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
   display: flex; align-items: stretch;
 }
-.mobile-nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-family: 'Barlow', sans-serif; transition: color 0.15s; padding: 0; }
+.mobile-nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-family: 'Barlow', sans-serif; transition: color 0.15s; padding: 0;
+  font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+}
 .mobile-nav-btn.active { color: var(--accent); }
 .mobile-nav-btn:hover { color: var(--text); }
 
@@ -10553,53 +11599,54 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--te
 
 /* ── Content ── */
 .content-area { padding: 24px 28px; max-width: 900px; width: 100%; margin: 0 auto; flex: 1; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; box-shadow: var(--shadow); transition: border-color 0.2s, background 0.3s; }
-.card-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 22px; margin-bottom: 16px; box-shadow: var(--shadow); transition: border-color 0.2s, background 0.3s; }
+.card:hover { border-color: var(--accent-dim); }
+.card-label { font-size: 10px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; font-family: 'Barlow Condensed', sans-serif; }
 .form-row { display: flex; gap: 12px; margin-bottom: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
-.field-label { font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
-.input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; outline: none; width: 100%; transition: border-color 0.2s, box-shadow 0.2s, background 0.3s; }
-.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+.field-label { font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; font-family: 'Barlow Condensed', sans-serif; }
+.input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; outline: none; width: 100%; transition: border-color 0.2s, box-shadow 0.2s, background 0.3s; }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232,255,0,0.12); }
 input[type="date"].input { color-scheme: dark; }
 .textarea { resize: vertical; min-height: 70px; }
 
 /* ── Dropdowns ── */
-.dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; z-index: 200; overflow: hidden; box-shadow: var(--shadow); }
+.dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1a1a1a; border: 1px solid var(--border); border-radius: 6px; z-index: 200; overflow: hidden; box-shadow: var(--shadow); }
 .dropdown-item { display: block; width: 100%; background: none; border: none; color: var(--text); padding: 10px 16px; text-align: left; font-family: 'Barlow', sans-serif; font-size: 14px; cursor: pointer; transition: background 0.15s; }
-.dropdown-item:hover { background: var(--accent-dim); }
+.dropdown-item:hover { background: var(--accent-dim); color: var(--accent); }
 
 /* ── Sets & exercises ── */
 .sets-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.set-chip { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--text); border-radius: 7px; padding: 4px 10px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
-.sets-badge { display: inline-block; background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); border-radius: 5px; padding: 1px 7px; font-size: 10px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
+.set-chip { background: var(--accent-dim); border: 1px solid rgba(232,255,0,0.25); color: var(--accent); border-radius: 3px; padding: 4px 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.5px; }
+.sets-badge { display: inline-block; background: var(--accent-dim); border: 1px solid rgba(232,255,0,0.25); color: var(--accent); border-radius: 3px; padding: 1px 6px; font-size: 10px; font-weight: 800; margin-left: 8px; vertical-align: middle; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; }
 .chip-del { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 0 2px; transition: color 0.2s; }
 .chip-del:hover { color: var(--danger); }
 .ex-list { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
-.ex-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--input-bg); border-radius: 10px; border: 1px solid var(--border); animation: slideIn 0.2s ease; }
-.ex-name { font-weight: 600; font-size: 14px; }
+.ex-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--input-bg); border-radius: 4px; border: 1px solid var(--border); animation: slideIn 0.2s ease; }
+.ex-name { font-weight: 700; font-size: 14px; font-family: 'Barlow', sans-serif; }
 .ex-detail { color: var(--text-muted); font-size: 12px; }
 
 /* ── Buttons ── */
-.btn-primary { background: var(--accent); border: none; border-radius: 12px; padding: 13px 24px; color: white; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: opacity 0.2s, transform 0.1s; }
-.btn-primary:hover { opacity: 0.88; }
+.btn-primary { background: var(--accent); border: none; border-radius: 4px; padding: 13px 24px; color: #0a0a0a; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 20px rgba(232,255,0,0.2); }
+.btn-primary:hover { background: #f0ff40; transform: translateY(-1px); box-shadow: 0 4px 24px rgba(232,255,0,0.35); }
 .btn-primary:active { transform: scale(0.98); }
-.btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--text-muted); border-radius: 10px; padding: 9px 16px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.btn-ghost { background: var(--input-bg); border: 1px solid var(--border); color: var(--text-muted); border-radius: 4px; padding: 9px 16px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
 .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
 .btn-ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
 .btn-ghost.small { padding: 6px 12px; font-size: 12px; }
-.btn-add-ex { width: 100%; background: none; border: 1px dashed var(--border); color: var(--text-muted); border-radius: 10px; padding: 9px; margin-top: 12px; font-family: 'Barlow', sans-serif; font-size: 13px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
-.btn-add-ex:hover { border-color: var(--accent); color: var(--text); }
-.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-family: 'Barlow', sans-serif; font-size: inherit; }
+.btn-add-ex { width: 100%; background: none; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); border-radius: 4px; padding: 10px; margin-top: 12px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
+.btn-add-ex:hover { border-color: var(--accent); color: var(--accent); }
+.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-family: 'Barlow', sans-serif; font-size: inherit; font-weight: 700; }
 .link-btn:hover { text-decoration: underline; }
-.icon-action { background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px; opacity: 0.6; transition: opacity 0.2s; }
+.icon-action { background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px; opacity: 0.5; transition: opacity 0.2s; }
 .icon-action:hover { opacity: 1; }
 
 /* ── Session cards ── */
 .session-card { animation: slideIn 0.25s ease both; }
 .session-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; flex-wrap: wrap; gap: 8px; }
-.session-date { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-.session-workout { font-weight: 700; font-size: 15px; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.5px; }
-.ex-count { font-size: 11px; color: var(--text-muted); background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+.session-date { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-family: 'Barlow Condensed', sans-serif; }
+.session-workout { font-weight: 900; font-size: 16px; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.ex-count { font-size: 10px; color: var(--text-muted); background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; padding: 3px 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: 1px; }
 .chevron { color: var(--text-muted); font-size: 10px; }
 .session-body { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; animation: fadeIn 0.2s ease; }
 .session-notes { color: var(--text-muted); font-size: 13px; margin-bottom: 12px; font-style: italic; }
@@ -10607,78 +11654,84 @@ input[type="date"].input { color-scheme: dark; }
 .session-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
 /* ── Dashboard ── */
-.section-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; margin-bottom: 20px; }
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 16px; display: flex; flex-direction: column; gap: 6px; animation: slideIn 0.3s ease both; transition: border-color 0.2s, transform 0.2s; }
+.section-title { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 20px; color: var(--text); }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 18px 16px; display: flex; flex-direction: column; gap: 6px; animation: slideIn 0.3s ease both; transition: border-color 0.2s, transform 0.2s; }
 .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.stat-value { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; }
+.stat-value { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 900; color: var(--accent); }
 
 /* ── Login ── */
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); }
-.login-box { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 40px 36px; width: 100%; max-width: 420px; box-shadow: var(--shadow); animation: fadeIn 0.4s ease; }
+.login-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 40px 36px; width: 100%; max-width: 420px; box-shadow: var(--shadow); animation: fadeIn 0.4s ease; }
 .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.tab-row { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 22px; }
-.tab-btn { flex: 1; background: none; border: none; color: var(--text-muted); padding: 10px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s, color 0.2s; }
-.tab-btn.active { background: var(--accent); color: white; }
-.err-msg { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; color: #f87171; border-radius: 8px; padding: 9px 12px; font-size: 13px; margin-bottom: 10px; }
+.tab-row { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+.tab-btn { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); padding: 10px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-bottom: -1px; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.err-msg { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 4px; padding: 9px 12px; font-size: 13px; margin-bottom: 10px; }
 
 /* ── Plans ── */
-.plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-top: 8px; }
-.plan-card { border: 1px solid var(--border); border-radius: 14px; padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; }
-.plan-card.plan-active { border-color: var(--pc); background: color-mix(in srgb, var(--pc) 8%, var(--card)); }
-.plan-name { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; }
-.plan-price { font-size: 16px; font-weight: 700; }
+.plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 8px; }
+.plan-card { border: 1px solid var(--border); border-radius: 6px; padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+.plan-card.plan-active { border-color: var(--accent); background: var(--accent-dim); }
+.plan-name { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+.plan-price { font-size: 16px; font-weight: 700; font-family: 'Barlow Condensed', sans-serif; }
 .plan-features { list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-muted); flex: 1; margin: 4px 0; }
-.plan-btn { border-radius: 8px; padding: 8px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin-top: auto; }
-.plan-btn:hover { opacity: 0.8; }
+.plan-btn { border-radius: 4px; padding: 9px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; margin-top: auto; }
+.plan-btn:hover { opacity: 0.85; }
 
 /* ── Library ── */
 .lib-filters { display: flex; gap: 8px; margin-bottom: 12px; }
 .muscle-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; margin-bottom: 14px; }
-.muscle-chip { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 20px; padding: 4px 12px; width: 100%; text-align: center; justify-content: center; font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.muscle-chip { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 3px; padding: 5px 12px; width: 100%; text-align: center; font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; }
 .muscle-chip:hover { border-color: var(--accent); color: var(--text); }
-.muscle-chip.active { background: var(--accent); border-color: var(--accent); color: white; }
+.muscle-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; font-weight: 800; }
 .lib-list { overflow-y: auto; flex: 1; padding-right: 4px; }
-.lib-list::-webkit-scrollbar { width: 4px; }
-.lib-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.lib-list::-webkit-scrollbar { width: 3px; }
+.lib-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 .lib-group { margin-bottom: 16px; }
-.lib-group-title { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; padding: 0 4px; }
-.lib-item { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; border-bottom: 1px solid var(--border); padding: 10px 6px; cursor: pointer; text-align: left; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s; }
+.lib-group-title { font-size: 10px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; padding: 0 4px; font-family: 'Barlow Condensed', sans-serif; }
+.lib-item { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; border-bottom: 1px solid var(--border); padding: 10px 6px; cursor: pointer; text-align: left; margin-bottom: 2px; transition: background 0.15s; }
 .lib-item:hover { background: var(--accent-dim); }
 .lib-info { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.lib-name { color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; font-weight: 500; }
+.lib-name { color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; font-weight: 600; }
 .lib-meta { color: var(--text-muted); font-size: 11px; }
 .lib-add { color: var(--accent); font-size: 20px; font-weight: 300; flex-shrink: 0; opacity: 0.6; transition: opacity 0.2s; }
 .lib-item:hover .lib-add { opacity: 1; }
 
 /* ── Modals ── */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: fadeIn 0.2s ease; backdrop-filter: blur(4px); }
-.modal { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 28px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow); animation: slideUp 0.25s ease; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: fadeIn 0.2s ease; backdrop-filter: blur(6px); }
+.modal { background: var(--card); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 28px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.8); animation: slideUp 0.25s ease; }
 .modal-wide { max-width: 680px; }
 .modal-library { max-width: 520px; max-height: 85vh; display: flex; flex-direction: column; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.modal-title { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+.modal-title { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
 .close-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 4px; transition: color 0.2s; flex-shrink: 0; }
 .close-btn:hover { color: var(--text); }
 
 /* ── Misc ── */
 .text-muted { color: var(--text-muted); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
-.upgrade-banner { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 12px; padding: 12px 18px; font-size: 13px; margin-bottom: 16px; }
-.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 9999; white-space: nowrap; box-shadow: var(--shadow); animation: toastIn 0.3s ease; }
+.upgrade-banner { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #f87171; border-radius: 6px; padding: 12px 18px; font-size: 13px; margin-bottom: 16px; }
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #1a1a1a; border: 1px solid rgba(232,255,0,0.3); color: var(--text); padding: 12px 22px; border-radius: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; z-index: 9999; white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(232,255,0,0.1); animation: toastIn 0.3s ease; }
 @media (min-width: 769px) { .toast { bottom: 28px; } }
 @media (max-width: 768px) { .history-sidebar { display: none !important; } }
 
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes floatPhrase {
+  0%   { transform: rotate(var(--angle, -5deg)) translate(0, 0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: rotate(var(--angle, -5deg)) translate(var(--dx, 40px), var(--dy, -80px)); opacity: 0; }
+}
 @keyframes floatBadge { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-6px) rotate(5deg); } }
 @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 .fade-in { animation: fadeIn 0.3s ease; }
-;select.input { cursor: pointer; }
-select.input option { background: var(--surface); color: var(--text); }
-.btn-guest { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-family: 'Barlow', sans-serif; }
-.btn-guest:hover { border-color: #f59e0b; background: rgba(245,158,11,0.06); }
-.guest-banner { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); color: #fbbf24; border-radius: 12px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+select.input { cursor: pointer; }
+select.input option { background: #1a1a1a; color: var(--text); }
+.btn-guest { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-family: 'Barlow', sans-serif; }
+.btn-guest:hover { border-color: rgba(232,255,0,0.3); background: rgba(232,255,0,0.03); }
+.guest-banner { background: rgba(232,255,0,0.05); border: 1px solid rgba(232,255,0,0.2); color: var(--accent); border-radius: 6px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-weight: 600; }
 @keyframes prBannerIn { from { opacity:0; transform:translate(-50%,-50%) scale(0.6); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
 `;
