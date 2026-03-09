@@ -2777,20 +2777,53 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
       content: (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <div style={{ position: "relative", width: 90, height: 90 }}>
-              <svg viewBox="0 0 68 68" width="90" height="90" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="34" cy="34" r="33" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.5)" strokeWidth="1.5"/>
-                <rect x="14" y="31" width="40" height="6" rx="3" fill="#3b82f6" opacity="0.9"/>
-                <rect x="8"  y="25" width="9" height="18" rx="4" fill="#3b82f6"/>
-                <rect x="5"  y="28" width="5" height="12" rx="2.5" fill="#3b82f6" opacity="0.7"/>
-                <rect x="51" y="25" width="9" height="18" rx="4" fill="#3b82f6"/>
-                <rect x="58" y="28" width="5" height="12" rx="2.5" fill="#3b82f6" opacity="0.7"/>
-                <circle cx="34" cy="34" r="10" fill="var(--surface)" stroke="rgba(59,130,246,0.5)" strokeWidth="1"/>
-                <circle cx="30.5" cy="32" r="1.8" fill="#3b82f6"/>
-                <circle cx="37.5" cy="32" r="1.8" fill="#3b82f6"/>
-                <circle cx="31.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
-                <circle cx="38.2" cy="31.3" r="0.6" fill="white" opacity="0.8"/>
-                <path d="M30 36.5 Q34 40 38 36.5" stroke="#3b82f6" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            <div style={{ position: "relative", width: 90, height: 101 }}>
+              <svg viewBox="0 0 80 88" width="90" height="99" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <filter id="glow-ob"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                  <filter id="neon-ob"><feGaussianBlur stdDeviation="1.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                </defs>
+                <ellipse cx="40" cy="44" rx="32" ry="36" fill="rgba(59,130,246,0.14)" filter="url(#glow-ob)"/>
+                {/* HEAD */}
+                <path d="M22 8 L58 8 L60 14 L60 36 L54 42 L26 42 L20 36 L20 14 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="miter"/>
+                <path d="M24 8 L56 8 L58 10 L22 10 Z" fill="#3b82f6" opacity="0.9"/>
+                <path d="M26 16 L54 16 L56 20 L56 36 L52 39 L28 39 L24 36 L24 20 Z" fill="#111" stroke="rgba(59,130,246,0.6)" strokeWidth="1" strokeLinejoin="miter"/>
+                {/* Eyes */}
+                <rect x="24" y="21" width="7" height="5" rx="1" fill="#3b82f6"/>
+                <rect x="33" y="21" width="7" height="5" rx="1" fill="#3b82f6"/>
+                <rect x="25" y="22" width="2" height="2" fill="#0a0a0a"/>
+                <rect x="34" y="22" width="2" height="2" fill="#0a0a0a"/>
+                <line x1="23" y1="18" x2="31" y2="19.5" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="square"/>
+                <line x1="41" y1="18" x2="33" y2="19.5" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="square"/>
+                {/* Smirk */}
+                <path d="M27 31.5 L32 34 L37 31.5" stroke="#3b82f6" strokeWidth="2.2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>
+                <line x1="20" y1="32" x2="26" y2="36" stroke="#3b82f6" strokeWidth="1.5" opacity="0.5"/>
+                <line x1="60" y1="32" x2="54" y2="36" stroke="#3b82f6" strokeWidth="1.5" opacity="0.5"/>
+                {/* NECK */}
+                <rect x="33" y="42" width="14" height="7" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.5"/>
+                {/* TORSO */}
+                <path d="M14 49 L66 49 L62 76 L18 76 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="miter" filter="url(#neon-ob)"/>
+                <path d="M18 49 L40 49 L38 62 L20 62 Z" fill="rgba(59,130,246,0.2)" stroke="rgba(59,130,246,0.5)" strokeWidth="1"/>
+                <path d="M62 49 L40 49 L42 62 L60 62 Z" fill="rgba(59,130,246,0.2)" stroke="rgba(59,130,246,0.5)" strokeWidth="1"/>
+                <line x1="40" y1="49" x2="40" y2="76" stroke="#3b82f6" strokeWidth="1.5" opacity="0.6"/>
+                <line x1="21" y1="62" x2="59" y2="62" stroke="#3b82f6" strokeWidth="1" opacity="0.3"/>
+                {/* LEFT ARM */}
+                <path d="M14 49 L4 44 L0 34 L6 32 L10 40 L18 47 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.8" strokeLinejoin="miter"/>
+                <path d="M0 34 L-2 22 L4 18 L8 28 L6 32 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.8" strokeLinejoin="miter"/>
+                <rect x="-6" y="11" width="18" height="6" rx="0" fill="#3b82f6" filter="url(#glow-ob)"/>
+                <rect x="-8" y="7" width="6" height="14" rx="0" fill="#3b82f6"/>
+                <rect x="8" y="7" width="6" height="14" rx="0" fill="#3b82f6"/>
+                {/* RIGHT ARM */}
+                <path d="M66 49 L76 44 L80 34 L74 32 L70 40 L62 47 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.8" strokeLinejoin="miter"/>
+                <path d="M80 34 L82 22 L76 18 L72 28 L74 32 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.8" strokeLinejoin="miter"/>
+                <rect x="68" y="11" width="18" height="6" rx="0" fill="#3b82f6" filter="url(#glow-ob)"/>
+                <rect x="66" y="7" width="6" height="14" rx="0" fill="#3b82f6"/>
+                <rect x="80" y="7" width="6" height="14" rx="0" fill="#3b82f6"/>
+                {/* LEGS */}
+                <path d="M18 76 L28 76 L26 88 L16 88 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.8" strokeLinejoin="miter"/>
+                <path d="M52 76 L62 76 L64 88 L54 88 Z" fill="#0a0a0a" stroke="#3b82f6" strokeWidth="1.8" strokeLinejoin="miter"/>
+                <rect x="14" y="86" width="14" height="4" fill="#3b82f6" opacity="0.9"/>
+                <rect x="52" y="86" width="14" height="4" fill="#3b82f6" opacity="0.9"/>
               </svg>
             </div>
           </div>
@@ -2930,7 +2963,7 @@ function OnboardingModal({ user, onComplete, onSetGoal }) {
           )}
           <button
             onClick={() => isLast ? onComplete() : setStep(s=>s+1)}
-            style={{ flex:2, padding:"12px 0", borderRadius:10, border:"none", background:"var(--accent)", color:"white", fontWeight:800, fontSize:15, cursor:"pointer" }}>
+            style={{ flex:2, padding:"12px 0", borderRadius:10, border:"none", background:"var(--accent)", color:"#0a0a0a", fontWeight:800, fontSize:15, cursor:"pointer" }}>
             {isLast ? "¡Comenzar a entrenar! 💪" : "Siguiente →"}
           </button>
         </div>
@@ -7111,145 +7144,183 @@ const BRUX_MOODS = {
 function DumbbellAvatar({ mood, bounce, size = 68, pulse = false }) {
   const c = mood.color;
   const f = mood.face;
+  const dark = "#0a0a0a";
 
-  // Eyes by face type
-  const renderEyes = () => {
-    if (f === "sleepy") return (
-      <>
-        <line x1="26" y1="30" x2="30" y2="30" stroke={c} strokeWidth="2.2" strokeLinecap="round"/>
-        <line x1="34" y1="30" x2="38" y2="30" stroke={c} strokeWidth="2.2" strokeLinecap="round"/>
-      </>
-    );
-    if (f === "shocked") return (
-      <>
-        <circle cx="28.5" cy="30" r="2.8" fill={c}/>
-        <circle cx="35.5" cy="30" r="2.8" fill={c}/>
-        <circle cx="29.3" cy="29.2" r="0.8" fill="white" opacity="0.9"/>
-        <circle cx="36.3" cy="29.2" r="0.8" fill="white" opacity="0.9"/>
-      </>
-    );
-    if (f === "chill" || f === "sarcastic") return (
-      <>
-        <rect x="25.5" y="28.5" width="6" height="3" rx="1.5" fill={c}/>
-        <rect x="32.5" y="28.5" width="6" height="3" rx="1.5" fill={c}/>
-        {f === "sarcastic" && <line x1="31" y1="27" x2="34" y2="28" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>}
-      </>
-    );
-    if (f === "fire" || f === "celebrate" || f === "proud") return (
-      <>
-        <path d="M26 31.5 Q28.5 28 31 31.5" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
-        <path d="M33 31.5 Q35.5 28 38 31.5" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
-      </>
-    );
-    if (f === "warning") return (
-      <>
-        <circle cx="28.5" cy="30" r="1.8" fill={c}/>
-        <circle cx="35.5" cy="30" r="1.8" fill={c}/>
-        <line x1="26" y1="27.5" x2="31" y2="28.5" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
-        <line x1="37" y1="27.5" x2="32" y2="28.5" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
-      </>
-    );
-    if (f === "coach") return (
-      <>
-        <circle cx="28.5" cy="30" r="1.8" fill={c}/>
-        <circle cx="35.5" cy="30" r="1.8" fill={c}/>
-        <circle cx="29.2" cy="29.3" r="0.7" fill="white" opacity="0.85"/>
-        <circle cx="36.2" cy="29.3" r="0.7" fill="white" opacity="0.85"/>
-      </>
-    );
-    // default (hype, happy)
-    return (
-      <>
-        <circle cx="28.5" cy="30" r="2" fill={c}/>
-        <circle cx="35.5" cy="30" r="2" fill={c}/>
-        <circle cx="29.3" cy="29.2" r="0.7" fill="white" opacity="0.8"/>
-        <circle cx="36.3" cy="29.2" r="0.7" fill="white" opacity="0.8"/>
-      </>
-    );
-  };
+  const renderFace = () => {
+    const eyes = (() => {
+      if (f === "sleepy") return (
+        <>
+          <line x1="25" y1="23" x2="30" y2="23" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1="34" y1="23" x2="39" y2="23" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <text x="37" y="18" fontSize="7" fill={c} opacity="0.8">z</text>
+          <text x="40" y="14" fontSize="5" fill={c} opacity="0.5">z</text>
+        </>
+      );
+      if (f === "shocked") return (
+        <>
+          <rect x="24" y="20" width="7" height="7" rx="1" fill={c}/>
+          <rect x="33" y="20" width="7" height="7" rx="1" fill={c}/>
+          <rect x="25.5" y="21.5" width="2" height="2" fill={dark}/>
+          <rect x="34.5" y="21.5" width="2" height="2" fill={dark}/>
+        </>
+      );
+      if (f === "fire") return (
+        <>
+          <line x1="24" y1="20" x2="30" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1="30" y1="20" x2="24" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1="33" y1="20" x2="39" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1="39" y1="20" x2="33" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+        </>
+      );
+      if (f === "celebrate" || f === "proud" || f === "hype") return (
+        <>
+          <text x="27" y="27" fontSize="8" textAnchor="middle" fill={c} fontWeight="900">★</text>
+          <text x="37" y="27" fontSize="8" textAnchor="middle" fill={c} fontWeight="900">★</text>
+        </>
+      );
+      if (f === "sarcastic") return (
+        <>
+          <rect x="24" y="22" width="7" height="4" rx="0" fill={c}/>
+          <rect x="33" y="22" width="7" height="4" rx="0" fill={c}/>
+          <line x1="33" y1="19" x2="40" y2="17" stroke={c} strokeWidth="2" strokeLinecap="square"/>
+        </>
+      );
+      if (f === "chill") return (
+        <>
+          <rect x="24" y="22" width="7" height="4" rx="2" fill={c}/>
+          <rect x="33" y="22" width="7" height="4" rx="2" fill={c}/>
+        </>
+      );
+      if (f === "warning") return (
+        <>
+          <rect x="24" y="21" width="7" height="5" rx="1" fill={c}/>
+          <rect x="33" y="21" width="7" height="5" rx="1" fill={c}/>
+          <line x1="23" y1="18" x2="31" y2="20" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1="41" y1="18" x2="33" y2="20" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+        </>
+      );
+      return (
+        <>
+          <rect x="24" y="21" width="7" height="5" rx="1" fill={c}/>
+          <rect x="33" y="21" width="7" height="5" rx="1" fill={c}/>
+          <rect x="25" y="22" width="2" height="2" fill={dark}/>
+          <rect x="34" y="22" width="2" height="2" fill={dark}/>
+          <line x1="23" y1="18" x2="31" y2="19.5" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1="41" y1="18" x2="33" y2="19.5" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+        </>
+      );
+    })();
 
-  const renderMouth = () => {
-    if (f === "shocked") return <ellipse cx="32" cy="36.5" rx="3" ry="2.5" fill={c} opacity="0.85"/>;
-    if (f === "sleepy") return <path d="M29 36 Q32 34.5 35 36" stroke={c} strokeWidth="1.5" fill="none" strokeLinecap="round"/>;
-    if (f === "warning") return (
-      <>
-        <path d="M28 35.5 Q32 37.5 36 35.5" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-        <line x1="28" y1="35.5" x2="36" y2="35.5" stroke={c} strokeWidth="1" opacity="0.4"/>
-      </>
-    );
-    if (f === "sarcastic") return (
-      <path d="M28 36 Q30 34.5 32 35.5 Q34 36.5 36 35" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-    );
-    if (f === "chill") return <path d="M28 35.5 Q32 38.5 36 35.5" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/>;
-    // big smile for celebrate/fire/proud/hype/happy/coach
-    return <path d="M27 35 Q32 40 37 35" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>;
-  };
+    const mouth = (() => {
+      if (f === "sleepy") return <line x1="27" y1="31" x2="37" y2="31" stroke={c} strokeWidth="2" strokeLinecap="square" opacity="0.6"/>;
+      if (f === "shocked") return (
+        <>
+          <rect x="28" y="29" width="8" height="5" rx="1" fill={c}/>
+          <rect x="29" y="30" width="6" height="3" rx="0" fill={dark}/>
+        </>
+      );
+      if (f === "sarcastic" || f === "warning") return (
+        <path d="M27 32 L32 30 L37 32" stroke={c} strokeWidth="2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>
+      );
+      if (f === "celebrate" || f === "proud" || f === "fire" || f === "hype") return (
+        <>
+          <path d="M25 30 L32 35 L39 30" stroke={c} strokeWidth="2.5" fill={`${c}30`} strokeLinecap="square" strokeLinejoin="miter"/>
+          <line x1="29" y1="30" x2="30" y2="33.5" stroke={c} strokeWidth="1" opacity="0.5"/>
+          <line x1="32" y1="30.5" x2="32" y2="35" stroke={c} strokeWidth="1" opacity="0.5"/>
+          <line x1="35" y1="30" x2="34" y2="33.5" stroke={c} strokeWidth="1" opacity="0.5"/>
+        </>
+      );
+      return <path d="M27 31.5 L32 34 L37 31.5" stroke={c} strokeWidth="2.2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>;
+    })();
 
-  const renderExtras = () => {
-    if (f === "fire") return (
-      <>
-        <text x="24" y="16" fontSize="10" textAnchor="middle">🔥</text>
-        <text x="40" y="14" fontSize="8" textAnchor="middle">🔥</text>
-      </>
-    );
-    if (f === "celebrate") return (
-      <>
-        <text x="20" y="15" fontSize="9">✨</text>
-        <text x="42" y="13" fontSize="8">🎉</text>
-      </>
-    );
-    if (f === "proud") return <text x="42" y="16" fontSize="10">⭐</text>;
-    if (f === "shocked") return <text x="42" y="16" fontSize="10">❗</text>;
-    if (f === "sleepy") return <text x="40" y="14" fontSize="10">💤</text>;
-    if (f === "coach") return <text x="40" y="15" fontSize="10">📋</text>;
-    if (f === "sarcastic") return <text x="40" y="15" fontSize="10">🙄</text>;
-    if (f === "warning") return <text x="40" y="14" fontSize="10">⚠️</text>;
-    return null;
+    return <>{eyes}{mouth}</>;
   };
 
   const s = size;
-  const scale = s / 64;
+  const vW = 80; const vH = 88;
 
   return (
     <div style={{
-      width: s, height: s, flexShrink: 0, position: "relative",
-      transform: bounce ? "scale(1.22) rotate(-8deg)" : "scale(1) rotate(0deg)",
-      transition: "transform 0.4s cubic-bezier(.36,.07,.19,.97)",
+      width: s, height: Math.round(s * vH/vW), flexShrink: 0,
+      transform: bounce ? "scale(1.18) rotate(-6deg)" : "scale(1) rotate(0deg)",
+      transition: "transform 0.35s cubic-bezier(.36,.07,.19,.97)",
     }}>
-      <svg viewBox="0 0 64 64" width={s} height={s} style={{ display: "block", overflow: "visible" }}>
+      <svg viewBox={`0 0 ${vW} ${vH}`} width={s} height={Math.round(s * vH/vW)} style={{ display: "block", overflow: "visible" }}>
         <defs>
-          <filter id={`glow-brux-${f}`} x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <filter id={`glow-${f}`} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
-          <radialGradient id={`grad-brux-${f}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={c} stopOpacity="0.25"/>
-            <stop offset="100%" stopColor={c} stopOpacity="0"/>
-          </radialGradient>
+          <filter id={`neon-${f}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
         </defs>
 
-        {/* Glow ring behind */}
         {(f === "fire" || f === "celebrate" || f === "proud" || f === "hype") && (
-          <circle cx="32" cy="32" r="30" fill={`url(#grad-brux-${f})`}/>
+          <ellipse cx="40" cy="44" rx="32" ry="36" fill={`${c}18`} filter={`url(#glow-${f})`}/>
         )}
 
-        {/* Dumbbell bar */}
-        <rect x="20" y="28" width="24" height="8" rx="4" fill={c} filter={`url(#glow-brux-${f})`} opacity="0.95"/>
+        {/* HEAD — angular helmet */}
+        <path d="M22 8 L58 8 L60 14 L60 36 L54 42 L26 42 L20 36 L20 14 Z"
+          fill={dark} stroke={c} strokeWidth="2" strokeLinejoin="miter"/>
+        <path d="M24 8 L56 8 L58 10 L22 10 Z" fill={c} opacity="0.9"/>
+        <path d="M26 16 L54 16 L56 20 L56 36 L52 39 L28 39 L24 36 L24 20 Z"
+          fill="#111" stroke={`${c}60`} strokeWidth="1" strokeLinejoin="miter"/>
+        {renderFace()}
+        <line x1="20" y1="32" x2="26" y2="36" stroke={c} strokeWidth="1.5" opacity="0.5"/>
+        <line x1="60" y1="32" x2="54" y2="36" stroke={c} strokeWidth="1.5" opacity="0.5"/>
 
-        {/* Left weights */}
-        <rect x="7"  y="22" width="14" height="20" rx="6" fill={c} opacity="0.9"/>
-        <rect x="4"  y="26" width="9"  height="12" rx="4" fill={c}/>
+        {/* NECK */}
+        <rect x="33" y="42" width="14" height="7" fill={dark} stroke={c} strokeWidth="1.5" strokeLinejoin="miter"/>
+        <line x1="40" y1="42" x2="40" y2="49" stroke={c} strokeWidth="1" opacity="0.4"/>
 
-        {/* Right weights */}
-        <rect x="43" y="22" width="14" height="20" rx="6" fill={c} opacity="0.9"/>
-        <rect x="51" y="26" width="9"  height="12" rx="4" fill={c}/>
+        {/* TORSO */}
+        <path d="M14 49 L66 49 L62 76 L18 76 Z"
+          fill={dark} stroke={c} strokeWidth="2" strokeLinejoin="miter" filter={`url(#neon-${f})`}/>
+        <path d="M18 49 L40 49 L38 62 L20 62 Z" fill={`${c}20`} stroke={`${c}50`} strokeWidth="1"/>
+        <path d="M62 49 L40 49 L42 62 L60 62 Z" fill={`${c}20`} stroke={`${c}50`} strokeWidth="1"/>
+        <line x1="40" y1="49" x2="40" y2="76" stroke={c} strokeWidth="1.5" opacity="0.6"/>
+        <line x1="21" y1="62" x2="59" y2="62" stroke={c} strokeWidth="1" opacity="0.3"/>
+        <line x1="22" y1="69" x2="58" y2="69" stroke={c} strokeWidth="1" opacity="0.3"/>
 
-        {/* Face circle */}
-        <circle cx="32" cy="32" r="11" fill="var(--card)" stroke={c} strokeWidth="1.8"/>
+        {/* LEFT ARM + DUMBBELL */}
+        <path d="M14 49 L4 44 L0 34 L6 32 L10 40 L18 47 Z"
+          fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
+        <path d="M0 34 L-2 22 L4 18 L8 28 L6 32 Z"
+          fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
+        <rect x="-6" y="11" width="18" height="6" rx="0" fill={c} filter={`url(#glow-${f})`}/>
+        <rect x="-8" y="7"  width="6" height="14" rx="0" fill={c}/>
+        <rect x="8"  y="7"  width="6" height="14" rx="0" fill={c}/>
+        <rect x="-9" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
+        <rect x="14" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
 
-        {renderEyes()}
-        {renderMouth()}
-        {renderExtras()}
+        {/* RIGHT ARM + DUMBBELL */}
+        <path d="M66 49 L76 44 L80 34 L74 32 L70 40 L62 47 Z"
+          fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
+        <path d="M80 34 L82 22 L76 18 L72 28 L74 32 Z"
+          fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
+        <rect x="68" y="11" width="18" height="6" rx="0" fill={c} filter={`url(#glow-${f})`}/>
+        <rect x="66" y="7"  width="6" height="14" rx="0" fill={c}/>
+        <rect x="80" y="7"  width="6" height="14" rx="0" fill={c}/>
+        <rect x="64" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
+        <rect x="83" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
+
+        {/* LEGS */}
+        <path d="M18 76 L28 76 L26 88 L16 88 Z"
+          fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
+        <path d="M52 76 L62 76 L64 88 L54 88 Z"
+          fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
+        <rect x="14" y="86" width="14" height="4" rx="0" fill={c} opacity="0.9"/>
+        <rect x="52" y="86" width="14" height="4" rx="0" fill={c} opacity="0.9"/>
+
+        {f === "fire" && (<><text x="28" y="6" fontSize="10">🔥</text><text x="48" y="5" fontSize="8">🔥</text></>)}
+        {f === "celebrate" && (<><text x="14" y="6" fontSize="9">✨</text><text x="56" y="5" fontSize="9">🎉</text></>)}
+        {f === "sleepy" && <text x="58" y="10" fontSize="10">💤</text>}
+        {f === "shocked" && <text x="58" y="8" fontSize="10">❗</text>}
+        {f === "proud" && <text x="58" y="8" fontSize="10">⭐</text>}
+        {f === "coach" && <text x="58" y="8" fontSize="10">📋</text>}
+        {f === "warning" && <text x="58" y="8" fontSize="10">⚠️</text>}
       </svg>
     </div>
   );
@@ -8596,36 +8667,78 @@ function LiveTrainMode({
               }}>{e}</div>
             ))}
 
-            {/* Mancuerna celebrando */}
-            <div style={{ animation: "dumbbellCelebrate 1s ease-out 0.2s both", display: "inline-block" }}>
-              <svg viewBox="0 0 68 68" width="100" height="100">
-                <defs>
-                  <filter id="glowCelebrate">
-                    <feGaussianBlur stdDeviation="4" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                  </filter>
-                </defs>
-                <circle cx="34" cy="34" r="33" fill={`${celebMood.color}25`} stroke={`${celebMood.color}80`} strokeWidth="2"/>
-                <rect x="14" y="31" width="40" height="6" rx="3" fill={celebMood.color} filter="url(#glowCelebrate)" opacity="0.95"/>
-                <rect x="8"  y="25" width="9" height="18" rx="4" fill={celebMood.color}/>
-                <rect x="5"  y="28" width="5" height="12" rx="2.5" fill={celebMood.color} opacity="0.7"/>
-                <rect x="51" y="25" width="9" height="18" rx="4" fill={celebMood.color}/>
-                <rect x="58" y="28" width="5" height="12" rx="2.5" fill={celebMood.color} opacity="0.7"/>
-                {/* Cara feliz */}
-                <circle cx="34" cy="34" r="10" fill="var(--surface)" stroke={`${celebMood.color}80`} strokeWidth="1"/>
-                <circle cx="30.5" cy="32" r="1.8" fill={celebMood.color}/>
-                <circle cx="37.5" cy="32" r="1.8" fill={celebMood.color}/>
-                {/* Sonrisa grande */}
-                <path d="M28 36 Q34 41 40 36" stroke={celebMood.color} strokeWidth="2" fill="none" strokeLinecap="round"/>
-                {/* Estrellas en los ojos para celebrate */}
-                {completionPct >= 90 && (
-                  <>
-                    <text x="28" y="33.5" fontSize="4.5" textAnchor="middle" fill={celebMood.color}>★</text>
-                    <text x="37" y="33.5" fontSize="4.5" textAnchor="middle" fill={celebMood.color}>★</text>
-                  </>
-                )}
-              </svg>
-            </div>
+          {/* Personaje celebrando */}
+          <div style={{ animation: "dumbbellCelebrate 1s ease-out 0.2s both", display: "inline-block" }}>
+            <svg viewBox="0 0 80 88" width="120" height="132">
+              <defs>
+                <filter id="glowCelebrate"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                <filter id="neonCelebrate"><feGaussianBlur stdDeviation="1.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              </defs>
+              {/* Aura glow */}
+              <ellipse cx="40" cy="44" rx="36" ry="40" fill={`${celebMood.color}20`} filter="url(#glowCelebrate)"/>
+              {/* HEAD */}
+              <path d="M22 8 L58 8 L60 14 L60 36 L54 42 L26 42 L20 36 L20 14 Z"
+                fill="#0a0a0a" stroke={celebMood.color} strokeWidth="2.2" strokeLinejoin="miter" filter="url(#glowCelebrate)"/>
+              <path d="M24 8 L56 8 L58 10 L22 10 Z" fill={celebMood.color}/>
+              <path d="M26 16 L54 16 L56 20 L56 36 L52 39 L28 39 L24 36 L24 20 Z"
+                fill="#111" stroke={`${celebMood.color}70`} strokeWidth="1" strokeLinejoin="miter"/>
+              {/* Star eyes */}
+              {completionPct >= 90
+                ? (<>
+                    <text x="27" y="27" fontSize="9" textAnchor="middle" fill={celebMood.color} fontWeight="900">★</text>
+                    <text x="37" y="27" fontSize="9" textAnchor="middle" fill={celebMood.color} fontWeight="900">★</text>
+                  </>)
+                : (<>
+                    <rect x="24" y="21" width="7" height="5" rx="1" fill={celebMood.color}/>
+                    <rect x="33" y="21" width="7" height="5" rx="1" fill={celebMood.color}/>
+                    <rect x="25" y="22" width="2" height="2" fill="#0a0a0a"/>
+                    <rect x="34" y="22" width="2" height="2" fill="#0a0a0a"/>
+                  </>)
+              }
+              {/* Big angular grin */}
+              <path d="M25 30 L32 36 L39 30" stroke={celebMood.color} strokeWidth="2.8" fill={`${celebMood.color}35`} strokeLinecap="square" strokeLinejoin="miter"/>
+              <line x1="29" y1="30" x2="30" y2="34" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
+              <line x1="32" y1="30.5" x2="32" y2="36" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
+              <line x1="35" y1="30" x2="34" y2="34" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
+              {/* Jaw accents */}
+              <line x1="20" y1="32" x2="26" y2="36" stroke={celebMood.color} strokeWidth="1.5" opacity="0.6"/>
+              <line x1="60" y1="32" x2="54" y2="36" stroke={celebMood.color} strokeWidth="1.5" opacity="0.6"/>
+              {/* NECK */}
+              <rect x="33" y="42" width="14" height="7" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.5"/>
+              {/* TORSO */}
+              <path d="M14 49 L66 49 L62 76 L18 76 Z"
+                fill="#0a0a0a" stroke={celebMood.color} strokeWidth="2.2" strokeLinejoin="miter" filter="url(#neonCelebrate)"/>
+              <path d="M18 49 L40 49 L38 62 L20 62 Z" fill={`${celebMood.color}25`} stroke={`${celebMood.color}60`} strokeWidth="1"/>
+              <path d="M62 49 L40 49 L42 62 L60 62 Z" fill={`${celebMood.color}25`} stroke={`${celebMood.color}60`} strokeWidth="1"/>
+              <line x1="40" y1="49" x2="40" y2="76" stroke={celebMood.color} strokeWidth="1.5" opacity="0.7"/>
+              <line x1="21" y1="62" x2="59" y2="62" stroke={celebMood.color} strokeWidth="1" opacity="0.35"/>
+              <line x1="22" y1="69" x2="58" y2="69" stroke={celebMood.color} strokeWidth="1" opacity="0.35"/>
+              {/* LEFT ARM */}
+              <path d="M14 49 L4 44 L0 34 L6 32 L10 40 L18 47 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
+              <path d="M0 34 L-2 22 L4 18 L8 28 L6 32 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
+              <rect x="-6" y="11" width="18" height="6" rx="0" fill={celebMood.color} filter="url(#glowCelebrate)"/>
+              <rect x="-8" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
+              <rect x="8" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
+              <rect x="-9" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
+              <rect x="14" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
+              {/* RIGHT ARM */}
+              <path d="M66 49 L76 44 L80 34 L74 32 L70 40 L62 47 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
+              <path d="M80 34 L82 22 L76 18 L72 28 L74 32 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
+              <rect x="68" y="11" width="18" height="6" rx="0" fill={celebMood.color} filter="url(#glowCelebrate)"/>
+              <rect x="66" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
+              <rect x="80" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
+              <rect x="64" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
+              <rect x="83" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
+              {/* LEGS */}
+              <path d="M18 76 L28 76 L26 88 L16 88 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
+              <path d="M52 76 L62 76 L64 88 L54 88 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
+              <rect x="14" y="86" width="14" height="4" fill={celebMood.color} opacity="0.9"/>
+              <rect x="52" y="86" width="14" height="4" fill={celebMood.color} opacity="0.9"/>
+              {/* FX */}
+              <text x="14" y="6" fontSize="10">✨</text>
+              <text x="56" y="5" fontSize="10">🎉</text>
+            </svg>
+          </div>
           </div>
 
           {/* Mensaje de celebración */}
@@ -8737,12 +8850,13 @@ function LiveTrainMode({
             }}
             style={{
               flex: 2, background: "var(--accent)", border: "none",
-              color: "white", borderRadius: 12, padding: 14,
+              color: "#0a0a0a", borderRadius: 12, padding: 14,
               fontFamily: "Barlow Condensed, sans-serif",
-              fontSize: 20, fontWeight: 800, letterSpacing: 1, cursor: "pointer",
+              fontSize: 20, fontWeight: 900, letterSpacing: 1, cursor: "pointer",
+              boxShadow: "0 0 24px rgba(232,255,0,0.3)",
             }}
           >
-            💾 Guardar sesión
+            ✅ GUARDAR SESIÓN
           </button>
         </div>
       </div>
@@ -9097,7 +9211,7 @@ function LiveTrainMode({
                     onClick={() => setCurrentEx(i => i + 1)}
                     style={{
                       flex: 2, background: "var(--accent)", border: "none",
-                      color: "white", borderRadius: 10, padding: 11,
+                      color: "#0a0a0a", borderRadius: 10, padding: 11,
                       cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
                       fontSize: 17, fontWeight: 700,
                     }}
@@ -9589,6 +9703,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     }
   }, [user.uid]);
   const [sessionMode, setSessionMode] = useState(null); // null | "live" | "register"
+  const [showNameModal, setShowNameModal] = useState(false);
   const [liveActive, setLiveActive] = useState(false);
   const [floatTimer, setFloatTimer] = useState({ visible: false, secs: 90, running: false, elapsed: 0 });
   const floatTimerRef = useRef();
@@ -10221,7 +10336,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
             {/* ── Entrenar ahora ── */}
             <button
-              onClick={() => setSessionMode("live")}
+              onClick={() => { setWorkout(""); setShowNameModal(true); }}
               style={{
                 background: "#e8ff00",
                 border: "none",
@@ -10529,11 +10644,11 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               }}
               style={{
                 width: "100%",
-                background: "linear-gradient(135deg, var(--accent), #7c3aed)",
-                border: "none", color: "white", borderRadius: 14, padding: "18px",
+                background: "var(--accent)",
+                border: "none", color: "#0a0a0a", borderRadius: 10, padding: "18px",
                 fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 900,
                 letterSpacing: 2, cursor: "pointer",
-                boxShadow: "0 8px 32px rgba(59,130,246,0.3)",
+                boxShadow: "0 0 28px rgba(232,255,0,0.35)",
               }}
             >
               ⚡ INICIAR ENTRENAMIENTO
@@ -11173,6 +11288,95 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       {showOneRM && (
         <OneRMModal onClose={() => setShowOneRM(false)} />
       )}
+      {showNameModal && (() => {
+        const userTemplates = load("gym_templates", []) || [];
+        const presetKeys = Object.keys(PRESETS);
+        // Merge: user templates first, then built-in presets not already covered
+        const templateOptions = [
+          ...userTemplates.map(t => ({ name: t.name, exercises: (t.exercises||[]).map(e => e.name || e), isUser: true })),
+          ...presetKeys.filter(k => !userTemplates.find(t => t.name === k)).map(k => ({ name: k, exercises: PRESETS[k], isUser: false })),
+        ];
+        return (
+          <div className="overlay" onClick={() => setShowNameModal(false)}>
+            <div className="modal" style={{ maxWidth: 400, padding: 24, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 36, marginBottom: 6 }}>⚡</div>
+                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>
+                  ¿QUÉ VAS A ENTRENAR HOY?
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>Dale un nombre o elige una plantilla</div>
+              </div>
+
+              {/* Free name input */}
+              <input
+                autoFocus
+                className="input"
+                placeholder="Push Day, Piernas, Full Body…"
+                value={workout}
+                onChange={e => setWorkout(lettersOnly(e.target.value))}
+                onKeyDown={e => { if (e.key === "Enter" && workout.trim()) { setShowNameModal(false); setSessionMode("live"); } }}
+                style={{ fontSize: 17, fontWeight: 700, fontFamily: "Barlow Condensed, sans-serif", width: "100%", padding: "13px 16px", marginBottom: 16, boxSizing: "border-box", textAlign: "center" }}
+              />
+
+              {/* Divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1, height: 1, background: "var(--border)" }}/>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase" }}>o elige una plantilla</span>
+                <div style={{ flex: 1, height: 1, background: "var(--border)" }}/>
+              </div>
+
+              {/* Template cards */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+                {templateOptions.slice(0, 6).map(tpl => (
+                  <button key={tpl.name}
+                    onClick={() => {
+                      setWorkout(tpl.name);
+                      // Load exercises if it's a user template
+                      const full = userTemplates.find(t => t.name === tpl.name);
+                      if (full && full.exercises?.length > 0) {
+                        setCurrentExercises(full.exercises.map(e => ({ ...e, id: uid(), sets: [] })));
+                      } else if (PRESETS[tpl.name]) {
+                        setCurrentExercises(PRESETS[tpl.name].map(n => ({ id: uid(), name: n, sets: [], weight: "", reps: "" })));
+                      }
+                      setShowNameModal(false);
+                      setSessionMode("live");
+                    }}
+                    style={{
+                      background: "var(--input-bg)", border: `1px solid var(--border)`,
+                      borderRadius: 8, padding: "12px 14px", cursor: "pointer",
+                      textAlign: "left", transition: "all 0.15s", width: "100%",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-dim)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--input-bg)"; }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                      <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", color: "var(--text)" }}>
+                        {tpl.isUser ? "📋 " : "⚡ "}{tpl.name}
+                      </span>
+                      <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700, letterSpacing: 1 }}>
+                        {tpl.isUser ? "MÍA" : "PRESET"} →
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                      {tpl.exercises.slice(0, 4).join(" · ")}{tpl.exercises.length > 4 ? ` +${tpl.exercises.length - 4} más` : ""}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Start button (only if name typed manually) */}
+              <button
+                disabled={!workout.trim()}
+                onClick={() => { setShowNameModal(false); setSessionMode("live"); }}
+                style={{ width: "100%", background: workout.trim() ? "var(--accent)" : "var(--input-bg)", color: workout.trim() ? "#0a0a0a" : "var(--text-muted)", border: "none", borderRadius: 8, padding: "13px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 17, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", cursor: workout.trim() ? "pointer" : "not-allowed", transition: "all 0.2s", boxShadow: workout.trim() ? "0 0 20px rgba(232,255,0,0.25)" : "none" }}>
+                EMPEZAR →
+              </button>
+            </div>
+          </div>
+        );
+      })()}
       {shareSession && (
         <ShareCardModal
           session={shareSession}
