@@ -4156,7 +4156,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
 
             {/* Tabs */}
             <div className="tab-row" style={{ marginBottom: 20 }}>
-              {[["dashboard","📊 Dashboard"],["routines","📋 Rutinas"],["athletes","👥 Atletas"],["assign","📨 Asignar"]].map(([id, label]) => (
+              {[["dashboard","📊 Dashboard"],["routines","📋 Rutinas"],["athletes","👥 Atletas"]].map(([id, label]) => (
                 <button key={id} className={`tab-btn ${tab===id?"active":""}`} onClick={() => setTab(id)}>{label}</button>
               ))}
             </div>
@@ -4222,8 +4222,23 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                         {qs?.lastWorkout && <span>Último: <strong style={{ color: "var(--text)" }}>{qs.lastWorkout}</strong></span>}
-                        {(athleteRoutinesMap[a.uid] || []).filter(r => r.dayOfWeek >= 0).map(r => (
-                          <span key={r.routineId} style={{ marginLeft: 10, color: "var(--accent)" }}>📅 {r.routineName} → {DAYS_ES[r.dayOfWeek]}</span>
+                        {(athleteRoutinesMap[a.uid] || []).map(r => (
+                          <span key={r.routineId} style={{ display:"inline-flex", alignItems:"center", gap:4, marginLeft: 8,
+                            background:"var(--card)", border:"1px solid var(--border)", borderRadius:6, padding:"2px 6px 2px 8px" }}>
+                            <span style={{ color: "var(--accent)", fontSize:11, fontWeight:700 }}>
+                              {r.routineName}{r.dayOfWeek >= 0 ? ` · ${DAYS_ES[r.dayOfWeek]}` : ""}
+                            </span>
+                            <button onClick={async () => {
+                              if (!window.confirm(`¿Quitar "${r.routineName}" de ${a.name}?`)) return;
+                              await unassignRoutineFromAthlete(a.uid, r.routineId);
+                              const updated = await Promise.all(athletes.map(async at => {
+                                const rts = await getDocs(collection(db, "athlete_routines", at.uid, "routines"));
+                                return [at.uid, rts.docs.map(d => ({...d.data(), _docId: d.id}))];
+                              }));
+                              setAthleteRoutinesMap(Object.fromEntries(updated));
+                            }} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer",
+                              fontSize:12, padding:"0 2px", lineHeight:1 }}>✕</button>
+                          </span>
                         ))}
                       </div>
                       {veryInactive && <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>🚨 Sin entrenar {qs.daysSinceLast} días</span>}
@@ -4378,10 +4393,33 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                     </div>
                   </div>
                 ))}
+
+                {/* ── Asignar rutina inline ── */}
+                {athletes.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>📨 Asignar rutina a atleta</div>
+                    <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <select className="input" value={assignRoutineId} onChange={e => setAssignRoutineId(e.target.value)}>
+                        <option value="">— Elige una rutina —</option>
+                        {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                      <select className="input" value={assignEmail} onChange={e => setAssignEmail(e.target.value)}>
+                        <option value="">— Elige atleta —</option>
+                        {athletes.map(a => <option key={a.uid} value={a.email}>{a.name}</option>)}
+                      </select>
+                      <select className="input" value={assignDay} onChange={e => setAssignDay(parseInt(e.target.value))}>
+                        <option value={-1}>— Sin día fijo (opcional) —</option>
+                        {DAYS_ES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                      </select>
+                      <button className="btn-primary" style={{ width: "100%" }} onClick={handleAssign}>📨 Asignar rutina</button>
+                      {assignMsg && <div style={{ fontSize: 13, color: assignMsg.startsWith("✅") ? "#22c55e" : "#f87171", textAlign: "center" }}>{assignMsg}</div>}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── ASSIGN ── */}
+            {/* ── ASSIGN (legacy, hidden) ── */}
             {tab === "assign" && (
               <div>
                 <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>Asigna una rutina directamente a un atleta por su email.</div>
@@ -5216,11 +5254,29 @@ async function deleteCustomExercise(id) {
 
 async function getFullRoutine(coachUid, routineId) {
   try {
-    if (!coachUid || !routineId) return null;
+    if (!coachUid || !routineId) {
+      console.warn("[getFullRoutine] Missing args:", { coachUid, routineId });
+      return null;
+    }
+    console.log("[getFullRoutine] Reading:", `coaches/${coachUid}/routines/${routineId}`);
     const snap = await getDoc(doc(db, "coaches", coachUid, "routines", routineId));
-    if (!snap.exists()) return null;
+    if (!snap.exists()) {
+      console.warn("[getFullRoutine] Doc not found:", coachUid, routineId);
+      return null;
+    }
+    console.log("[getFullRoutine] OK:", snap.data()?.name);
     return { id: snap.id, ...snap.data(), coachUid, routineId };
-  } catch(e) { return null; }
+  } catch(e) {
+    console.error("[getFullRoutine] ERROR:", e.code, e.message, { coachUid, routineId });
+    return null;
+  }
+}
+
+async function unassignRoutineFromAthlete(athleteUid, routineId) {
+  try {
+    await deleteDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId));
+    return { ok: true };
+  } catch(e) { return { ok: false }; }
 }
 
 async function markRoutineCompleted(athleteUid, routineId) {
@@ -8019,53 +8075,65 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
 
       <BruxMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
 
-      {/* Banner: Rutina del coach para hoy */}
+      {/* Banner: Rutina del coach */}
       {coachRoutines.length > 0 && (() => {
         const todayDow = (new Date().getDay() + 6) % 7;
-        const todayRoutine = coachRoutines.find(r => Number(r.dayOfWeek) === todayDow);
-        if (!todayRoutine) return null;
+        const todayRoutine = coachRoutines.find(r => Number(r.dayOfWeek) === todayDow) || coachRoutines[0];
+        const isToday = Number(todayRoutine.dayOfWeek) === todayDow;
         const todayDateStr = new Date().toISOString().slice(0,10);
         const alreadyDone = sessions.some(s => s.date === todayDateStr &&
-          (s.workout === todayRoutine.name || s.muscle === todayRoutine.muscle || s.muscle === todayRoutine.name));
+          (s.workout === todayRoutine.name || s.workout === todayRoutine.routineName));
         return (
-          <div onClick={onOpenCoach} style={{
-            background: alreadyDone ? "rgba(34,197,94,0.08)" : "linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.1))",
-            border: `1.5px solid ${alreadyDone ? "rgba(34,197,94,0.35)" : "rgba(59,130,246,0.4)"}`,
-            borderRadius: 14, padding: "14px 16px", marginBottom: 14,
-            cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
-            display: "flex", alignItems: "center", gap: 14,
-          }}
-            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 6px 24px rgba(59,130,246,0.2)";}}
-            onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}
-          >
-            <div style={{fontSize:28,flexShrink:0}}>{alreadyDone?"✅":"📋"}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",
-                color: alreadyDone ? "#22c55e" : "var(--accent)", marginBottom:3}}>
-                {alreadyDone ? "Rutina completada hoy 🎉" : "📣 Hoy te toca · Rutina del coach"}
-              </div>
-              <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:4}}>
-                {todayRoutine.name || todayRoutine.muscle || "Entrenamiento"}
-              </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {(todayRoutine.exercises||[]).slice(0,4).map((ex,i)=>(
-                  <span key={i} style={{fontSize:10,background:"var(--card)",
-                    borderRadius:6,padding:"2px 8px",color:"var(--text-muted)"}}>
-                    {ex.name||ex}
-                  </span>
-                ))}
-                {(todayRoutine.exercises||[]).length > 4 &&
-                  <span style={{fontSize:10,color:"var(--text-muted)"}}>+{todayRoutine.exercises.length-4} más</span>}
-              </div>
+          <div style={{
+            background: alreadyDone ? "rgba(34,197,94,0.07)" : "rgba(232,255,0,0.04)",
+            border: `2px solid ${alreadyDone ? "rgba(34,197,94,0.4)" : "var(--accent)"}`,
+            borderRadius: 12, marginBottom: 14, overflow: "hidden",
+            boxShadow: alreadyDone ? "none" : "0 0 24px rgba(232,255,0,0.12)",
+          }}>
+            <div style={{
+              background: alreadyDone ? "rgba(34,197,94,0.15)" : "rgba(232,255,0,0.12)",
+              padding: "8px 14px", display: "flex", alignItems: "center", gap: 8,
+              borderBottom: `1px solid ${alreadyDone ? "rgba(34,197,94,0.2)" : "rgba(232,255,0,0.15)"}`,
+            }}>
+              <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
+                color: alreadyDone ? "#22c55e" : "var(--accent)"}}>
+                {alreadyDone ? "✅ RUTINA COMPLETADA HOY" : isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
+              </span>
             </div>
-            {!alreadyDone && (
-              <button onClick={e=>{e.stopPropagation(); onStartCoachRoutine && onStartCoachRoutine(todayRoutine);}} style={{
-                background:"var(--accent)", border:"none", borderRadius:10,
-                color:"white", fontWeight:700, fontSize:12,
-                padding:"9px 14px", cursor:"pointer", flexShrink:0,
-                display:"flex",alignItems:"center",gap:5,
-              }}>▶ Iniciar</button>
-            )}
+            <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:14}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:"Barlow Condensed, sans-serif", fontSize:22,fontWeight:900,
+                  letterSpacing:1, textTransform:"uppercase", color:"var(--text)",marginBottom:6}}>
+                  {todayRoutine.name || todayRoutine.routineName || "Entrenamiento"}
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                  {(todayRoutine.exercises||[]).slice(0,4).map((ex,i)=>(
+                    <span key={i} style={{fontSize:10,background:"var(--card)",border:"1px solid var(--border)",
+                      borderRadius:4,padding:"2px 8px",color:"var(--text-muted)",fontWeight:600}}>
+                      {ex.name||ex}
+                    </span>
+                  ))}
+                  {(todayRoutine.exercises||[]).length > 4 &&
+                    <span style={{fontSize:10,color:"var(--text-muted)"}}>+{todayRoutine.exercises.length-4} más</span>}
+                </div>
+                {coachRoutines.length > 1 && (
+                  <button onClick={onOpenCoach} style={{background:"none",border:"none",color:"var(--accent)",
+                    fontSize:11,fontWeight:700,cursor:"pointer",padding:"6px 0 0",letterSpacing:0.5}}>
+                    Ver todas ({coachRoutines.length}) →
+                  </button>
+                )}
+              </div>
+              {!alreadyDone && (
+                <button onClick={e=>{e.stopPropagation(); onStartCoachRoutine && onStartCoachRoutine(todayRoutine);}} style={{
+                  background:"var(--accent)", border:"none", borderRadius:10,
+                  color:"#0a0a0a", fontWeight:900, fontSize:13,
+                  padding:"10px 16px", cursor:"pointer", flexShrink:0,
+                  display:"flex",alignItems:"center",gap:5,
+                  letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
+                  textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)",
+                }}>⚡ INICIAR</button>
+              )}
+            </div>
           </div>
         );
       })()}
@@ -9687,21 +9755,33 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     });
   }, []);
 
+  const loadCoachRoutines = async () => {
+    if (user.isGuest) return;
+    try {
+      const assigned = await getAthleteRoutines(user.uid);
+      console.log("[coachRoutines] assigned from DB:", assigned);
+      const full = await Promise.all(
+        assigned.map(async r => {
+          const routine = await getFullRoutine(r.coachUid, r.routineId);
+          if (!routine) return null;
+          return { ...routine, dayOfWeek: r.dayOfWeek ?? -1, coachUid: r.coachUid, routineId: r.routineId };
+        })
+      );
+      console.log("[coachRoutines] full routines loaded:", full.filter(Boolean));
+      setCoachRoutines(full.filter(Boolean));
+    } catch(e) { console.error("[coachRoutines] load error:", e); }
+  };
+
   useEffect(() => {
-    if (!user.isGuest) {
-      getAthleteRoutines(user.uid).then(async (assigned) => {
-        const full = await Promise.all(
-          assigned.map(async r => {
-            const routine = await getFullRoutine(r.coachUid, r.routineId);
-            if (!routine) return null;
-            // Merge dayOfWeek from athlete_routines metadata into full routine
-            return { ...routine, dayOfWeek: r.dayOfWeek ?? -1, coachUid: r.coachUid, routineId: r.routineId };
-          })
-        );
-        setCoachRoutines(full.filter(Boolean));
-      });
-    }
+    loadCoachRoutines();
   }, [user.uid]);
+
+  // Reload coach routines when switching to home tab
+  useEffect(() => {
+    if (activeTab === "new" && !user.isGuest) {
+      loadCoachRoutines();
+    }
+  }, [activeTab]);
   const [sessionMode, setSessionMode] = useState(null); // null | "live" | "register"
   const [showNameModal, setShowNameModal] = useState(false);
   const [liveActive, setLiveActive] = useState(false);
@@ -10314,6 +10394,74 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 </div>
                 <div style={{ background: "var(--border)", borderRadius: 2, height: 4, overflow: "hidden" }}>
                   <div style={{ height: "100%", background: ok ? "#22c55e" : "#e8ff00", width: `${p * 100}%`, borderRadius: 2, transition: "width 0.5s" }} />
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Rutina asignada por el coach ── */}
+          {coachRoutines.length > 0 && (() => {
+            const todayDow = (new Date().getDay() + 6) % 7;
+            const todayRoutine = coachRoutines.find(r => Number(r.dayOfWeek) === todayDow) || coachRoutines[0];
+            const isToday = Number(todayRoutine.dayOfWeek) === todayDow;
+            const todayDateStr = new Date().toISOString().slice(0,10);
+            const alreadyDone = sessions.some(s => s.date === todayDateStr &&
+              (s.workout === todayRoutine.name || s.workout === todayRoutine.routineName));
+            return (
+              <div style={{
+                background: alreadyDone ? "rgba(34,197,94,0.07)" : "rgba(232,255,0,0.04)",
+                border: `2px solid ${alreadyDone ? "rgba(34,197,94,0.4)" : "var(--accent)"}`,
+                borderRadius: 12, marginBottom: 20, overflow: "hidden",
+                boxShadow: alreadyDone ? "none" : "0 0 24px rgba(232,255,0,0.12)",
+              }}>
+                <div style={{
+                  background: alreadyDone ? "rgba(34,197,94,0.15)" : "rgba(232,255,0,0.12)",
+                  padding: "8px 14px", display: "flex", alignItems: "center", gap: 8,
+                  borderBottom: `1px solid ${alreadyDone ? "rgba(34,197,94,0.2)" : "rgba(232,255,0,0.15)"}`,
+                }}>
+                  <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
+                    color: alreadyDone ? "#22c55e" : "var(--accent)"}}>
+                    {alreadyDone ? "✅ RUTINA COMPLETADA HOY" : isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
+                  </span>
+                </div>
+                <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:14}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"Barlow Condensed, sans-serif", fontSize:22,fontWeight:900,
+                      letterSpacing:1, textTransform:"uppercase", color:"var(--text)",marginBottom:6}}>
+                      {todayRoutine.name || todayRoutine.routineName || "Entrenamiento"}
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                      {(todayRoutine.exercises||[]).slice(0,4).map((ex,i)=>(
+                        <span key={i} style={{fontSize:10,background:"var(--card)",border:"1px solid var(--border)",
+                          borderRadius:4,padding:"2px 8px",color:"var(--text-muted)",fontWeight:600}}>
+                          {ex.name||ex}
+                        </span>
+                      ))}
+                      {(todayRoutine.exercises||[]).length > 4 &&
+                        <span style={{fontSize:10,color:"var(--text-muted)"}}>+{todayRoutine.exercises.length-4} más</span>}
+                    </div>
+                    {coachRoutines.length > 1 && (
+                      <button onClick={() => setShowAthleteCoach(true)} style={{background:"none",border:"none",
+                        color:"var(--accent)",fontSize:11,fontWeight:700,cursor:"pointer",padding:0}}>
+                        Ver todas ({coachRoutines.length}) →
+                      </button>
+                    )}
+                  </div>
+                  {!alreadyDone && (
+                    <button onClick={() => {
+                      setWorkout(todayRoutine.name || todayRoutine.routineName || "Rutina Coach");
+                      setCurrentExercises((todayRoutine.exercises||[]).map(e => ({...e, id:uid()})));
+                      setSessionMode("live");
+                      setShowNameModal(false);
+                    }} style={{
+                      background:"var(--accent)", border:"none", borderRadius:10,
+                      color:"#0a0a0a", fontWeight:900, fontSize:13,
+                      padding:"10px 16px", cursor:"pointer", flexShrink:0,
+                      display:"flex",alignItems:"center",gap:5,
+                      letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
+                      textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)",
+                    }}>⚡ INICIAR</button>
+                  )}
                 </div>
               </div>
             );
@@ -11156,7 +11304,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         <AthleteCoachPanel
           user={user}
           initialRoutine={athleteCoachInitialRoutine}
-          onClose={() => { setShowAthleteCoach(false); setAthleteCoachInitialRoutine(null); }}
+          onClose={() => { setShowAthleteCoach(false); setAthleteCoachInitialRoutine(null); loadCoachRoutines(); }}
         />
       )}
       {showCoach && (
