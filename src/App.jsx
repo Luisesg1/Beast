@@ -5,7 +5,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
-import { getFirestore, initializeFirestore, persistentLocalCache, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, deleteDoc, query, where, updateDoc } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -623,12 +623,12 @@ const [newWeight, setNewWeight] = useState("");
             }}>
               <option value="">— Selecciona —</option>
               {(tplMuscleFilter === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === tplMuscleFilter))
-                .map(ex => <option key={ex.name} value={ex.name}>{ex.name}{ex.machine?" 🔧":""}</option>)}
-              <option value="__custom__">✏️ Personalizado...</option>
+                .map(ex => <option key={ex.name} value={ex.name}>{ex.name}</option>)}
+              <option value="__custom__">✏️ Personalizado... (escribe el tuyo)</option>
             </select>
             {newExercise === "__custom__" && (
               <>
-                <input className="input" style={{ marginTop:6 }} placeholder="Nombre del ejercicio..." value={exCustomInput} onChange={e => setExCustomInput(lettersOnly(e.target.value))} autoFocus />
+                <input className="input" style={{ marginTop:6 }} placeholder="Escribe el nombre de tu ejercicio..." value={exCustomInput} onChange={e => setExCustomInput(lettersOnly(e.target.value))} autoFocus />
                 <select className="input" style={{ marginTop:6 }} value={exCustomMuscleTpl} onChange={e => setExCustomMuscleTpl(e.target.value)}>
                   <option value="">— Músculo principal —</option>
                   {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -869,16 +869,30 @@ function TrainingCalendar({ sessions, joinedAt }) {
   const monthSessions = sessions.filter(s => s.date.startsWith(`${viewYear}-${String(viewMonth+1).padStart(2,"0")}`));
 
   return (
-    <div className="card" style={{marginBottom:12}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div className="card-label" style={{margin:0}}>📅 Calendario de entrenos</div>
+    <div className="card" style={{marginBottom:12, padding:0, overflow:"hidden"}}>
+      {/* Calendar header banner */}
+      <div style={{
+        background:"#111",
+        padding:"10px 14px",
+        display:"flex", justifyContent:"space-between", alignItems:"center",
+        borderBottom:"1px solid var(--border)",
+      }}>
+        <div style={{
+          display:"flex", alignItems:"center", gap:8,
+          fontFamily:"Barlow Condensed, sans-serif",
+          fontSize:13, fontWeight:900, letterSpacing:3,
+          textTransform:"uppercase", color:"var(--accent)",
+        }}>
+          <span style={{fontSize:15}}>📅</span>
+          CALENDARIO DE ENTRENOS
+        </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <button onClick={prevMonth} style={{background:"none",border:"1px solid var(--border)",color:"var(--text-muted)",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
           <span style={{fontSize:11,color:"var(--text-muted)",textTransform:"capitalize",minWidth:100,textAlign:"center"}}>{monthName}</span>
           <button onClick={nextMonth} style={{background:"none",border:"1px solid var(--border)",color:"var(--text-muted)",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
         </div>
       </div>
-
+      <div style={{padding:"12px 14px"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
         {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,color:"var(--text-muted)"}}>{d}</div>)}
       </div>
@@ -950,6 +964,7 @@ function TrainingCalendar({ sessions, joinedAt }) {
         <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:3,background:"var(--accent)",display:"inline-block"}}/>Hoy</span>
         <span style={{marginLeft:"auto",fontWeight:700,color:"var(--accent)"}}>{monthSessions.length} este mes</span>
       </div>
+      </div>{/* end inner padding div */}
     </div>
   );
 }
@@ -2561,10 +2576,10 @@ function ExerciseEditor({ dayKey, exercises, isWeekly, removeExFromDay, addExToD
         <div style={{ flex: 2, minWidth: 140 }}>
           <select className="input" style={{ fontSize: 12, padding: "7px 10px" }} value={exName} onChange={e => setExName(e.target.value)}>
             <option value="">— Ejercicio —</option>
-            {filteredDB.map(ex => <option key={ex.name} value={ex.name}>{ex.name}{ex.machine?" 🔧":""}</option>)}
-            <option value="__custom__">✏️ Personalizado...</option>
+            {filteredDB.map(ex => <option key={ex.name} value={ex.name}>{ex.name}</option>)}
+            <option value="__custom__">✏️ Personalizado... (escribe el tuyo)</option>
           </select>
-          {exName === "__custom__" && <input className="input" style={{ marginTop: 4, fontSize: 12 }} placeholder="Nombre..." value={exCustomInput} onChange={e => setExCustomInput(e.target.value)} />}
+          {exName === "__custom__" && <input className="input" style={{ marginTop: 4, fontSize: 12 }} placeholder="Escribe tu ejercicio..." value={exCustomInput} onChange={e => setExCustomInput(e.target.value)} />}
         </div>
         <div style={{ flex: 1, minWidth: 70 }}>
           <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Peso kg" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} inputMode="decimal" />
@@ -4082,19 +4097,37 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     else setAddAthleteMsg(`❌ ${result.msg}`);
   }
   async function removeAthlete(athleteUid) {
-    if (!window.confirm("¿Eliminar este atleta de tu lista?")) return;
+    if (!window.confirm("¿Eliminar este atleta? Podrá volver a unirse con tu código.")) return;
     try {
+      // 1. Eliminar de coaches/{coachUid}.athletes
       const coachSnap = await getDoc(doc(db, "coaches", user.uid));
       if (coachSnap.exists()) {
         const updated = { ...coachSnap.data().athletes };
         delete updated[athleteUid];
         await updateDoc(doc(db, "coaches", user.uid), { athletes: updated });
       }
+      // 2. Eliminar rutinas asignadas por este coach al atleta
+      try {
+        const routinesSnap = await getDocsFromServer(collection(db, "athlete_routines", athleteUid, "routines"));
+        await Promise.all(
+          routinesSnap.docs
+            .filter(d => d.data().coachUid === user.uid)
+            .map(d => deleteDoc(d.ref))
+        );
+      } catch(e2) { console.warn("No se pudieron limpiar rutinas:", e2); }
+      // 3. Eliminar de athlete_coaches/{athleteUid}/coaches/{coachUid}
+      try {
+        await deleteDoc(doc(db, "athlete_coaches", athleteUid, "coaches", user.uid));
+      } catch(e3) { console.warn("No se pudo limpiar athlete_coaches:", e3); }
+
+      // Actualizar UI inmediatamente y recargar desde servidor
       setCoachProfile(prev => {
         const updated = { ...prev.athletes };
         delete updated[athleteUid];
         return { ...prev, athletes: updated };
       });
+      const refreshed = await getCoachProfile(user.uid);
+      if (refreshed) setCoachProfile(refreshed);
     } catch(e) {
       console.error("Error eliminando atleta:", e);
     }
@@ -4125,7 +4158,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
       <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
         <div className="modal-header">
           <h3 className="modal-title">🏅 Panel Coach</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={loadCoach} title="Actualizar" style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>↻</button>
+            <button className="close-btn" onClick={onClose}>✕</button>
+          </div>
         </div>
 
         {/* Activate coach */}
@@ -4306,13 +4342,13 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                       <select className="input" style={{ fontSize: 13 }} value={rExName} onChange={e => setRExName(e.target.value)}>
                         <option value="">— Ejercicio —</option>
                         {(rExMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === rExMuscle)).map(ex => (
-                          <option key={ex.name} value={ex.name}>{ex.name}{ex.machine?" 🔧":""}</option>
+                          <option key={ex.name} value={ex.name}>{ex.name}</option>
                         ))}
-                        <option value="__custom__">✏️ Escribir personalizado...</option>
+                        <option value="__custom__">✏️ Personalizado... (escribe el tuyo)</option>
                       </select>
                       {rExName === "__custom__" && (
                         <>
-                          <input className="input" style={{ marginTop: 6, fontSize: 13 }} placeholder="Nombre del ejercicio..." value={rExCustom} onChange={e => setRExCustom(lettersOnly(e.target.value))} autoFocus />
+                          <input className="input" style={{ marginTop: 6, fontSize: 13 }} placeholder="Escribe el nombre de tu ejercicio..." value={rExCustom} onChange={e => setRExCustom(lettersOnly(e.target.value))} autoFocus />
                           <select className="input" style={{ marginTop: 6, fontSize: 13 }} value={rExCustomMuscle} onChange={e => setRExCustomMuscle(e.target.value)}>
                             <option value="">— Músculo principal —</option>
                             {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -4961,7 +4997,10 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null }) {
       <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight:"88vh", overflowY:"auto" }}>
         <div className="modal-header">
           <h3 className="modal-title">🎽 Mi Coach</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={loadData} title="Actualizar" style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>↻</button>
+            <button className="close-btn" onClick={onClose}>✕</button>
+          </div>
         </div>
 
         <div className="tab-row" style={{ marginBottom:20 }}>
@@ -5132,7 +5171,7 @@ async function assignRoutineToAthlete(coachUid, athleteEmail, routineId, routine
 
 async function getAthleteRoutines(athleteUid) {
   try {
-    const snap = await getDocs(collection(db, "athlete_routines", athleteUid, "routines"));
+    const snap = await getDocsFromServer(collection(db, "athlete_routines", athleteUid, "routines"));
     const routines = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
 
     // Reset automatico semanal: si completedAt es anterior al ultimo Lunes 00:00
@@ -5202,7 +5241,7 @@ async function joinCoachByCode(athleteUid, athleteName, athleteEmail, code) {
 
 async function getMyCoaches(athleteUid) {
   try {
-    const snap = await getDocs(collection(db, "athlete_coaches", athleteUid, "coaches"));
+    const snap = await getDocsFromServer(collection(db, "athlete_coaches", athleteUid, "coaches"));
     return snap.docs.map(d => d.data());
   } catch(e) { return []; }
 }
@@ -7203,108 +7242,113 @@ function DumbbellAvatar({ mood, bounce, size = 68, pulse = false }) {
   const dark = "#0a0a0a";
 
   const renderFace = () => {
+    // Face area: inner helmet box is x:34-66, y:23-44, center ~50,33
+    const ex1 = 36, ex2 = 47; // left eye x range
+    const ex3 = 53, ex4 = 64; // right eye x range
+    const ey = 28; // eye y
+    const mx1 = 38, mx2 = 62, my = 38; // mouth
+
     const eyes = (() => {
       if (f === "sleepy") return (
         <>
-          <line x1="25" y1="23" x2="30" y2="23" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="34" y1="23" x2="39" y2="23" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <text x="37" y="18" fontSize="7" fill={c} opacity="0.8">z</text>
-          <text x="40" y="14" fontSize="5" fill={c} opacity="0.5">z</text>
+          <line x1={ex1} y1={ey+2} x2={ex2} y2={ey+2} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex3} y1={ey+2} x2={ex4} y2={ey+2} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <text x={ex4} y={ey-3} fontSize="7" fill={c} opacity="0.8">z</text>
         </>
       );
       if (f === "shocked") return (
         <>
-          <rect x="24" y="20" width="7" height="7" rx="1" fill={c}/>
-          <rect x="33" y="20" width="7" height="7" rx="1" fill={c}/>
-          <rect x="25.5" y="21.5" width="2" height="2" fill={dark}/>
-          <rect x="34.5" y="21.5" width="2" height="2" fill={dark}/>
+          <rect x={ex1} y={ey-1} width="9" height="8" rx="1" fill={c}/>
+          <rect x={ex3} y={ey-1} width="9" height="8" rx="1" fill={c}/>
+          <rect x={ex1+1.5} y={ey+0.5} width="3" height="3" fill={dark}/>
+          <rect x={ex3+1.5} y={ey+0.5} width="3" height="3" fill={dark}/>
         </>
       );
       if (f === "fire") return (
         <>
-          <line x1="24" y1="20" x2="30" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="30" y1="20" x2="24" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="33" y1="20" x2="39" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="39" y1="20" x2="33" y2="26" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex1} y1={ey-1} x2={ex2} y2={ey+6} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex2} y1={ey-1} x2={ex1} y2={ey+6} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex3} y1={ey-1} x2={ex4} y2={ey+6} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex4} y1={ey-1} x2={ex3} y2={ey+6} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
         </>
       );
       if (f === "celebrate" || f === "proud" || f === "hype") return (
         <>
-          <text x="27" y="27" fontSize="8" textAnchor="middle" fill={c} fontWeight="900">★</text>
-          <text x="37" y="27" fontSize="8" textAnchor="middle" fill={c} fontWeight="900">★</text>
+          <text x={ex1+5} y={ey+6} fontSize="9" textAnchor="middle" fill={c} fontWeight="900">★</text>
+          <text x={ex3+5} y={ey+6} fontSize="9" textAnchor="middle" fill={c} fontWeight="900">★</text>
         </>
       );
       if (f === "sarcastic") return (
         <>
-          <rect x="24" y="22" width="7" height="4" rx="0" fill={c}/>
-          <rect x="33" y="22" width="7" height="4" rx="0" fill={c}/>
-          <line x1="33" y1="19" x2="40" y2="17" stroke={c} strokeWidth="2" strokeLinecap="square"/>
+          <rect x={ex1} y={ey+1} width="9" height="5" rx="0" fill={c}/>
+          <rect x={ex3} y={ey+1} width="9" height="5" rx="0" fill={c}/>
+          <line x1={ex3} y1={ey-1} x2={ex4+1} y2={ey-4} stroke={c} strokeWidth="2" strokeLinecap="square"/>
         </>
       );
       if (f === "chill") return (
         <>
-          <rect x="24" y="22" width="7" height="4" rx="2" fill={c}/>
-          <rect x="33" y="22" width="7" height="4" rx="2" fill={c}/>
+          <rect x={ex1} y={ey+1} width="9" height="5" rx="2.5" fill={c}/>
+          <rect x={ex3} y={ey+1} width="9" height="5" rx="2.5" fill={c}/>
         </>
       );
       if (f === "warning") return (
         <>
-          <rect x="24" y="21" width="7" height="5" rx="1" fill={c}/>
-          <rect x="33" y="21" width="7" height="5" rx="1" fill={c}/>
-          <line x1="23" y1="18" x2="31" y2="20" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="41" y1="18" x2="33" y2="20" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <rect x={ex1} y={ey} width="9" height="6" rx="1" fill={c}/>
+          <rect x={ex3} y={ey} width="9" height="6" rx="1" fill={c}/>
+          <line x1={ex1-1} y1={ey-3} x2={ex2+2} y2={ey-1} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex4+2} y1={ey-3} x2={ex3-1} y2={ey-1} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
         </>
       );
       return (
         <>
-          <rect x="24" y="21" width="7" height="5" rx="1" fill={c}/>
-          <rect x="33" y="21" width="7" height="5" rx="1" fill={c}/>
-          <rect x="25" y="22" width="2" height="2" fill={dark}/>
-          <rect x="34" y="22" width="2" height="2" fill={dark}/>
-          <line x1="23" y1="18" x2="31" y2="19.5" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="41" y1="18" x2="33" y2="19.5" stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <rect x={ex1} y={ey} width="9" height="6" rx="1" fill={c}/>
+          <rect x={ex3} y={ey} width="9" height="6" rx="1" fill={c}/>
+          <rect x={ex1+1} y={ey+1} width="3" height="3" fill={dark}/>
+          <rect x={ex3+1} y={ey+1} width="3" height="3" fill={dark}/>
+          <line x1={ex1-1} y1={ey-3} x2={ex2+2} y2={ey-1} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
+          <line x1={ex4+2} y1={ey-3} x2={ex3-1} y2={ey-1} stroke={c} strokeWidth="2.5" strokeLinecap="square"/>
         </>
       );
     })();
 
     const mouth = (() => {
-      if (f === "sleepy") return <line x1="27" y1="31" x2="37" y2="31" stroke={c} strokeWidth="2" strokeLinecap="square" opacity="0.6"/>;
+      if (f === "sleepy") return <line x1={mx1} y1={my} x2={mx2} y2={my} stroke={c} strokeWidth="2" strokeLinecap="square" opacity="0.6"/>;
       if (f === "shocked") return (
         <>
-          <rect x="28" y="29" width="8" height="5" rx="1" fill={c}/>
-          <rect x="29" y="30" width="6" height="3" rx="0" fill={dark}/>
+          <rect x="44" y={my-2} width="12" height="6" rx="1" fill={c}/>
+          <rect x="45" y={my-1} width="10" height="4" rx="0" fill={dark}/>
         </>
       );
       if (f === "sarcastic" || f === "warning") return (
-        <path d="M27 32 L32 30 L37 32" stroke={c} strokeWidth="2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>
+        <path d={`M${mx1} ${my} L50 ${my-3} L${mx2} ${my}`} stroke={c} strokeWidth="2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>
       );
       if (f === "celebrate" || f === "proud" || f === "fire" || f === "hype") return (
         <>
-          <path d="M25 30 L32 35 L39 30" stroke={c} strokeWidth="2.5" fill={`${c}30`} strokeLinecap="square" strokeLinejoin="miter"/>
-          <line x1="29" y1="30" x2="30" y2="33.5" stroke={c} strokeWidth="1" opacity="0.5"/>
-          <line x1="32" y1="30.5" x2="32" y2="35" stroke={c} strokeWidth="1" opacity="0.5"/>
-          <line x1="35" y1="30" x2="34" y2="33.5" stroke={c} strokeWidth="1" opacity="0.5"/>
+          <path d={`M${mx1} ${my-2} L50 ${my+4} L${mx2} ${my-2}`} stroke={c} strokeWidth="2.5" fill={`${c}30`} strokeLinecap="square" strokeLinejoin="miter"/>
+          <line x1="42" y1={my-2} x2="43" y2={my+2} stroke={c} strokeWidth="1" opacity="0.5"/>
+          <line x1="50" y1={my-1} x2="50" y2={my+4} stroke={c} strokeWidth="1" opacity="0.5"/>
+          <line x1="58" y1={my-2} x2="57" y2={my+2} stroke={c} strokeWidth="1" opacity="0.5"/>
         </>
       );
-      return <path d="M27 31.5 L32 34 L37 31.5" stroke={c} strokeWidth="2.2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>;
+      return <path d={`M${mx1} ${my-1} L50 ${my+2} L${mx2} ${my-1}`} stroke={c} strokeWidth="2.2" fill="none" strokeLinecap="square" strokeLinejoin="miter"/>;
     })();
 
     return <>{eyes}{mouth}</>;
   };
 
   const s = size;
-  const vW = 80; const vH = 88;
+  const vW = 100; const vH = 100;
 
   return (
     <div style={{
-      width: s, height: Math.round(s * vH/vW), flexShrink: 0,
+      width: s, height: s, flexShrink: 0,
       transform: bounce ? "scale(1.18) rotate(-6deg)" : "scale(1) rotate(0deg)",
       transition: "transform 0.35s cubic-bezier(.36,.07,.19,.97)",
     }}>
-      <svg viewBox={`0 0 ${vW} ${vH}`} width={s} height={Math.round(s * vH/vW)} style={{ display: "block", overflow: "visible" }}>
+      <svg viewBox={`0 0 ${vW} ${vH}`} width={s} height={s} style={{ display: "block" }}>
         <defs>
           <filter id={`glow-${f}`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
           <filter id={`neon-${f}`} x="-20%" y="-20%" width="140%" height="140%">
@@ -7314,69 +7358,71 @@ function DumbbellAvatar({ mood, bounce, size = 68, pulse = false }) {
         </defs>
 
         {(f === "fire" || f === "celebrate" || f === "proud" || f === "hype") && (
-          <ellipse cx="40" cy="44" rx="32" ry="36" fill={`${c}18`} filter={`url(#glow-${f})`}/>
+          <ellipse cx="50" cy="55" rx="36" ry="38" fill={`${c}18`} filter={`url(#glow-${f})`}/>
         )}
 
         {/* HEAD — angular helmet */}
-        <path d="M22 8 L58 8 L60 14 L60 36 L54 42 L26 42 L20 36 L20 14 Z"
+        <path d="M30 10 L70 10 L73 17 L73 42 L66 48 L34 48 L27 42 L27 17 Z"
           fill={dark} stroke={c} strokeWidth="2" strokeLinejoin="miter"/>
-        <path d="M24 8 L56 8 L58 10 L22 10 Z" fill={c} opacity="0.9"/>
-        <path d="M26 16 L54 16 L56 20 L56 36 L52 39 L28 39 L24 36 L24 20 Z"
+        <path d="M32 10 L68 10 L71 13 L29 13 Z" fill={c} opacity="0.9"/>
+        <path d="M34 19 L66 19 L68 23 L68 40 L63 44 L37 44 L32 40 L32 23 Z"
           fill="#111" stroke={`${c}60`} strokeWidth="1" strokeLinejoin="miter"/>
         {renderFace()}
-        <line x1="20" y1="32" x2="26" y2="36" stroke={c} strokeWidth="1.5" opacity="0.5"/>
-        <line x1="60" y1="32" x2="54" y2="36" stroke={c} strokeWidth="1.5" opacity="0.5"/>
+        <line x1="27" y1="37" x2="33" y2="41" stroke={c} strokeWidth="1.5" opacity="0.5"/>
+        <line x1="73" y1="37" x2="67" y2="41" stroke={c} strokeWidth="1.5" opacity="0.5"/>
 
         {/* NECK */}
-        <rect x="33" y="42" width="14" height="7" fill={dark} stroke={c} strokeWidth="1.5" strokeLinejoin="miter"/>
-        <line x1="40" y1="42" x2="40" y2="49" stroke={c} strokeWidth="1" opacity="0.4"/>
+        <rect x="42" y="48" width="16" height="7" fill={dark} stroke={c} strokeWidth="1.5" strokeLinejoin="miter"/>
+        <line x1="50" y1="48" x2="50" y2="55" stroke={c} strokeWidth="1" opacity="0.4"/>
 
         {/* TORSO */}
-        <path d="M14 49 L66 49 L62 76 L18 76 Z"
+        <path d="M22 55 L78 55 L74 82 L26 82 Z"
           fill={dark} stroke={c} strokeWidth="2" strokeLinejoin="miter" filter={`url(#neon-${f})`}/>
-        <path d="M18 49 L40 49 L38 62 L20 62 Z" fill={`${c}20`} stroke={`${c}50`} strokeWidth="1"/>
-        <path d="M62 49 L40 49 L42 62 L60 62 Z" fill={`${c}20`} stroke={`${c}50`} strokeWidth="1"/>
-        <line x1="40" y1="49" x2="40" y2="76" stroke={c} strokeWidth="1.5" opacity="0.6"/>
-        <line x1="21" y1="62" x2="59" y2="62" stroke={c} strokeWidth="1" opacity="0.3"/>
-        <line x1="22" y1="69" x2="58" y2="69" stroke={c} strokeWidth="1" opacity="0.3"/>
+        <path d="M26 55 L50 55 L47 68 L28 68 Z" fill={`${c}20`} stroke={`${c}50`} strokeWidth="1"/>
+        <path d="M74 55 L50 55 L53 68 L72 68 Z" fill={`${c}20`} stroke={`${c}50`} strokeWidth="1"/>
+        <line x1="50" y1="55" x2="50" y2="82" stroke={c} strokeWidth="1.5" opacity="0.6"/>
+        <line x1="29" y1="68" x2="71" y2="68" stroke={c} strokeWidth="1" opacity="0.3"/>
+        <line x1="30" y1="75" x2="70" y2="75" stroke={c} strokeWidth="1" opacity="0.3"/>
 
         {/* LEFT ARM + DUMBBELL */}
-        <path d="M14 49 L4 44 L0 34 L6 32 L10 40 L18 47 Z"
+        <path d="M22 55 L13 50 L9 40 L15 38 L19 46 L26 53 Z"
           fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
-        <path d="M0 34 L-2 22 L4 18 L8 28 L6 32 Z"
+        <path d="M9 40 L7 28 L13 24 L17 34 L15 38 Z"
           fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
-        <rect x="-6" y="11" width="18" height="6" rx="0" fill={c} filter={`url(#glow-${f})`}/>
-        <rect x="-8" y="7"  width="6" height="14" rx="0" fill={c}/>
-        <rect x="8"  y="7"  width="6" height="14" rx="0" fill={c}/>
-        <rect x="-9" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
-        <rect x="14" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
+        {/* Left dumbbell */}
+        <rect x="3" y="22" width="18" height="5" rx="0" fill={c} filter={`url(#glow-${f})`}/>
+        <rect x="1" y="18" width="6" height="13" rx="0" fill={c}/>
+        <rect x="15" y="18" width="6" height="13" rx="0" fill={c}/>
+        <rect x="0" y="20" width="3" height="9" rx="0" fill={`${c}80`}/>
+        <rect x="19" y="20" width="3" height="9" rx="0" fill={`${c}80`}/>
 
         {/* RIGHT ARM + DUMBBELL */}
-        <path d="M66 49 L76 44 L80 34 L74 32 L70 40 L62 47 Z"
+        <path d="M78 55 L87 50 L91 40 L85 38 L81 46 L74 53 Z"
           fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
-        <path d="M80 34 L82 22 L76 18 L72 28 L74 32 Z"
+        <path d="M91 40 L93 28 L87 24 L83 34 L85 38 Z"
           fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
-        <rect x="68" y="11" width="18" height="6" rx="0" fill={c} filter={`url(#glow-${f})`}/>
-        <rect x="66" y="7"  width="6" height="14" rx="0" fill={c}/>
-        <rect x="80" y="7"  width="6" height="14" rx="0" fill={c}/>
-        <rect x="64" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
-        <rect x="83" y="9"  width="3" height="10" rx="0" fill={`${c}80`}/>
+        {/* Right dumbbell */}
+        <rect x="79" y="22" width="18" height="5" rx="0" fill={c} filter={`url(#glow-${f})`}/>
+        <rect x="77" y="18" width="6" height="13" rx="0" fill={c}/>
+        <rect x="91" y="18" width="6" height="13" rx="0" fill={c}/>
+        <rect x="76" y="20" width="3" height="9" rx="0" fill={`${c}80`}/>
+        <rect x="95" y="20" width="3" height="9" rx="0" fill={`${c}80`}/>
 
         {/* LEGS */}
-        <path d="M18 76 L28 76 L26 88 L16 88 Z"
+        <path d="M26 82 L37 82 L35 96 L24 96 Z"
           fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
-        <path d="M52 76 L62 76 L64 88 L54 88 Z"
+        <path d="M63 82 L74 82 L76 96 L65 96 Z"
           fill={dark} stroke={c} strokeWidth="1.8" strokeLinejoin="miter"/>
-        <rect x="14" y="86" width="14" height="4" rx="0" fill={c} opacity="0.9"/>
-        <rect x="52" y="86" width="14" height="4" rx="0" fill={c} opacity="0.9"/>
+        <rect x="22" y="93" width="15" height="4" rx="0" fill={c} opacity="0.9"/>
+        <rect x="63" y="93" width="15" height="4" rx="0" fill={c} opacity="0.9"/>
 
-        {f === "fire" && (<><text x="28" y="6" fontSize="10">🔥</text><text x="48" y="5" fontSize="8">🔥</text></>)}
-        {f === "celebrate" && (<><text x="14" y="6" fontSize="9">✨</text><text x="56" y="5" fontSize="9">🎉</text></>)}
-        {f === "sleepy" && <text x="58" y="10" fontSize="10">💤</text>}
-        {f === "shocked" && <text x="58" y="8" fontSize="10">❗</text>}
-        {f === "proud" && <text x="58" y="8" fontSize="10">⭐</text>}
-        {f === "coach" && <text x="58" y="8" fontSize="10">📋</text>}
-        {f === "warning" && <text x="58" y="8" fontSize="10">⚠️</text>}
+        {f === "fire" && (<><text x="36" y="9" fontSize="11">🔥</text><text x="58" y="8" fontSize="9">🔥</text></>)}
+        {f === "celebrate" && (<><text x="20" y="9" fontSize="10">✨</text><text x="66" y="8" fontSize="10">🎉</text></>)}
+        {f === "sleepy" && <text x="68" y="12" fontSize="11">💤</text>}
+        {f === "shocked" && <text x="68" y="10" fontSize="11">❗</text>}
+        {f === "proud" && <text x="68" y="10" fontSize="11">⭐</text>}
+        {f === "coach" && <text x="68" y="10" fontSize="11">📋</text>}
+        {f === "warning" && <text x="68" y="10" fontSize="11">⚠️</text>}
       </svg>
     </div>
   );
@@ -10651,7 +10697,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
                 onMouseLeave={e => e.currentTarget.style.background = "none"}
               >
-                <span style={{ flex: 1 }}>{ex.name}{ex.machine ? " 🔧" : ""}</span>
+                <span style={{ flex: 1 }}>{ex.name}</span>
                 <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>{ex.muscle}</span>
               </button>
             ))}
@@ -10663,7 +10709,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                 color: "var(--accent)", fontFamily: "Barlow, sans-serif", fontSize: 13, fontWeight: 600,
               }}
             >
-              ✏️ Personalizado...
+              ✏️ Personalizado... (escribe el tuyo)
             </button>
           </div>
         )}
@@ -10672,7 +10718,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   })()}
   {exName === "__custom__" && (
     <>
-      <input className="input" style={{ marginTop: 6 }} placeholder="Nombre..." value={exCustom}
+      <input className="input" style={{ marginTop: 6 }} placeholder="Escribe tu ejercicio..." value={exCustom}
         onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
       <select className="input" style={{ marginTop: 6 }} value={exCustomMuscle} onChange={e => setExCustomMuscle(e.target.value)}>
         <option value="">— Músculo —</option>
@@ -10924,7 +10970,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                   onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
                   onMouseLeave={e => e.currentTarget.style.background = "none"}
                 >
-                  <span style={{ flex: 1 }}>{ex.name}{ex.machine ? " 🔧" : ""}</span>
+                  <span style={{ flex: 1 }}>{ex.name}</span>
                   <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>{ex.muscle}</span>
                 </button>
               ))}
@@ -10937,7 +10983,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                   fontWeight: 600,
                 }}
               >
-                ✏️ Personalizado...
+                ✏️ Personalizado... (escribe el tuyo)
               </button>
             </div>
           )}
@@ -10946,7 +10992,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     })()}
     {exName === "__custom__" && (
       <>
-        <input className="input" style={{ marginTop: 6 }} placeholder="Nombre..." value={exCustom}
+        <input className="input" style={{ marginTop: 6 }} placeholder="Escribe tu ejercicio..." value={exCustom}
           onChange={e => setExCustom(lettersOnly(e.target.value))} autoFocus />
         <select className="input" style={{ marginTop: 6 }} value={exCustomMuscle} onChange={e => setExCustomMuscle(e.target.value)}>
           <option value="">— Músculo —</option>
