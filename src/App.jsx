@@ -1,30 +1,26 @@
-import { useState, useEffect, useRef, createContext, useContext } from "react";
-import { initializeApp, getApps } from "firebase/app";
+import "./styles.css";
+import CoachModal, { getAthleteRoutines } from "./components/CoachModal";
+import AthleteCoachPanel from "./components/AthleteCoachPanel";
+import LoginScreen from "./components/LoginScreen";
+import { AuthCtx, useAuth } from "./components/AuthContext";
+import InsightsModal, { generateInsights, getProgressionSuggestion } from "./components/InsightsModal";
+import { useState, useEffect, useRef, createContext, useContext, lazy, Suspense } from "react";
+
+const LiveTrainMode       = lazy(() => import("./components/LiveTrainMode"));
+const AdminExercisesModal = lazy(() => import("./components/AdminExercisesModal"));
+const StreakModal         = lazy(() => import("./components/StreakModal"));
 import GIF_MAP from './assets/gif/gifMap.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithCredential } from "firebase/auth";
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
-import { getFirestore, initializeFirestore, persistentLocalCache, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
-};
-const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(firebaseApp);
-const db = initializeFirestore(firebaseApp, { localCache: persistentLocalCache() });
-const storage = getStorage(firebaseApp);
-const googleProvider = new GoogleAuthProvider();
-
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc } from "firebase/firestore";
+import { firebaseApp, auth, db, googleProvider } from "./firebase";
+import { EXERCISE_DB, MUSCLES, registerCustomExercise } from "./exerciseDb";
 const ThemeCtx = createContext();
 const useTheme = () => useContext(ThemeCtx);
-const AuthCtx = createContext();
-const useAuth = () => useContext(AuthCtx);
 const CustomGifCtx = createContext({ gifs: {}, setGif: () => {} });
 const useCustomGifs = () => useContext(CustomGifCtx);
 
@@ -32,11 +28,131 @@ const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.ra
 const fmtDate = (d) => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const lettersOnly = (v) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, "");
-const numDot = (v) => v.replace(/[^0-9.]/g, "");
+function firebaseErrMsg(code) {
+  const map = {
+    "auth/email-already-in-use":   "Este email ya está registrado",
+    "auth/invalid-email":          "Email inválido",
+    "auth/weak-password":          "Contraseña muy débil (mínimo 6 caracteres)",
+    "auth/user-not-found":         "Email o contraseña incorrectos",
+    "auth/wrong-password":         "Email o contraseña incorrectos",
+    "auth/invalid-credential":     "Email o contraseña incorrectos",
+    "auth/too-many-requests":      "Demasiados intentos. Resetea tu contraseña.",
+    "auth/network-request-failed": "Sin conexión a internet",
+  };
+  return map[code] || "Ocurrió un error. Intenta de nuevo.";
+}
+const numDot = (v, max = 9999) => { const s = v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"); const n = parseFloat(s); if (isNaN(n) || n < 0) return ""; return n > max ? String(max) : s; };
+const numWeight = (v) => numDot(v, 500);   // peso ejercicio: max 500 kg
+const numReps   = (v) => numDot(v, 100);   // reps: max 100
+const numBodyW  = (v) => numDot(v, 250);   // peso corporal: max 250 kg
+const numHeight = (v) => numDot(v, 220);   // estatura: max 220 cm
+const numAge    = (v) => { const n = parseInt(v.replace(/[^0-9]/g,"")); return isNaN(n) ? "" : String(Math.min(n, 99)); };
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 const DAYS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const LIVE_DRAFT_KEY = "gym_live_draft";
+
+function fireConfetti() {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const colors = ["#e8ff00","#22c55e","#f97316","#ffffff","#a3e635","#facc15","#34d399","#fb923c"];
+
+  function burst(cx, cy, count, speedMult) {
+    return Array.from({length: count}, () => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = (2 + Math.random() * 8) * speedMult;
+      return {
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - Math.random() * 4,
+        r: 3 + Math.random() * 7,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        angle: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.35,
+        shape: ["rect","circle","triangle"][Math.floor(Math.random()*3)],
+        alpha: 1,
+        gravity: 0.15 + Math.random() * 0.1,
+        trail: [],
+      };
+    });
+  }
+
+  let particles = [];
+  // Initial big burst from center
+  particles.push(...burst(W/2, H*0.45, 80, 1.4));
+
+  // Schedule side bursts
+  setTimeout(() => particles.push(...burst(W*0.2, H*0.5, 40, 1.1)), 200);
+  setTimeout(() => particles.push(...burst(W*0.8, H*0.5, 40, 1.1)), 350);
+  setTimeout(() => particles.push(...burst(W/2, H*0.3, 50, 1.6)), 500);
+
+  let frame;
+  const startTime = performance.now();
+  const duration = 3500;
+
+  function draw(ts) {
+    ctx.clearRect(0, 0, W, H);
+    const elapsed = ts - startTime;
+
+    particles.forEach(p => {
+      p.trail.push({x: p.x, y: p.y});
+      if (p.trail.length > 5) p.trail.shift();
+
+      p.vx *= 0.98;
+      p.vy += p.gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.angle += p.spin;
+      p.alpha = Math.max(0, 1 - elapsed / duration * 1.3);
+
+      // Draw trail
+      if (p.trail.length > 1) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha * 0.3;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.r * 0.5;
+        ctx.beginPath();
+        p.trail.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 6;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+
+      if (p.shape === "rect") {
+        ctx.fillRect(-p.r, -p.r * 0.5, p.r * 2, p.r);
+      } else if (p.shape === "circle") {
+        ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(0, -p.r);
+        ctx.lineTo(p.r * 0.866, p.r * 0.5);
+        ctx.lineTo(-p.r * 0.866, p.r * 0.5);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    });
+
+    // Remove off-screen particles
+    particles = particles.filter(p => p.y < H + 50 && p.alpha > 0.01);
+
+    if (elapsed < duration) frame = requestAnimationFrame(draw);
+    else { cancelAnimationFrame(frame); canvas.remove(); }
+  }
+
+  frame = requestAnimationFrame(draw);
+}
 
 const ACCENT_COLORS = [
   { name: "Azul",    value: "#3b82f6", dim: "#1a2f52" },
@@ -57,68 +173,10 @@ const PRESETS = {
   "Full Body": ["Sentadilla", "Press Banca", "Dominadas", "Peso Muerto Rumano", "Press Hombro"],
 };
 
-// Array mutable controlado — usar addCustomExerciseToDb() en lugar de push directo
-let EXERCISE_DB = [
-  { name: "Press Banca", muscle: "Pecho", machine: false, equipment: "Barra" },
-  { name: "Press Banca Inclinado", muscle: "Pecho", machine: false, equipment: "Barra" },
-  { name: "Press Mancuernas", muscle: "Pecho", machine: false, equipment: "Mancuernas" },
-  { name: "Aperturas Mancuernas", muscle: "Pecho", machine: false, equipment: "Mancuernas" },
-  { name: "Fondos", muscle: "Pecho", machine: false, equipment: "Cuerpo" },
-  { name: "Crossover Polea", muscle: "Pecho", machine: true, equipment: "Polea" },
-  { name: "Press Pecho Máquina", muscle: "Pecho", machine: true, equipment: "Máquina" },
-  { name: "Dominadas", muscle: "Espalda", machine: false, equipment: "Barra" },
-  { name: "Remo con Barra", muscle: "Espalda", machine: false, equipment: "Barra" },
-  { name: "Remo Mancuerna", muscle: "Espalda", machine: false, equipment: "Mancuernas" },
-  { name: "Peso Muerto", muscle: "Espalda", machine: false, equipment: "Barra" },
-  { name: "Pullover", muscle: "Espalda", machine: false, equipment: "Mancuernas" },
-  { name: "Jalón al Pecho", muscle: "Espalda", machine: true, equipment: "Polea" },
-  { name: "Remo Polea Baja", muscle: "Espalda", machine: true, equipment: "Polea" },
-  { name: "Face Pull", muscle: "Espalda", machine: true, equipment: "Polea" },
-  { name: "Press Hombro Barra", muscle: "Hombros", machine: false, equipment: "Barra" },
-  { name: "Press Arnold", muscle: "Hombros", machine: false, equipment: "Mancuernas" },
-  { name: "Elevaciones Laterales", muscle: "Hombros", machine: false, equipment: "Mancuernas" },
-  { name: "Elevaciones Frontales", muscle: "Hombros", machine: false, equipment: "Mancuernas" },
-  { name: "Pájaros", muscle: "Hombros", machine: false, equipment: "Mancuernas" },
-  { name: "Press Hombro Máquina", muscle: "Hombros", machine: true, equipment: "Máquina" },
-  { name: "Curl Bíceps Barra", muscle: "Bíceps", machine: false, equipment: "Barra" },
-  { name: "Curl Mancuernas", muscle: "Bíceps", machine: false, equipment: "Mancuernas" },
-  { name: "Curl Martillo", muscle: "Bíceps", machine: false, equipment: "Mancuernas" },
-  { name: "Curl Concentrado", muscle: "Bíceps", machine: false, equipment: "Mancuernas" },
-  { name: "Curl Polea", muscle: "Bíceps", machine: true, equipment: "Polea" },
-  { name: "Press Francés", muscle: "Tríceps", machine: false, equipment: "Barra" },
-  { name: "Extensión Tríceps Mancuerna", muscle: "Tríceps", machine: false, equipment: "Mancuernas" },
-  { name: "Fondos Tríceps", muscle: "Tríceps", machine: false, equipment: "Cuerpo" },
-  { name: "Tríceps Polea", muscle: "Tríceps", machine: true, equipment: "Polea" },
-  { name: "Sentadilla", muscle: "Cuádriceps", machine: false, equipment: "Barra" },
-  { name: "Sentadilla Goblet", muscle: "Cuádriceps", machine: false, equipment: "Mancuernas" },
-  { name: "Zancadas", muscle: "Cuádriceps", machine: false, equipment: "Mancuernas" },
-  { name: "Prensa de Pierna", muscle: "Cuádriceps", machine: true, equipment: "Máquina" },
-  { name: "Extensión Cuádriceps", muscle: "Cuádriceps", machine: true, equipment: "Máquina" },
-  { name: "Peso Muerto Rumano", muscle: "Femoral", machine: false, equipment: "Barra" },
-  { name: "Curl Femoral Tumbado", muscle: "Femoral", machine: true, equipment: "Máquina" },
-  { name: "Hip Thrust", muscle: "Glúteos", machine: false, equipment: "Barra" },
-  { name: "Abductores", muscle: "Glúteos", machine: true, equipment: "Máquina" },
-  { name: "Pantorrillas Máquina", muscle: "Pantorrillas", machine: true, equipment: "Máquina" },
-  { name: "Elevación de Talones", muscle: "Pantorrillas", machine: false, equipment: "Cuerpo" },
-  { name: "Plancha", muscle: "Core", machine: false, equipment: "Cuerpo" },
-  { name: "Crunch", muscle: "Core", machine: false, equipment: "Cuerpo" },
-  { name: "Elevación de Piernas", muscle: "Core", machine: false, equipment: "Cuerpo" },
-  { name: "Crunch Polea", muscle: "Core", machine: true, equipment: "Polea" },
-  { name: "Rueda Abdominal", muscle: "Core", machine: false, equipment: "Accesorio" },
-  { name: "Cinta Correr", muscle: "Cardio", machine: true, equipment: "Máquina" },
-  { name: "Bicicleta Estática", muscle: "Cardio", machine: true, equipment: "Máquina" },
-  { name: "Elíptica", muscle: "Cardio", machine: true, equipment: "Máquina" },
-  { name: "Burpees", muscle: "Cardio", machine: false, equipment: "Cuerpo" },
-  { name: "Saltar Cuerda", muscle: "Cardio", machine: false, equipment: "Accesorio" },
-];
-let MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
+// Array mutable controlado — usar registerCustomExercise() en lugar de push directo
+// EXERCISE_DB, MUSCLES y registerCustomExercise se importan desde ./exerciseDb
 
-// Helper centralizado para agregar ejercicios personalizados al array global
-function registerCustomExercise(name, muscle) {
-  if (EXERCISE_DB.find(e => e.name === name)) return;
-  EXERCISE_DB.push({ name, muscle, machine: false, equipment: "Personalizado" });
-  if (!MUSCLES.includes(muscle)) MUSCLES = [...MUSCLES, muscle];
-}
+// registerCustomExercise is imported from ./exerciseDb
 
 function ExerciseGif({ exName, size = 120 }) {
   const [expanded, setExpanded] = useState(false);
@@ -272,6 +330,24 @@ function Sparkline({ data }) {
 
 // ─── PR Confetti ──────────────────────────────────────────────────────────────
 // ─── Email Verify Wall ────────────────────────────────────────────────────────
+function GuestWall({ onClose, feature = "esta función" }) {
+  const { logout } = useAuth();
+  return (
+    <div style={{ textAlign:"center", padding:"20px 0" }}>
+      <div style={{ fontSize:52, marginBottom:12 }}>🔒</div>
+      <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:800, marginBottom:8 }}>Cuenta requerida</div>
+      <p style={{ fontSize:14, color:"var(--text-muted)", marginBottom:20, lineHeight:1.6 }}>
+        Para usar {feature} necesitas una cuenta registrada.<br/>
+        Así tu historial queda guardado permanentemente.
+      </p>
+      <button className="btn-primary" style={{ fontSize:16, padding:"12px 28px" }} onClick={() => { onClose(); logout(true); }}>
+        Crear cuenta gratis →
+      </button>
+      <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:12 }}>¿Ya tienes cuenta? Cierra sesión e inicia con tu email.</p>
+    </div>
+  );
+}
+
 function EmailVerifyWall({ user, children }) {
   const [resent, setResent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -308,8 +384,322 @@ function EmailVerifyWall({ user, children }) {
   );
 }
 
-function PRConfetti({ prs, onDone }) {
+function PRShareModal({ prs, user, onClose }) {
   const canvasRef = useRef();
+  const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => { drawCard(); }, []);
+
+  function drawCard() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = 1080, H = 1080;
+    canvas.width = W; canvas.height = H;
+
+    // ── Base background ──
+    ctx.fillStyle = "#05050a";
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Large diagonal gradient wash ──
+    const diagWash = ctx.createLinearGradient(0, 0, W, H);
+    diagWash.addColorStop(0,   "rgba(20,15,0,1)");
+    diagWash.addColorStop(0.45,"rgba(5,5,10,1)");
+    diagWash.addColorStop(1,   "rgba(0,15,5,1)");
+    ctx.fillStyle = diagWash;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Grid lines (subtle) ──
+    ctx.strokeStyle = "rgba(232,255,0,0.04)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 80) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += 80) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    // ── Massive center glow orb ──
+    const orb = ctx.createRadialGradient(W/2, H*0.38, 0, W/2, H*0.38, 520);
+    orb.addColorStop(0,   "rgba(232,255,0,0.22)");
+    orb.addColorStop(0.3, "rgba(232,255,0,0.08)");
+    orb.addColorStop(0.7, "rgba(200,255,0,0.02)");
+    orb.addColorStop(1,   "transparent");
+    ctx.fillStyle = orb;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Corner accent — top-left ──
+    const tlGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 400);
+    tlGrad.addColorStop(0, "rgba(232,255,0,0.12)");
+    tlGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = tlGrad; ctx.fillRect(0, 0, W, H);
+
+    // ── Corner accent — bottom-right ──
+    const brGrad = ctx.createRadialGradient(W, H, 0, W, H, 400);
+    brGrad.addColorStop(0, "rgba(0,255,120,0.08)");
+    brGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = brGrad; ctx.fillRect(0, 0, W, H);
+
+    // ── Noise grain ──
+    for (let i = 0; i < 30000; i++) {
+      const a = Math.random() * 0.028;
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1);
+    }
+
+    // ── TOP GLOWING BAR ──
+    ctx.shadowColor = "#e8ff00";
+    ctx.shadowBlur = 24;
+    const topBar = ctx.createLinearGradient(0, 0, W, 0);
+    topBar.addColorStop(0,   "transparent");
+    topBar.addColorStop(0.15,"#e8ff00");
+    topBar.addColorStop(0.5, "#ffffff");
+    topBar.addColorStop(0.85,"#e8ff00");
+    topBar.addColorStop(1,   "transparent");
+    ctx.fillStyle = topBar;
+    ctx.fillRect(0, 0, W, 4);
+    ctx.shadowBlur = 0;
+
+    // ── Brand ──
+    ctx.font = "600 26px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillText("⚡  G Y M T R A C K E R", 64, 72);
+
+    // ── "PR" giant watermark ──
+    ctx.save();
+    ctx.font = "900 520px 'Arial Black', Arial";
+    ctx.fillStyle = "rgba(232,255,0,0.03)";
+    ctx.textAlign = "center";
+    ctx.fillText("PR", W/2, H*0.72);
+    ctx.textAlign = "left";
+    ctx.restore();
+
+    // ── TITLE "NUEVO RÉCORD" ──
+    ctx.save();
+    ctx.font = "900 88px 'Arial Black', Arial";
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "rgba(232,255,0,0.6)";
+    ctx.shadowBlur = 40;
+    ctx.fillText("NUEVO", 64, 200);
+    ctx.shadowBlur = 0;
+    ctx.font = "900 88px 'Arial Black', Arial";
+    ctx.fillStyle = "#e8ff00";
+    ctx.shadowColor = "#e8ff00";
+    ctx.shadowBlur = 50;
+    ctx.fillText("RÉCORD", 64, 298);
+    ctx.shadowBlur = 0;
+    ctx.font = "700 32px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.fillText("PERSONAL", 68, 336);
+    ctx.restore();
+
+    // ── Underline accent ──
+    const ulGrad = ctx.createLinearGradient(64, 0, 64 + 420, 0);
+    ulGrad.addColorStop(0, "#e8ff00");
+    ulGrad.addColorStop(0.6, "rgba(232,255,0,0.3)");
+    ulGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = ulGrad;
+    ctx.fillRect(64, 350, 420, 3);
+
+    // ── Trophy — right side ──
+    ctx.save();
+    ctx.shadowColor = "#e8ff00";
+    ctx.shadowBlur = 80;
+    ctx.font = "200px serif";
+    ctx.fillText("🏆", W - 340, 340);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    // ── PR CARDS ──
+    const topPRs = prs.slice(0, 3);
+    const cardH = prs.length === 1 ? 200 : prs.length === 2 ? 170 : 148;
+    const cardGap = 16;
+    const cardsStartY = 400;
+
+    topPRs.forEach((pr, i) => {
+      const y = cardsStartY + i * (cardH + cardGap);
+      const x = 64, cW = W - 128;
+
+      // Card outer glow
+      ctx.shadowColor = "rgba(232,255,0,0.4)";
+      ctx.shadowBlur = 30;
+      ctx.fillStyle = "rgba(232,255,0,0.001)";
+      ctx.beginPath(); ctx.roundRect(x, y, cW, cardH, 20); ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Card body gradient
+      const cardBg = ctx.createLinearGradient(x, y, x + cW, y + cardH);
+      cardBg.addColorStop(0, "rgba(232,255,0,0.10)");
+      cardBg.addColorStop(0.5, "rgba(232,255,0,0.05)");
+      cardBg.addColorStop(1, "rgba(232,255,0,0.02)");
+      ctx.fillStyle = cardBg;
+      ctx.beginPath(); ctx.roundRect(x, y, cW, cardH, 20); ctx.fill();
+
+      // Card border
+      const borderGrad = ctx.createLinearGradient(x, y, x + cW, y + cardH);
+      borderGrad.addColorStop(0, "rgba(232,255,0,0.6)");
+      borderGrad.addColorStop(0.5, "rgba(232,255,0,0.2)");
+      borderGrad.addColorStop(1, "rgba(232,255,0,0.5)");
+      ctx.strokeStyle = borderGrad;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(x, y, cW, cardH, 20); ctx.stroke();
+
+      // Left neon stripe
+      ctx.shadowColor = "#e8ff00"; ctx.shadowBlur = 20;
+      const stripeGrad = ctx.createLinearGradient(0, y, 0, y + cardH);
+      stripeGrad.addColorStop(0, "transparent");
+      stripeGrad.addColorStop(0.3, "#e8ff00");
+      stripeGrad.addColorStop(0.7, "#e8ff00");
+      stripeGrad.addColorStop(1, "transparent");
+      ctx.fillStyle = stripeGrad;
+      ctx.beginPath(); ctx.roundRect(x, y + 20, 5, cardH - 40, 3); ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Exercise name
+      const nameSize = pr.name.length > 20 ? 46 : 54;
+      ctx.font = `900 ${nameSize}px 'Arial Black', Arial`;
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(255,255,255,0.2)";
+      ctx.shadowBlur = 10;
+      const exName = pr.name.length > 22 ? pr.name.slice(0, 22) + "…" : pr.name;
+      ctx.fillText(exName, x + 40, y + cardH * 0.48);
+      ctx.shadowBlur = 0;
+
+      // Weight × reps
+      ctx.font = "500 28px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.38)";
+      ctx.fillText(`${pr.weight} kg  ×  ${pr.reps} reps`, x + 40, y + cardH * 0.75);
+
+      // ── 1RM pill badge ──
+      ctx.font = "900 52px 'Arial Black', Arial";
+      const rmStr = `${pr.rm} kg`;
+      const rmMeasure = ctx.measureText(rmStr).width;
+      const pillW = rmMeasure + 60, pillH = 86;
+      const pillX = x + cW - pillW - 24;
+      const pillY = y + cardH/2 - pillH/2;
+
+      // Pill glow
+      ctx.shadowColor = "#e8ff00"; ctx.shadowBlur = 40;
+      ctx.fillStyle = "#e8ff00";
+      ctx.beginPath(); ctx.roundRect(pillX, pillY, pillW, pillH, pillH/2); ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Pill text
+      ctx.fillStyle = "#05050a";
+      ctx.fillText(rmStr, pillX + 30, pillY + 56);
+
+      // "1RM" label inside pill
+      ctx.font = "700 18px Arial";
+      ctx.fillStyle = "rgba(5,5,10,0.55)";
+      ctx.fillText("1RM", pillX + pillW/2 - 18, pillY + pillH - 10);
+    });
+
+    // ── Bottom section ──
+    const botY = H - 148;
+
+    // Separator
+    const sepG = ctx.createLinearGradient(64, 0, W - 64, 0);
+    sepG.addColorStop(0, "transparent");
+    sepG.addColorStop(0.2, "rgba(232,255,0,0.4)");
+    sepG.addColorStop(0.8, "rgba(232,255,0,0.4)");
+    sepG.addColorStop(1, "transparent");
+    ctx.fillStyle = sepG; ctx.fillRect(64, botY, W - 128, 1);
+
+    // Date
+    ctx.font = "400 24px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    const today = new Date().toLocaleDateString("es-ES", { day:"2-digit", month:"long", year:"numeric" });
+    ctx.fillText(today.toUpperCase(), 64, botY + 44);
+
+    // Username
+    ctx.shadowColor = "#e8ff00"; ctx.shadowBlur = 20;
+    ctx.font = "900 42px 'Arial Black', Arial";
+    ctx.fillStyle = "#e8ff00";
+    ctx.fillText(`@${user?.name || "atleta"}`, 64, botY + 96);
+    ctx.shadowBlur = 0;
+
+    // ── BOTTOM GLOW BAR ──
+    ctx.shadowColor = "#e8ff00"; ctx.shadowBlur = 24;
+    ctx.fillStyle = topBar;
+    ctx.fillRect(0, H - 4, W, 4);
+    ctx.shadowBlur = 0;
+
+    // ── Bottom glow wash ──
+    const botGlow = ctx.createLinearGradient(0, H - 80, 0, H);
+    botGlow.addColorStop(0, "transparent");
+    botGlow.addColorStop(1, "rgba(232,255,0,0.15)");
+    ctx.fillStyle = botGlow; ctx.fillRect(0, H - 80, W, 80);
+  }
+
+  async function download() {
+    setDownloading(true);
+    const canvas = canvasRef.current;
+    const fileName = `PR_${prs[0]?.name.replace(/\s/g,"_")}_${Date.now()}.png`;
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const base64 = canvas.toDataURL("image/png").split(",")[1];
+        await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+        const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+        await Share.share({
+          title: "¡Nuevo Récord Personal! 🏆",
+          text: `Acabo de romper mi récord en GymTracker`,
+          url: uri,
+          dialogTitle: "Compartir PR",
+        });
+      } else {
+        const link = document.createElement("a");
+        link.download = fileName;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      }
+    } catch(e) { console.error("Share error:", e); }
+    setDownloading(false);
+  }
+
+  async function copyImage() {
+    try {
+      const canvas = canvasRef.current;
+      canvas.toBlob(async blob => {
+        await navigator.clipboard.write([new ClipboardItem({"image/png": blob})]);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } catch { download(); }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()}
+        style={{ maxHeight:"90vh", overflowY:"auto", maxWidth:520 }}>
+        <div className="modal-header">
+          <h3 className="modal-title">🏆 Compartir PR</h3>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:"0 0 16px" }}>
+          <canvas ref={canvasRef}
+            style={{ width:"100%", borderRadius:12, border:"1px solid rgba(232,255,0,0.2)", display:"block" }} />
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            <button className="btn-primary" style={{ flex:1, fontSize:14 }}
+              onClick={download} disabled={downloading}>
+              {downloading ? "⏳ Compartiendo…" : Capacitor.isNativePlatform() ? "📤 Compartir imagen" : "⬇️ Guardar imagen"}
+            </button>
+            <button className="btn-ghost" style={{ flex:1, fontSize:14 }}
+              onClick={copyImage}>
+              {copied ? "✅ ¡Copiada!" : "📋 Copiar imagen"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PRConfetti({ prs, user, onDone }) {
+  const canvasRef = useRef();
+  const [showShare, setShowShare] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(true);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -340,32 +730,59 @@ function PRConfetti({ prs, onDone }) {
         ctx.restore();
       });
       if (frame < 180) raf = requestAnimationFrame(draw);
-      else { ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); }
+      else ctx.clearRect(0,0,canvas.width,canvas.height);
     }
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [onDone]);
+  }, []);
 
   return (
     <>
       <canvas ref={canvasRef} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:9998 }} />
-      <div style={{ position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
-        zIndex:9999, pointerEvents:"none", textAlign:"center",
-        animation:"prBannerIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards" }}>
-        <div style={{ background:"linear-gradient(135deg,rgba(245,158,11,0.97),rgba(251,191,36,0.97))",
-          border:"2px solid rgba(255,255,255,0.3)", borderRadius:20, padding:"20px 32px",
-          boxShadow:"0 20px 60px rgba(245,158,11,0.5)", maxWidth:320 }}>
-          <div style={{ fontSize:40, marginBottom:6 }}>🏆</div>
-          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:28, fontWeight:900,
-            color:"#0f172a", letterSpacing:1, marginBottom:8 }}>¡NUEVO RÉCORD!</div>
-          {prs.slice(0,3).map(pr => (
-            <div key={pr.name} style={{ fontSize:13, fontWeight:700, color:"#1e293b",
-              background:"rgba(255,255,255,0.4)", borderRadius:8, padding:"4px 10px", marginBottom:4 }}>
-              {pr.name} → {pr.rm} kg 1RM
+
+      {/* Banner — se oculta cuando el share modal está abierto */}
+      {bannerVisible && !showShare && (
+        <div style={{ position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+          zIndex:9999, textAlign:"center",
+          animation:"prBannerIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards" }}>
+          <div style={{ background:"linear-gradient(135deg,rgba(245,158,11,0.97),rgba(251,191,36,0.97))",
+            border:"2px solid rgba(255,255,255,0.3)", borderRadius:20, padding:"20px 32px",
+            boxShadow:"0 20px 60px rgba(245,158,11,0.5)", maxWidth:320 }}>
+            <div style={{ fontSize:40, marginBottom:6 }}>🏆</div>
+            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:28, fontWeight:900,
+              color:"#0f172a", letterSpacing:1, marginBottom:8 }}>¡NUEVO RÉCORD!</div>
+            {prs.slice(0,3).map(pr => (
+              <div key={pr.name} style={{ fontSize:13, fontWeight:700, color:"#1e293b",
+                background:"rgba(255,255,255,0.4)", borderRadius:8, padding:"4px 10px", marginBottom:4 }}>
+                {pr.name} → {pr.rm} kg 1RM
+              </div>
+            ))}
+            <div style={{ display:"flex", gap:8, marginTop:14 }}>
+              <button onClick={() => setShowShare(true)}
+                style={{ flex:1, background:"#0f172a", border:"none", borderRadius:10, padding:"10px 0",
+                  fontFamily:"Barlow Condensed,sans-serif", fontSize:14, fontWeight:800,
+                  color:"#e8ff00", letterSpacing:1, cursor:"pointer" }}>
+                📸 COMPARTIR
+              </button>
+              <button onClick={() => { setBannerVisible(false); if(onDone) onDone(); }}
+                style={{ flex:1, background:"rgba(0,0,0,0.2)", border:"none", borderRadius:10, padding:"10px 0",
+                  fontFamily:"Barlow Condensed,sans-serif", fontSize:14, fontWeight:800,
+                  color:"#0f172a", cursor:"pointer" }}>
+                ✕ CERRAR
+              </button>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Share modal — se abre encima, al cerrar vuelve al banner */}
+      {showShare && (
+        <PRShareModal
+          prs={prs}
+          user={user}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </>
   );
 }
@@ -1879,14 +2296,17 @@ function OneRMModal({ onClose }) {
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>Fórmula de Epley: peso × (1 + reps / 30)</p>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 8, padding: "8px 12px", marginBottom: 16, lineHeight: 1.5 }}>
+          ⚠️ <strong style={{ color: "#f59e0b" }}>Estimación aproximada.</strong> Más precisa en ejercicios compuestos (sentadilla, press banca, peso muerto) con 1–10 reps. Puede sobreestimar en ejercicios de aislamiento o con muchas repeticiones.
+        </div>
         <div className="form-row">
           <div className="field">
             <label className="field-label">Peso (kg)</label>
-            <input className="input" placeholder="0" value={weight} onChange={e => setWeight(numDot(e.target.value))} inputMode="decimal" />
+            <input className="input" placeholder="0" value={weight} onChange={e => setWeight(numWeight(e.target.value))} inputMode="decimal" />
           </div>
           <div className="field">
             <label className="field-label">Repeticiones</label>
-            <input className="input" placeholder="0" value={reps} onChange={e => setReps(numDot(e.target.value))} inputMode="decimal" />
+            <input className="input" placeholder="0" value={reps} onChange={e => setReps(numReps(e.target.value))} inputMode="decimal" />
           </div>
         </div>
         {result > 0 && (
@@ -2195,7 +2615,7 @@ const [age, setAge] = useState(stats.age || "25");
         <div className="form-row" style={{ marginBottom: 10 }}>
           <div className="field">
             <label className="field-label">Estatura (cm)</label>
-            <input className="input" placeholder="170" value={height} onChange={e => setHeight(numDot(e.target.value))} inputMode="decimal" />
+            <input className="input" placeholder="170" value={height} onChange={e => setHeight(numHeight(e.target.value))} inputMode="decimal" />
           </div>
           <div className="field">
             <label className="field-label">Peso hoy (kg)</label>
@@ -2203,7 +2623,7 @@ const [age, setAge] = useState(stats.age || "25");
               className="input"
               placeholder="70.5"
               value={weight}
-              onChange={e => setWeight(numDot(e.target.value))}
+              onChange={e => setWeight(numWeight(e.target.value))}
               onKeyDown={e => e.key==="Enter"&&save()}
               style={{
                 borderColor: weight && (parseFloat(weight) < 20 || parseFloat(weight) > 300)
@@ -2218,7 +2638,7 @@ const [age, setAge] = useState(stats.age || "25");
           </div>
           <div className="field" style={{ maxWidth: 70 }}>
             <label className="field-label">Edad</label>
-            <input className="input" placeholder="25" value={age} onChange={e => setAge(e.target.value.replace(/[^0-9]/g,""))} />
+            <input className="input" placeholder="25" value={age} onChange={e => setAge(numAge(e.target.value))} />
           </div>
           <button className="btn-primary" style={{ alignSelf:"flex-end", padding:"10px 16px", fontSize:15, background: saved?"#22c55e":"var(--accent)" }} onClick={save}>
             {saved ? "✓" : "Guardar"}
@@ -2582,10 +3002,10 @@ function ExerciseEditor({ dayKey, exercises, isWeekly, removeExFromDay, addExToD
           {exName === "__custom__" && <input className="input" style={{ marginTop: 4, fontSize: 12 }} placeholder="Escribe tu ejercicio..." value={exCustomInput} onChange={e => setExCustomInput(e.target.value)} />}
         </div>
         <div style={{ flex: 1, minWidth: 70 }}>
-          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Peso kg" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} inputMode="decimal" />
+          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Peso kg" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} inputMode="decimal" />
         </div>
         <div style={{ flex: 1, minWidth: 60 }}>
-          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Reps" value={exReps} onChange={e => setExReps(numDot(e.target.value))} inputMode="decimal" />
+          <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Reps" value={exReps} onChange={e => setExReps(numReps(e.target.value))} inputMode="decimal" />
         </div>
         <div style={{ flex: 1, minWidth: 60 }}>
           <input className="input" style={{ fontSize: 12, padding: "7px 10px" }} placeholder="Series" value={exSeriesCount} onChange={e => setExSeriesCount(e.target.value)} inputMode="numeric" />
@@ -3927,1296 +4347,9 @@ function ShareCardModal({ session, user, unit, onClose }) {
 
 // ─── Teams ────────────────────────────────────────────────────────────────────
 // ─── Coach Modal ──────────────────────────────────────────────────────────────
-function CoachModal({ user, sessions, onClose }) {
-  const [tab, setTab] = useState("dashboard");
-  const [coachProfile, setCoachProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activating, setActivating] = useState(false);
-  const [activateError, setActivateError] = useState("");
-  const [routines, setRoutines] = useState([]);
-  const [selectedAthlete, setSelectedAthlete] = useState(null);
-  const [athleteData, setAthleteData] = useState(null);
-  const [athleteLoading, setAthleteLoading] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
-const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
-  const [athleteQuickStats, setAthleteQuickStats] = useState({});
 
-  // Routine editor state
-  const [editingRoutine, setEditingRoutine] = useState(null);
-  const [routineName, setRoutineName] = useState("");
-  const [routineNotes, setRoutineNotes] = useState("");
-  const [routineExercises, setRoutineExercises] = useState([]);
-  const [rExName, setRExName] = useState("");
-  const [rExMuscle, setRExMuscle] = useState("Todos");
-  const [rExWeight, setRExWeight] = useState("");
-  const [rExReps, setRExReps] = useState("");
-  const [rExSets, setRExSets] = useState([]);
-  const [rExComment, setRExComment] = useState("");
-  const [rExCustom, setRExCustom] = useState("");
-  const [rExCustomMuscle, setRExCustomMuscle] = useState("");
-  const [assignRoutineId, setAssignRoutineId] = useState("");
-  const [assignEmail, setAssignEmail] = useState("");
-  const [assignMsg, setAssignMsg] = useState("");
-  const [assignDay, setAssignDay] = useState(-1);
-  const [addAthleteEmail, setAddAthleteEmail] = useState("");
-  const [addAthleteMsg, setAddAthleteMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  useEffect(() => { loadCoach(); }, []);
-
-  async function loadCoach() {
-    setLoading(true);
-    const profile = await getCoachProfile(user.uid);
-    setCoachProfile(profile);
-    if (profile) {
-      const r = await getRoutinesByCoach(user.uid);
-      setRoutines(r);
-      const athletesList = Object.values(profile.athletes || {});
-      const map = {};
-      const quickStats = {};
-      await Promise.all(athletesList.map(async (a) => {
-        const [routinesSnap, data] = await Promise.all([
-          getDocs(collection(db, "athlete_routines", a.uid, "routines")).catch(() => ({ docs: [] })),
-          getAthleteData(a.uid),
-        ]);
-        map[a.uid] = routinesSnap.docs.map(d => d.data());
-
-        // Calcular stats rápidas
-        const allSessions = data.sessions || [];
-        const now = new Date();
-        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7); weekAgo.setHours(0,0,0,0);
-        const sessionsThisWeek = allSessions.filter(s => new Date(s.date + "T00:00:00") >= weekAgo).length;
-        const lastSession = allSessions.sort((a,b) => b.date.localeCompare(a.date))[0];
-        const daysSinceLast = lastSession
-          ? Math.round((now - new Date(lastSession.date + "T00:00:00")) / 86400000)
-          : null;
-        const bodyEntries = data.bodyStats?.entries || [];
-        const lastWeight = bodyEntries.length > 0
-          ? bodyEntries[bodyEntries.length - 1].weight
-          : null;
-
-        quickStats[a.uid] = { sessionsThisWeek, daysSinceLast, lastWeight, totalSessions: allSessions.length, lastWorkout: lastSession?.workout };
-      }));
-      setAthleteRoutinesMap(map);
-      setAthleteQuickStats(quickStats);
-    }
-    setLoading(false);
-  }
-
-  async function activateCoach() {
-  if (!user.isAdmin) {
-    setActivateError("❌ Solo administradores pueden activar el modo Coach.");
-    return;
-  }
-  setActivateError("");
-  setActivating(true);
-  const profile = await createCoachProfile(user.uid, user.name, user.email);
-  setCoachProfile(profile);
-  setActivating(false);
-}
-  async function loadAthleteData(athlete) {
-    setSelectedAthlete(athlete);
-    setAthleteData(null);
-    setAthleteLoading(true);
-    const data = await getAthleteData(athlete.uid);
-    setAthleteData(data);
-    setAthleteLoading(false);
-    setTab("athlete");
-  }
-
-  function startNewRoutine() {
-    setEditingRoutine(null);
-    setRoutineName(""); setRoutineNotes(""); setRoutineExercises([]);
-    setRExName(""); setRExWeight(""); setRExReps(""); setRExSets([]); setRExComment("");
-    setTab("editor");
-  }
-
-  function startEditRoutine(r) {
-    setEditingRoutine(r);
-    setRoutineName(r.name || ""); setRoutineNotes(r.notes || "");
-    setRoutineExercises(r.exercises || []);
-    setTab("editor");
-  }
-
-  function addRSet() {
-    if (!rExReps) return;
-    setRExSets(p => [...p, { id: uid(), weight: rExWeight, reps: rExReps }]);
-    setRExWeight(""); setRExReps("");
-  }
-
-  function addRExercise() {
-    const finalName = rExName === "__custom__" ? rExCustom.trim() : rExName;
-    if (!finalName) return;
-    if (rExName === "__custom__" && rExCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
-      saveCustomExercise(finalName, rExCustomMuscle);
-      registerCustomExercise(finalName, rExCustomMuscle);
-    }
-    const sets = rExSets.length > 0 ? rExSets : (rExWeight || rExReps ? [{ id: uid(), weight: rExWeight, reps: rExReps }] : []);
-    setRoutineExercises(p => [...p, { id: uid(), name: finalName, sets, weight: rExWeight, reps: rExReps, comment: rExComment }]);
-    setRExName(""); setRExCustom(""); setRExCustomMuscle(""); setRExWeight(""); setRExReps(""); setRExSets([]); setRExComment("");
-  }
-
-  async function saveRoutine() {
-    if (!routineName.trim()) { setErr("Agrega un nombre a la rutina"); return; }
-    if (routineExercises.length === 0) { setErr("Agrega al menos un ejercicio"); return; }
-    setErr("");
-    const routine = {
-      id: editingRoutine?.id || null,
-      name: routineName, notes: routineNotes,
-      exercises: routineExercises, createdAt: editingRoutine?.createdAt || todayStr(),
-    };
-    const id = await saveCoachRoutine(user.uid, routine);
-    if (id) {
-      const updated = await getRoutinesByCoach(user.uid);
-      setRoutines(updated);
-      setTab("routines");
-    }
-  }
-
-  async function deleteRoutine(id) {
-    if (!window.confirm("¿Eliminar esta rutina?")) return;
-    await deleteCoachRoutine(user.uid, id);
-    setRoutines(r => r.filter(x => x.id !== id));
-  }
-
-  async function handleAssign() {
-    if (!assignRoutineId || !assignEmail) { setAssignMsg("Selecciona rutina e ingresa email"); return; }
-    const routine = routines.find(r => r.id === assignRoutineId);
-    const result = await assignRoutineToAthlete(user.uid, assignEmail, assignRoutineId, routine?.name || "", assignDay);
-    setAssignMsg(result.ok ? "✅ Rutina asignada correctamente" : `❌ ${result.msg}`);
-  }
-  async function handleAddAthlete() {
-    if (!addAthleteEmail) return;
-    if (!user.isGuest && auth.currentUser && !auth.currentUser.emailVerified) {
-      setAddAthleteMsg("⚠️ Verifica tu email para usar funciones de coach. Revisa tu bandeja de entrada.");
-      return;
-    }
-    if (athletes.some(a=>a.email?.toLowerCase()===addAthleteEmail.trim().toLowerCase())){setAddAthleteMsg("⚠️ Este atleta ya está en tu lista");return;}
-    const result=await assignRoutineToAthlete(user.uid,addAthleteEmail.trim(),"","");
-    if (result.ok){setAddAthleteMsg("✅ Atleta agregado");setAddAthleteEmail("");const p=await getCoachProfile(user.uid);setCoachProfile(p);}
-    else setAddAthleteMsg(`❌ ${result.msg}`);
-  }
-  async function removeAthlete(athleteUid) {
-    if (!window.confirm("¿Eliminar este atleta? Podrá volver a unirse con tu código.")) return;
-    try {
-      // 1. Eliminar de coaches/{coachUid}.athletes
-      const coachSnap = await getDoc(doc(db, "coaches", user.uid));
-      if (coachSnap.exists()) {
-        const updated = { ...coachSnap.data().athletes };
-        delete updated[athleteUid];
-        await updateDoc(doc(db, "coaches", user.uid), { athletes: updated });
-      }
-      // 2. Eliminar rutinas asignadas por este coach al atleta
-      try {
-        const routinesSnap = await getDocsFromServer(collection(db, "athlete_routines", athleteUid, "routines"));
-        await Promise.all(
-          routinesSnap.docs
-            .filter(d => d.data().coachUid === user.uid)
-            .map(d => deleteDoc(d.ref))
-        );
-      } catch(e2) { console.warn("No se pudieron limpiar rutinas:", e2); }
-      // 3. Eliminar de athlete_coaches/{athleteUid}/coaches/{coachUid}
-      try {
-        await deleteDoc(doc(db, "athlete_coaches", athleteUid, "coaches", user.uid));
-      } catch(e3) { console.warn("No se pudo limpiar athlete_coaches:", e3); }
-
-      // Actualizar UI inmediatamente y recargar desde servidor
-      setCoachProfile(prev => {
-        const updated = { ...prev.athletes };
-        delete updated[athleteUid];
-        return { ...prev, athletes: updated };
-      });
-      const refreshed = await getCoachProfile(user.uid);
-      if (refreshed) setCoachProfile(refreshed);
-    } catch(e) {
-      console.error("Error eliminando atleta:", e);
-    }
-  }
-
-  function copyCode() {
-    navigator.clipboard.writeText(coachProfile.code);
-    setCodeCopied(true); const _cct = setTimeout(() => setCodeCopied(false), 2000); return () => clearTimeout(_cct);
-  }
-
-  const athletes=coachProfile?Object.values(Object.values(coachProfile.athletes||{}).reduce((acc,a)=>{const k=a.email?.toLowerCase()||a.uid;if(!acc[k]||(a.addedAt||"")>(acc[k].addedAt||""))acc[k]=a;return acc;},{})):[];
-
-  // ── Athlete stats helpers ──
-  function getAthletePRs(sessions) { return getPRs(sessions); }
-  function getAthleteStreak(sessions) { return getStreak(sessions); }
-
-  if (loading) return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ textAlign: "center", padding: 40 }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-        <div style={{ color: "var(--text-muted)" }}>Cargando...</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
-        <div className="modal-header">
-          <h3 className="modal-title">🏅 Panel Coach</h3>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={loadCoach} title="Actualizar" style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>↻</button>
-            <button className="close-btn" onClick={onClose}>✕</button>
-          </div>
-        </div>
-
-        {/* Activate coach */}
-        {!coachProfile && (
-          <div style={{ textAlign: "center", padding: "30px 0" }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>🏋️</div>
-            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Activar modo Coach</div>
-            <p style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 24, lineHeight: 1.6 }}>
-              Como coach podrás crear rutinas, asignarlas a tus atletas<br/>y ver su progreso, PRs e historial completo.
-            </p>
-            <button className="btn-primary" style={{ fontSize: 18, padding: "14px 32px" }} onClick={activateCoach} disabled={activating}>
-              {activating ? "⏳ Activando..." : "⚡ Activar modo Coach"}
-            </button>
-            {activateError && <div className="err-msg" style={{ marginTop: 12 }}>{activateError}</div>}
-          </div>
-        )}
-
-        {coachProfile && (
-          <>
-            {/* Coach code banner */}
-            <div style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase" }}>Tu código de coach</div>
-                <div style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 800, letterSpacing: 3, color: "var(--text)", marginTop: 2 }}>{coachProfile.code}</div>
-              </div>
-              <button className="btn-ghost small" onClick={copyCode}>{codeCopied ? "✅ Copiado" : "📋 Copiar código"}</button>
-            </div>
-
-            {/* Tabs */}
-            <div className="tab-row" style={{ marginBottom: 20 }}>
-              {[["dashboard","📊 Dashboard"],["routines","📋 Rutinas"],["athletes","👥 Atletas"]].map(([id, label]) => (
-                <button key={id} className={`tab-btn ${tab===id?"active":""}`} onClick={() => setTab(id)}>{label}</button>
-              ))}
-            </div>
-
-            {/* ── DASHBOARD ── */}
-            {tab === "dashboard" && (
-              <div>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-                  {[
-                    { icon: "👥", label: "Atletas", value: athletes.length },
-                    { icon: "📋", label: "Rutinas", value: routines.length },
-                  ].map(s => (
-                    <div key={s.label} style={{ flex: "1 1 120px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px", textAlign: "center" }}>
-                      <div style={{ fontSize: 28 }}>{s.icon}</div>
-                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 800, color: "var(--accent)" }}>{s.value}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>Mis atletas</div>
-                {athletes.length === 0 ? (
-                  <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: "20px 0" }}>
-                    Aún no tienes atletas. Comparte tu código o agrégalos por email.
-                  </p>
-                ) : athletes.map(a => {
-                  const qs = athleteQuickStats[a.uid];
-                  const inactive = qs?.daysSinceLast != null && qs.daysSinceLast >= 7;
-                  const veryInactive = qs?.daysSinceLast != null && qs.daysSinceLast >= 14;
-                  return (
-                  <div key={a.uid} style={{ padding: "14px 16px", background: "var(--input-bg)", border: `1px solid ${veryInactive ? "rgba(239,68,68,0.4)" : inactive ? "rgba(245,158,11,0.35)" : "var(--border)"}`, borderRadius: 14, marginBottom: 10 }}>
-                    {/* Header atleta */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 38, height: 38, borderRadius: "50%", background: veryInactive ? "#ef4444" : inactive ? "#f59e0b" : "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "white", fontSize: 15 }}>
-                          {a.name?.[0]?.toUpperCase()}
-                        </div>
-                        <div><div style={{fontWeight:700,fontSize:14}}>{a.name}</div></div>
-                      </div>
-                      <button className="btn-ghost small" onClick={() => loadAthleteData(a)}>Ver detalle →</button>
-                    </div>
-
-                    {/* Stats rápidas */}
-                    {qs ? (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 10 }}>
-                        {[
-                          { icon: "📅", label: "Esta semana", value: `${qs.sessionsThisWeek} sesiones`, color: qs.sessionsThisWeek === 0 ? "#ef4444" : qs.sessionsThisWeek >= 3 ? "#22c55e" : "var(--text)" },
-                          { icon: "🕐", label: "Última sesión", value: qs.daysSinceLast == null ? "Nunca" : qs.daysSinceLast === 0 ? "Hoy" : qs.daysSinceLast === 1 ? "Ayer" : `Hace ${qs.daysSinceLast}d`, color: veryInactive ? "#ef4444" : inactive ? "#f59e0b" : "#22c55e" },
-                          { icon: "⚖️", label: "Peso actual", value: qs.lastWeight ? `${qs.lastWeight}kg` : "—", color: "var(--text)" },
-                          { icon: "🏋️", label: "Total sesiones", value: qs.totalSessions, color: "var(--accent)" },
-                        ].map(s => (
-                          <div key={s.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 6px", textAlign: "center" }}>
-                            <div style={{ fontSize: 14 }}>{s.icon}</div>
-                            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</div>
-                            <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>{s.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>Cargando stats...</div>
-                    )}
-
-                    {/* Última rutina + alerta inactividad */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        {qs?.lastWorkout && <span>Último: <strong style={{ color: "var(--text)" }}>{qs.lastWorkout}</strong></span>}
-                        {(athleteRoutinesMap[a.uid] || []).map(r => (
-                          <span key={r.routineId} style={{ display:"inline-flex", alignItems:"center", gap:4, marginLeft: 8,
-                            background:"var(--card)", border:"1px solid var(--border)", borderRadius:6, padding:"2px 6px 2px 8px" }}>
-                            <span style={{ color: "var(--accent)", fontSize:11, fontWeight:700 }}>
-                              {r.routineName}{r.dayOfWeek >= 0 ? ` · ${DAYS_ES[r.dayOfWeek]}` : ""}
-                            </span>
-                            <button onClick={async () => {
-                              if (!window.confirm(`¿Quitar "${r.routineName}" de ${a.name}?`)) return;
-                              await unassignRoutineFromAthlete(a.uid, r.routineId);
-                              const updated = await Promise.all(athletes.map(async at => {
-                                const rts = await getDocs(collection(db, "athlete_routines", at.uid, "routines"));
-                                return [at.uid, rts.docs.map(d => ({...d.data(), _docId: d.id}))];
-                              }));
-                              setAthleteRoutinesMap(Object.fromEntries(updated));
-                            }} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer",
-                              fontSize:12, padding:"0 2px", lineHeight:1 }}>✕</button>
-                          </span>
-                        ))}
-                      </div>
-                      {veryInactive && <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>🚨 Sin entrenar {qs.daysSinceLast} días</span>}
-                      {inactive && !veryInactive && <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>⚠️ Inactivo esta semana</span>}
-                    </div>
-                  </div>
-                );})}
-              </div>
-            )}
-
-            {/* ── ROUTINES ── */}
-            {tab === "routines" && (
-              <div>
-                <button className="btn-primary" style={{ width: "100%", marginBottom: 16, fontSize: 16 }} onClick={startNewRoutine}>+ Crear nueva rutina</button>
-                {routines.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: "20px 0" }}>Sin rutinas aún.</p>}
-                {routines.map(r => (
-                  <div key={r.id} style={{ padding: "14px 16px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 8 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15 }}>{r.name}</div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button className="btn-ghost small" onClick={() => startEditRoutine(r)}>✏️ Editar</button>
-                        <button className="btn-ghost small danger" onClick={() => deleteRoutine(r.id)}>🗑️</button>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{(r.exercises||[]).length} ejercicios · creada {fmtDate(r.createdAt)}</div>
-                    {r.notes && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>{r.notes}</div>}
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}>
-                      {(r.exercises||[]).map(ex => (
-                        <span key={ex.id} style={{ fontSize: 11, padding: "2px 8px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 10, color: "var(--text-muted)" }}>
-                          {ex.name}{ex.sets?.length > 0 ? ` · ${ex.sets.length}s` : ex.weight ? ` · ${ex.weight}kg` : ""}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── ROUTINE EDITOR ── */}
-            {tab === "editor" && (
-              <div>
-                <button className="btn-ghost small" style={{ marginBottom: 16 }} onClick={() => setTab("routines")}>← Volver</button>
-                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
-                  {editingRoutine ? "✏️ Editar rutina" : "➕ Nueva rutina"}
-                </div>
-                <div className="field" style={{ marginBottom: 12 }}>
-                  <label className="field-label">Nombre de la rutina</label>
-                  <input className="input" placeholder="Push Day, Piernas, Full Body..." value={routineName} onChange={e => setRoutineName(e.target.value)} />
-                </div>
-                <div className="field" style={{ marginBottom: 16 }}>
-                  <label className="field-label">Notas / instrucciones generales</label>
-                  <textarea className="input textarea" placeholder="Indicaciones para el atleta..." value={routineNotes} onChange={e => setRoutineNotes(e.target.value)} />
-                </div>
-
-                {/* Add exercise */}
-                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>Agregar ejercicio</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 8 }}>
-                    {["Todos", ...MUSCLES].map(m => (
-                      <button key={m} className={`muscle-chip ${rExMuscle===m?"active":""}`} style={{ padding: "3px 9px", fontSize: 11 }} onClick={() => { setRExMuscle(m); setRExName(""); }}>{m}</button>
-                    ))}
-                  </div>
-                  <div className="form-row" style={{ marginBottom: 8 }}>
-                    <div className="field" style={{ flex: 2 }}>
-                      <select className="input" style={{ fontSize: 13 }} value={rExName} onChange={e => setRExName(e.target.value)}>
-                        <option value="">— Ejercicio —</option>
-                        {(rExMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === rExMuscle)).map(ex => (
-                          <option key={ex.name} value={ex.name}>{ex.name}</option>
-                        ))}
-                        <option value="__custom__">✏️ Personalizado... (escribe el tuyo)</option>
-                      </select>
-                      {rExName === "__custom__" && (
-                        <>
-                          <input className="input" style={{ marginTop: 6, fontSize: 13 }} placeholder="Escribe el nombre de tu ejercicio..." value={rExCustom} onChange={e => setRExCustom(lettersOnly(e.target.value))} autoFocus />
-                          <select className="input" style={{ marginTop: 6, fontSize: 13 }} value={rExCustomMuscle} onChange={e => setRExCustomMuscle(e.target.value)}>
-                            <option value="">— Músculo principal —</option>
-                            {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                        </>
-                      )}
-                    </div>
-                    <div className="field">
-                      <input className="input" style={{ fontSize: 13 }} placeholder="Peso kg" value={rExWeight} onChange={e => setRExWeight(numDot(e.target.value))} inputMode="decimal" />
-                    </div>
-                    <div className="field">
-                      <input className="input" style={{ fontSize: 13 }} placeholder="Reps" value={rExReps} onChange={e => setRExReps(numDot(e.target.value))} inputMode="decimal" />
-                    </div>
-                    <button className="btn-ghost small" onClick={addRSet}>+ Serie</button>
-                  </div>
-                  {rExSets.length > 0 && (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 8 }}>
-                      {rExSets.map((s, i) => (
-                        <span key={s.id} className="set-chip">S{i+1}: {s.weight}kg×{s.reps}
-                          <button className="chip-del" onClick={() => setRExSets(p => p.filter(x => x.id !== s.id))}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="field" style={{ marginBottom: 8 }}>
-                    <label className="field-label">Comentario del coach para este ejercicio</label>
-                    <input className="input" style={{ fontSize: 13 }} placeholder="Ej: Baja lento, 3 segundos de excéntrica..." value={rExComment} onChange={e => setRExComment(e.target.value)} />
-                  </div>
-                  <button className="btn-add-ex" onClick={addRExercise}>+ Agregar ejercicio</button>
-                </div>
-
-                {/* Exercise list */}
-                {routineExercises.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>Ejercicios ({routineExercises.length})</div>
-                    {routineExercises.map((ex, i) => (
-                      <div key={ex.id} style={{ padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, fontSize: 14 }}>{ex.name}</span>
-                          <button className="chip-del" style={{ fontSize: 16 }} onClick={() => setRoutineExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
-                        </div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                          {ex.sets?.length > 0 ? ex.sets.map((s,i) => `S${i+1}: ${s.weight}kg×${s.reps}`).join(" · ") : ex.weight ? `${ex.weight}kg × ${ex.reps}` : "Sin peso definido"}
-                        </div>
-                        {ex.comment && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontStyle: "italic" }}>💬 {ex.comment}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {err && <div className="err-msg">{err}</div>}
-                <button className="btn-primary" style={{ width: "100%" }} onClick={saveRoutine}>💾 Guardar rutina</button>
-              </div>
-            )}
-
-            {/* ── ATHLETES ── */}
-            {tab === "athletes" && (
-              <div>
-                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>➕ Agregar atleta por email</div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input className="input" placeholder="email@atleta.com" value={addAthleteEmail} onChange={e => setAddAthleteEmail(e.target.value)} style={{ flex: 1 }} />
-                    <button className="btn-primary" style={{ fontSize: 14, padding: "10px 16px" }} onClick={handleAddAthlete}>Agregar</button>
-                  </div>
-                  {addAthleteMsg && <div style={{ marginTop: 8, fontSize: 13, color: addAthleteMsg.startsWith("✅") ? "#22c55e" : "#f87171" }}>{addAthleteMsg}</div>}
-                </div>
-                {athletes.length === 0 ? (
-                  <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: 20 }}>Sin atletas aún.</p>
-                ) : athletes.map(a => (
-                  <div key={a.uid} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:"var(--input-bg)",border:"1px solid var(--border)",borderRadius:12,marginBottom:8}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10}}>
-                      <div style={{width:36,height:36,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"white"}}>{a.name?.[0]?.toUpperCase()}</div>
-                      <div style={{fontWeight:700}}>{a.name}</div>
-                    </div>
-                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                      <button className="btn-ghost small" onClick={()=>loadAthleteData(a)}>Ver progreso →</button>
-                      <button className="btn-ghost small" style={{color:"#ef4444",borderColor:"rgba(239,68,68,0.3)"}} onClick={()=>removeAthlete(a.uid)}>🗑️</button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* ── Asignar rutina inline ── */}
-                {athletes.length > 0 && (
-                  <div style={{ marginTop: 20 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>📨 Asignar rutina a atleta</div>
-                    <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                      <select className="input" value={assignRoutineId} onChange={e => setAssignRoutineId(e.target.value)}>
-                        <option value="">— Elige una rutina —</option>
-                        {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </select>
-                      <select className="input" value={assignEmail} onChange={e => setAssignEmail(e.target.value)}>
-                        <option value="">— Elige atleta —</option>
-                        {athletes.map(a => <option key={a.uid} value={a.email}>{a.name}</option>)}
-                      </select>
-                      <select className="input" value={assignDay} onChange={e => setAssignDay(parseInt(e.target.value))}>
-                        <option value={-1}>— Sin día fijo (opcional) —</option>
-                        {DAYS_ES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                      </select>
-                      <button className="btn-primary" style={{ width: "100%" }} onClick={handleAssign}>📨 Asignar rutina</button>
-                      {assignMsg && <div style={{ fontSize: 13, color: assignMsg.startsWith("✅") ? "#22c55e" : "#f87171", textAlign: "center" }}>{assignMsg}</div>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── ASSIGN (legacy, hidden) ── */}
-            {tab === "assign" && (
-              <div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>Asigna una rutina directamente a un atleta por su email.</div>
-                <div className="field" style={{ marginBottom: 12 }}>
-                  <label className="field-label">Seleccionar rutina</label>
-                  <select className="input" value={assignRoutineId} onChange={e => setAssignRoutineId(e.target.value)}>
-                    <option value="">— Elige una rutina —</option>
-                    {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
-                </div>
-                <div className="field" style={{ marginBottom: 16 }}>
-                  <label className="field-label">Email del atleta</label>
-                  <select className="input" value={assignEmail} onChange={e => setAssignEmail(e.target.value)}>
-                    <option value="">— Elige atleta —</option>
-                    {athletes.map(a => <option key={a.uid} value={a.email}>{a.name} ({a.email})</option>)}
-                  </select>
-                </div>
-                <div className="field" style={{ marginBottom: 16 }}>
-  <label className="field-label">Día de la semana (opcional)</label>
-  <select className="input" value={assignDay} onChange={e => setAssignDay(parseInt(e.target.value))}>
-    <option value={-1}>— Sin día fijo —</option>
-    {DAYS_ES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-  </select>
-</div>
-                <button className="btn-primary" style={{ width: "100%" }} onClick={handleAssign}>📨 Asignar rutina</button>
-                {assignMsg && <div style={{ marginTop: 12, fontSize: 13, color: assignMsg.startsWith("✅") ? "#22c55e" : "#f87171", textAlign: "center" }}>{assignMsg}</div>}
-              </div>
-            )}
-
-            {/* ── ATHLETE DETAIL ── */}
-            {tab === "athlete" && selectedAthlete && (
-              <div>
-                <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-  <button className="btn-ghost small" onClick={() => setTab("dashboard")}>← Volver</button>
-  <button className="btn-ghost small" onClick={() => loadAthleteData(selectedAthlete)}>🔄 Recargar</button>
-</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: "white" }}>{selectedAthlete.name?.[0]?.toUpperCase()}</div>
-                  <div>
-                    <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>{selectedAthlete.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedAthlete.email}</div>
-                  </div>
-                </div>
-
-                {athleteLoading ? (
-                  <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)" }}>⏳ Cargando datos...</div>
-                ) : athleteData && (
-                  <>
-                    {/* Stats */}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px,1fr))", gap: 10, marginBottom: 20 }}>
-                      {[
-                        { icon: "🏋️", label: "Sesiones", value: athleteData.sessions.length },
-                        { icon: "🔥", label: "Racha", value: `${getAthleteStreak(athleteData.sessions)}sem` },
-                        { icon: "⭐", label: "PRs", value: Object.keys(getAthletePRs(athleteData.sessions)).length },
-                        { icon: "⚖️", label: "Peso actual", value: athleteData.bodyStats?.entries?.length > 0 ? `${athleteData.bodyStats.entries[athleteData.bodyStats.entries.length-1].weight}kg` : "—" },
-                      ].map(s => (
-                        <div key={s.label} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
-                          <div style={{ fontSize: 22 }}>{s.icon}</div>
-                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 800, color: "var(--accent)" }}>{s.value}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.label}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Top PRs */}
-                    {Object.keys(getAthletePRs(athleteData.sessions)).length > 0 && (
-                      <div style={{ marginBottom: 20 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>🏆 Top PRs</div>
-                        {Object.entries(getAthletePRs(athleteData.sessions)).sort((a,b) => b[1].rm - a[1].rm).slice(0,5).map(([name, data]) => (
-                          <div key={name} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
-                            <span>{name}</span>
-                            <span style={{ fontWeight: 800, color: "var(--accent)" }}>{data.rm} kg 1RM</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Recent sessions */}
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>📋 Últimas sesiones</div>
-                      {athleteData.sessions.slice(0,5).map(s => (
-                        <div key={s.id} style={{ padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 6 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ fontWeight: 700 }}>{s.workout}</span>
-                            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.date)}</span>
-                          </div>
-                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>{(s.exercises||[]).length} ejercicios</div>
-                        </div>
-                      ))}
-                      {athleteData.sessions.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Sin sesiones registradas aún.</p>}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AthleteWorkoutRunner({ routine, onClose, onSave }) {
-  const [elapsed, setElapsed] = useState(0);
-  const [running, setRunning] = useState(true);
-  const [currentEx, setCurrentEx] = useState(0);
-  const [restTimer, setRestTimer] = useState(null); // null | { total, left }
-  const [exData, setExData] = useState(
-    (routine.exercises || []).map(ex => ({
-      ...ex,
-      restSecs: ex.restSecs || null,
-      sets: ex.sets?.length
-        ? ex.sets.map(s => ({ ...s, id: s.id || uid(), done: false }))
-        : Array.from({ length: parseInt(ex.series) || 3 }, () => ({ id: uid(), weight: ex.weight || "", reps: ex.reps || "", done: false }))
-    }))
-  );
-  const mainRef = useRef();
-  const restRef = useRef();
-
-  useEffect(() => {
-    if (running) { mainRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
-    else clearInterval(mainRef.current);
-    return () => clearInterval(mainRef.current);
-  }, [running]);
-
-  useEffect(() => {
-    if (restTimer && restTimer.left > 0) {
-      restRef.current = setInterval(() => {
-        setRestTimer(prev => {
-          if (!prev || prev.left <= 1) {
-            clearInterval(restRef.current);
-            // Sonido
-            try {
-              const ctx = new (window.AudioContext || window.webkitAudioContext)();
-              [0, 0.2, 0.4].forEach((t, i) => {
-                const osc = ctx.createOscillator(), gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = i === 2 ? 880 : 660; osc.type = "sine";
-                gain.gain.setValueAtTime(0.35, ctx.currentTime + t);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.18);
-                osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.18);
-              });
-            } catch(e) {}
-            // Vibración
-            try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch(e) {}
-            // Notificación
-            try {
-              if ("Notification" in window && Notification.permission === "granted") {
-                new Notification("¡Tiempo de descanso terminado! 💪", {
-                  body: "Listo para la siguiente serie.",
-                  tag: "rest-timer", renotify: true,
-                });
-              }
-            } catch(e) {}
-            return null;
-          }
-          return { ...prev, left: prev.left - 1 };
-        });
-      }, 1000);
-    }
-    return () => clearInterval(restRef.current);
-  }, [restTimer?.total]);
-
-  const fmt = s => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
-  const totalSets = exData.reduce((a, e) => a + e.sets.length, 0);
-  const doneSets = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-  const ex = exData[currentEx];
-
-  function toggleSet(exIdx, setIdx) {
-    const wasDone = exData[exIdx]?.sets[setIdx]?.done;
-    setExData(prev => prev.map((e, i) => i !== exIdx ? e : {
-      ...e, sets: e.sets.map((s, j) => j !== setIdx ? s : { ...s, done: !s.done })
-    }));
-    if (!wasDone) {
-      // Auto-lanzar timer de descanso al completar serie
-      const exRestSecs = exData[exIdx]?.restSecs ?? defaultRest;
-      setRestTimer(prev => prev ? prev : null);
-      setTimeout(() => startRest(exRestSecs), 50);
-      // Pedir permiso notificación
-      if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-      }
-    }
-  }
-
-  function updateSet(exIdx, setIdx, field, val) {
-    setExData(prev => prev.map((e, i) => i !== exIdx ? e : {
-      ...e, sets: e.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val })
-    }));
-  }
-
-  function addSet(exIdx) {
-    setExData(prev => prev.map((e, i) => i !== exIdx ? e : {
-      ...e, sets: [...e.sets, { id: uid(), weight: e.sets[e.sets.length-1]?.weight || "", reps: e.sets[e.sets.length-1]?.reps || "", done: false }]
-    }));
-  }
-
-  function removeSet(exIdx) {
-    setExData(prev => prev.map((e, i) => i !== exIdx || e.sets.length <= 1 ? e : {
-      ...e, sets: e.sets.slice(0, -1)
-    }));
-  }
-
-  function startRest(secs) {
-    clearInterval(restRef.current);
-    setRestTimer({ total: secs, left: secs });
-  }
-
-  const defaultRest = load("gym_default_rest", 90);
-
-  const REST_OPTS = [
-    { label: "1M", secs: 60 },
-    { label: "1.5M", secs: 90 },
-    { label: "2M", secs: 120 },
-    { label: "3M", secs: 180 },
-  ];
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 3000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-      {/* Header */}
-      <div style={{ background: "var(--sidebar-bg)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-        <button onClick={() => {
-          const hasDone = exData.some(ex => ex.sets.some(s => s.done));
-          if (hasDone) {
-            if (!window.confirm("¿Salir del entrenamiento? Perderás el progreso no guardado.")) return;
-          }
-          onClose();
-        }} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 12, display:"flex", alignItems:"center", gap:4, fontWeight: 600 }}>← Salir</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>⚡ {routine.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series completadas</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 800, color: "var(--accent)" }}>{fmt(elapsed)}</div>
-          <button onClick={() => setRunning(r => !r)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 11, cursor: "pointer" }}>{running ? "⏸" : "▶"}</button>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ height: 4, background: "var(--border)", flexShrink: 0 }}>
-        <div style={{ height: "100%", background: "var(--accent)", width: `${totalSets > 0 ? (doneSets/totalSets)*100 : 0}%`, transition: "width 0.4s" }} />
-      </div>
-
-      {/* Exercise tabs */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", overflowX: "auto", flexShrink: 0 }}>
-        {exData.map((e, i) => {
-          const done = e.sets.every(s => s.done) && e.sets.length > 0;
-          return (
-            <button key={i} onClick={() => setCurrentEx(i)} style={{
-              background: currentEx === i ? "var(--accent)" : done ? "rgba(232,255,0,0.08)" : "var(--card)",
-              border: `1px solid ${currentEx === i ? "var(--accent)" : done ? "rgba(232,255,0,0.3)" : "var(--border)"}`,
-              color: currentEx === i ? "#0a0a0a" : done ? "var(--accent)" : "var(--text-muted)",
-              borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1, textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif"
-            }}>
-              {done ? "✓ " : ""}{e.name}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Main content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px" }}>
-        {ex && (
-          <div style={{ maxWidth: 600, margin: "0 auto" }}>
-
-            {/* GIF + nombre */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ background: "var(--card)", borderRadius: 8, padding: 4, border: "1px solid var(--border)" }}>
-                <ExerciseGif exName={ex.name} size={112} style={{ display:"block", borderRadius:6 }} />
-              </div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 900, marginTop: 10, textAlign: "center", color: "var(--text)", letterSpacing: 1, textTransform: "uppercase" }}>{ex.name}</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series · {ex.sets.filter(s=>s.done).length}/{ex.sets.length} de este ejercicio</div>
-              {ex.comment && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: 4 }}>"{ex.comment}"</div>}
-              {/* Per-exercise rest time selector */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
-                <span style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 800, letterSpacing: 3, textTransform:"uppercase" }}>DESCANSO</span>
-                {[60, 90, 120, 180].map(secs => {
-                  const active = (ex.restSecs ?? defaultRest) === secs;
-                  return (
-                    <button key={secs} onClick={() => setExData(prev => prev.map((e, i) => i !== currentEx ? e : { ...e, restSecs: secs }))}
-                      style={{
-                        background: active ? "var(--accent)" : "var(--input-bg)",
-                        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                        color: active ? "#0a0a0a" : "var(--text-muted)",
-                        borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700,
-                      }}>
-                      {secs < 120 ? `${secs}s` : `${secs/60}m`}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Tabla series */}
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", marginBottom: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 0, padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>#</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>PESO (KG)</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>REPS</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800 }}>✓</div>
-              </div>
-              {ex.sets.map((s, j) => (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 8, padding: "8px 12px", alignItems: "center", background: s.done ? "rgba(232,255,0,0.05)" : "transparent", borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: s.done ? "var(--accent)" : "var(--text-muted)" }}>S{j+1}</div>
-                  <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))} inputMode="decimal"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
-                  <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))} inputMode="decimal"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
-                  <button onClick={() => toggleSet(currentEx, j)} style={{ width: 44, height: 40, background: s.done ? "var(--accent)" : "var(--input-bg)", border: `2px solid ${s.done ? "var(--accent)" : "var(--border)"}`, borderRadius: 4, cursor: "pointer", fontSize: 18, margin: "0 auto", color: s.done ? "#0a0a0a" : "var(--text-muted)" }}>
-                    {s.done ? "✓" : "○"}
-                  </button>
-                </div>
-              ))}
-              <div style={{ display: "flex", gap: 0 }}>
-                <button onClick={() => addSet(currentEx)} style={{ flex: 1, background: "none", border: "none", borderTop: "1px dashed var(--border)", color: "var(--text-muted)", padding: 10, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ Añadir serie</button>
-                <button onClick={() => removeSet(currentEx)} style={{ background: "none", border: "none", borderTop: "1px dashed var(--border)", borderLeft: "1px solid var(--border)", color: "#ef4444", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>− Quitar</button>
-              </div>
-            </div>
-
-            {/* Timer de descanso */}
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: "14px 16px", marginBottom: 16 }}>
-              {restTimer ? (
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 4, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>DESCANSANDO</div>
-                  {/* Barra de progreso */}
-                  <div style={{ height: 6, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
-                    <div style={{ height: "100%", background: "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
-                  </div>
-                  {/* Timer + controles */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* -15s */}
-                    <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
-                    {/* Tiempo */}
-                    <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 36, fontWeight: 800, color: "var(--accent)" }}>
-                      {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
-                    </div>
-                    {/* +15s */}
-                    <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
-                  </div>
-                  {/* Presets + cerrar */}
-                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    {REST_OPTS.map(o => (
-                      <button key={o.label} onClick={() => startRest(o.secs)}
-                        style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#0a0a0a" : "var(--text-muted)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
-                        {o.label}
-                      </button>
-                    ))}
-                    <button onClick={() => setRestTimer(null)}
-                      style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
-                      ✕ Quitar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, fontWeight: 800, letterSpacing: 4, fontFamily: "Barlow Condensed, sans-serif", textTransform:"uppercase" }}>DESCANSO</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {REST_OPTS.map(o => (
-                      <button key={o.label} onClick={() => startRest(o.secs)} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 3, padding: "5px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, letterSpacing: 0.5 }}>{o.label}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Nav ejercicios */}
-            <div style={{ display: "flex", gap: 10 }}>
-              {currentEx > 0 && <button onClick={() => setCurrentEx(i => i-1)} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: 12, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>← Anterior</button>}
-              {currentEx < exData.length - 1 && <button onClick={() => setCurrentEx(i => i+1)} style={{ flex: 1, background: "var(--accent)", border: "none", color: "#0a0a0a", borderRadius: 4, padding: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", boxShadow: "0 0 20px rgba(232,255,0,0.25)" }}>Siguiente →</button>}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Boton Finalizar fijo abajo */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px 16px", background: "var(--bg)", borderTop: "1px solid var(--border)" }}>
-        <button onClick={() => { setRunning(false); try { localStorage.removeItem(LIVE_DRAFT_KEY); } catch {} onSave(exData, elapsed); }}
-          style={{ width: "100%", background: "var(--accent)", border: "none", color: "#0a0a0a", borderRadius: 4, padding: "16px 0", fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, cursor: "pointer", letterSpacing: 4, textTransform: "uppercase", boxShadow: "0 0 24px rgba(232,255,0,0.2)" }}>
-          FINALIZAR →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Athlete Coach Panel ──────────────────────────────────────────────────────
-function AthleteCoachPanel({ user, onClose, initialRoutine = null }) {
-  const [tab, setTab] = useState("routines");
-  const [coaches, setCoaches] = useState([]);
-  const [assignedRoutines, setAssignedRoutines] = useState([]);
-  const [fullRoutines, setFullRoutines] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [joinCode, setJoinCode] = useState("");
-  const [joinMsg, setJoinMsg] = useState("");
-  const [joining, setJoining] = useState(false);
-  const [activeWorkout, setActiveWorkout] = useState(initialRoutine);
-  const [workoutSummary, setWorkoutSummary] = useState(null);
-
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    setLoading(true);
-    const [myCoaches, myRoutines] = await Promise.all([
-      getMyCoaches(user.uid),
-      getAthleteRoutines(user.uid),
-    ]);
-    setCoaches(myCoaches);
-    setAssignedRoutines(myRoutines);
-    const full = await Promise.all(myRoutines.map(r => getFullRoutine(r.coachUid, r.routineId)));
-    setFullRoutines(full.filter(Boolean));
-    setLoading(false);
-  }
-
-  async function handleJoin() {
-    if (!joinCode.trim()) { setJoinMsg("Ingresa un código"); return; }
-    if (!user.isGuest && auth.currentUser && !auth.currentUser.emailVerified) {
-      setJoinMsg("⚠️ Verifica tu email antes de conectarte con un coach. Revisa tu bandeja de entrada.");
-      return;
-    }
-    setJoining(true);
-    const result = await joinCoachByCode(user.uid, user.name, user.email, joinCode.trim().toUpperCase());
-    setJoining(false);
-    if (result.ok) { setJoinMsg("✅ Conectado con tu coach!"); loadData(); }
-    else setJoinMsg(`❌ ${result.msg}`);
-  }
-
-  if (loading) return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ textAlign:"center", padding:40 }}>
-        <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
-        <div style={{ color:"var(--text-muted)" }}>Cargando...</div>
-      </div>
-    </div>
-  );
-
-  if (activeWorkout) {
-  return (
-    <AthleteWorkoutRunner
-      routine={activeWorkout}
-      onClose={() => setActiveWorkout(null)}
-      onSave={async (exercises, elapsed) => {
-        // Validar si ya entrenó esta rutina hoy
-        const snap = await getDoc(doc(db, "sessions", user.uid));
-        const existing = snap.exists() ? (snap.data().list || []) : [];
-        const alreadyToday = existing.some(s => s.date === todayStr() && s.workout === activeWorkout.name);
-        if (alreadyToday) {
-          if (!window.confirm(`Ya entrenaste "${activeWorkout.name}" hoy. ¿Quieres guardarlo de todas formas?`)) return;
-        }
-
-        setWorkoutSummary({ exercises, elapsed, routineName: activeWorkout.name });
-        
-        const newSession = {
-          id: uid(),
-          date: todayStr(),
-          workout: activeWorkout.name,
-          notes: "",
-          exercises: exercises,
-          unit: "kg"
-        };
-
-        try {
-          await setDoc(doc(db, "sessions", user.uid), {
-            list: [newSession, ...existing],
-            updatedAt: serverTimestamp()
-          });
-        } catch(e) { 
-          console.error("❌ Error guardando sesión:", e); 
-        }
-
-        await markRoutineCompleted(user.uid, activeWorkout.id);
-        const updated = await getAthleteRoutines(user.uid);
-        setAssignedRoutines(updated);
-        setActiveWorkout(null);
-      }}
-    />
-  );
-}
-
-  if (workoutSummary) {
-    const fmt = s => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
-    const totalVol = workoutSummary.exercises.reduce((acc, ex) =>
-      acc + (ex.sets||[]).reduce((a, s) => a + (parseFloat(s.weight)||0) * (parseFloat(s.reps)||1), 0), 0);
-    const totalSeries = workoutSummary.exercises.reduce((acc, ex) => acc + (ex.sets||[]).length, 0);
-
-    return (
-      <div style={{ position:"fixed", inset:0, background:"var(--bg)", zIndex:3000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24 }}>
-        {/* Confetti visual */}
-        <div style={{ fontSize:64, marginBottom:8 }}>🏆</div>
-        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900, letterSpacing:1, marginBottom:4 }}>
-          ¡Rutina completada!
-        </div>
-        <div style={{ fontSize:14, color:"var(--text-muted)", marginBottom:28 }}>{workoutSummary.routineName}</div>
-
-        {/* Stats row */}
-        <div style={{ display:"flex", gap:12, marginBottom:28, flexWrap:"wrap", justifyContent:"center" }}>
-          {[
-            { icon:"⏱️", label:"Tiempo", value: fmt(workoutSummary.elapsed) },
-            { icon:"🏋️", label:"Ejercicios", value: workoutSummary.exercises.length },
-            { icon:"🔢", label:"Series", value: totalSeries },
-            { icon:"📦", label:"Volumen", value: `${Math.round(totalVol)}kg` },
-          ].map(s => (
-            <div key={s.label} style={{ background:"var(--card)", border:"1px solid var(--border)", borderRadius:14, padding:"16px 20px", textAlign:"center", minWidth:90 }}>
-              <div style={{ fontSize:24 }}>{s.icon}</div>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800, color:"var(--accent)" }}>{s.value}</div>
-              <div style={{ fontSize:11, color:"var(--text-muted)" }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Exercise breakdown */}
-        <div style={{ width:"100%", maxWidth:480, maxHeight:260, overflowY:"auto", marginBottom:24 }}>
-          {workoutSummary.exercises.map((ex, i) => (
-            <div key={i} style={{ padding:"12px 16px", background:"var(--card)", border:"1px solid var(--border)", borderRadius:12, marginBottom:8 }}>
-              <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>✓ {ex.name}</div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {(ex.sets||[]).map((s, j) => (
-                  <span key={j} style={{ fontSize:12, padding:"3px 10px", background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:8, color:"#22c55e", fontWeight:600 }}>
-                    S{j+1}: {s.weight||"—"}kg × {s.reps||"—"}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button className="btn-primary" style={{ fontSize:18, padding:"14px 40px" }}
-          onClick={() => { setWorkoutSummary(null); }}>
-          Volver a mis rutinas
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight:"88vh", overflowY:"auto" }}>
-        <div className="modal-header">
-          <h3 className="modal-title">🎽 Mi Coach</h3>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={loadData} title="Actualizar" style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>↻</button>
-            <button className="close-btn" onClick={onClose}>✕</button>
-          </div>
-        </div>
-
-        <div className="tab-row" style={{ marginBottom:20 }}>
-          <button className={`tab-btn ${tab==="routines"?"active":""}`} onClick={()=>setTab("routines")}>📋 Rutinas</button>
-          <button className={`tab-btn ${tab==="coaches"?"active":""}`} onClick={()=>setTab("coaches")}>👥 Mis coaches</button>
-          <button className={`tab-btn ${tab==="join"?"active":""}`} onClick={()=>setTab("join")}>🔗 Unirme</button>
-        </div>
-
-        {tab === "routines" && (
-          <div>
-            {fullRoutines.length === 0 ? (
-  <div style={{ textAlign:"center", padding:"30px 0", color:"var(--text-muted)" }}>
-    <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
-    <p style={{ fontSize:14 }}>Aún no tienes rutinas asignadas.<br/>Únete a un coach con su código.</p>
-  </div>
-) : fullRoutines.map(r => {
-  const assigned = assignedRoutines.find(ar => ar.routineId === r.id);
-  const isCompleted = assigned?.completed;
-  const dayLabel = assigned?.dayOfWeek >= 0 ? `📅 ${DAYS_ES[assigned.dayOfWeek]}` : null;
-
-  return (
-    <div key={r.id} style={{ padding:"14px 16px", background:"var(--input-bg)", border:`1px solid ${isCompleted ? "rgba(34,197,94,0.4)" : "var(--border)"}`, borderRadius:12, marginBottom:10 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-        <div>
-          <div style={{ fontWeight:700, fontSize:15 }}>{r.name}</div>
-          {dayLabel && <div style={{ fontSize:11, color:"var(--accent)", marginTop:3 }}>{dayLabel}</div>}
-        </div>
-        {isCompleted ? (
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            <span style={{ fontSize:11, color:"#22c55e", fontWeight:700 }}>✅ Completada</span>
-            <button className="btn-ghost small" onClick={() => setActiveWorkout(r)}>↺ Repetir</button>
-          </div>
-        ) : (
-          <button className="btn-primary" style={{ fontSize:14, padding:"8px 16px" }}
-            onClick={() => setActiveWorkout(r)}>▶ Iniciar</button>
-        )}
-      </div>
-      {r.notes && <div style={{ fontSize:12, color:"var(--text-muted)", fontStyle:"italic", marginBottom:8 }}>{r.notes}</div>}
-      <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-        {(r.exercises||[]).map(ex => (
-          <span key={ex.id} style={{ fontSize:11, padding:"2px 8px", background:"rgba(59,130,246,0.1)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:10, color:"var(--text-muted)" }}>
-            {ex.name}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-})}
-        </div>
-      )}
-
-        {tab === "coaches" && (
-          <div>
-            {coaches.length === 0 ? (
-              <p style={{ color:"var(--text-muted)", fontSize:13, textAlign:"center", padding:"20px 0" }}>Sin coaches aún.</p>
-            ) : coaches.map(c => (
-              <div key={c.coachUid} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, marginBottom:8 }}>
-                <div style={{ width:40, height:40, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"white" }}>
-                  {c.coachName?.[0]?.toUpperCase()||"?"}
-                </div>
-                <div>
-                  <div style={{ fontWeight:700 }}>{c.coachName}</div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.coachEmail}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === "join" && (
-          <div>
-            <p style={{ fontSize:13, color:"var(--text-muted)", marginBottom:16, lineHeight:1.6 }}>
-              Pídele a tu coach su código y escríbelo aquí para conectarte y recibir rutinas.
-            </p>
-            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-              <input className="input" placeholder="Código del coach (ej: COACH-ABC123)"
-                value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
-                style={{ flex:1, fontFamily:"monospace", letterSpacing:2, fontSize:15 }}
-                onKeyDown={e => e.key==="Enter" && handleJoin()} />
-              <button className="btn-primary" style={{ fontSize:15, padding:"10px 20px" }}
-                onClick={handleJoin} disabled={joining}>
-                {joining ? "⏳" : "Unirme"}
-              </button>
-            </div>
-            {joinMsg && (
-              <div style={{ fontSize:13, color: joinMsg.startsWith("✅")?"#22c55e":"#f87171", textAlign:"center", marginTop:8 }}>
-                {joinMsg}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )   
-}
 // ─── Coach/Athlete Functions ──────────────────────────────────────────────────
-async function getCoachProfile(uid) {
-  try {
-    const snap=await getDoc(doc(db,"coaches",uid));
-    if (!snap.exists()) return null;
-    const data=snap.data();
-    if (data.athletes){data.athletes=Object.values(data.athletes).reduce((acc,a)=>{const k=a.email?.toLowerCase()||a.uid;if(!acc[k]||(a.addedAt||"")>(acc[k].addedAt||""))acc[k]=a;return acc;},{});}
-    return data;
-  } catch(e){return null;}
-}
-
-async function createCoachProfile(uid, name, email) {
-  const code = "COACH-" + Math.random().toString(36).slice(2,8).toUpperCase();
-  const profile = { uid, name, email, code, athletes: {}, createdAt: todayStr() };
-  try {
-    await setDoc(doc(db, "coaches", uid), profile);
-    await setDoc(doc(db, "users", uid), { isCoach: true }, { merge: true });
-    return profile;
-  } catch(e) { return null; }
-}
-
-async function getRoutinesByCoach(coachUid) {
-  try {
-    const snap = await getDocs(collection(db, "coaches", coachUid, "routines"));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e) { return []; }
-}
-
-async function saveCoachRoutine(coachUid, routine) {
-  try {
-    const ref = routine.id
-      ? doc(db, "coaches", coachUid, "routines", routine.id)
-      : doc(collection(db, "coaches", coachUid, "routines"));
-    await setDoc(ref, { ...routine, id: ref.id, updatedAt: todayStr() });
-    return ref.id;
-  } catch(e) { return null; }
-}
-
-async function deleteCoachRoutine(coachUid, routineId) {
-  try {
-    await deleteDoc(doc(db, "coaches", coachUid, "routines", routineId));
-    return true;
-  } catch(e) { return false; }
-}
-
-async function assignRoutineToAthlete(coachUid, athleteEmail, routineId, routineName, dayOfWeek = -1) {
-  try {
-    const usersQ = query(collection(db, "users"), where("email", "==", athleteEmail.trim().toLowerCase()));
-    const usersSnap = await getDocs(usersQ);
-    const athleteDoc = usersSnap.empty ? null : usersSnap.docs[0];
-    if (!athleteDoc) return { ok: false, msg: "Atleta no encontrado. Asegúrate de que el email sea correcto y que el atleta tenga cuenta." };
-    const athleteUid = athleteDoc.id;
-
-    const docId = routineId && routineId !== "" ? routineId : uid();
-
-    await setDoc(doc(db, "athlete_routines", athleteUid, "routines", docId), {
-      routineId: docId,
-      coachUid,
-      coachName: "",
-      routineName,
-      assignedAt: todayStr(),
-      completed: false,
-      dayOfWeek: dayOfWeek ?? -1
-    }, { merge: true });
-
-    await setDoc(doc(db, "coaches", coachUid), {
-      athletes: { [athleteUid]: { email: athleteEmail, name: athleteDoc.data().name, uid: athleteUid, addedAt: todayStr() } }
-    }, { merge: true });
-
-    return { ok: true, athleteUid };
-  } catch(e) { return { ok: false, msg: "Error al asignar" }; }
-}
-
-async function getAthleteRoutines(athleteUid) {
-  try {
-    const snap = await getDocsFromServer(collection(db, "athlete_routines", athleteUid, "routines"));
-    const routines = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
-
-    // Reset automatico semanal: si completedAt es anterior al ultimo Lunes 00:00
-    const now = new Date();
-    const lastMonday = new Date(now);
-    lastMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    lastMonday.setHours(0, 0, 0, 0);
-
-    const toReset = routines.filter(r => {
-      if (!r.completed || !r.completedAt) return false;
-      const completedDate = new Date(r.completedAt + "T00:00:00");
-      return completedDate < lastMonday;
-    });
-
-    if (toReset.length > 0) {
-      await Promise.all(toReset.map(r =>
-        setDoc(doc(db, "athlete_routines", athleteUid, "routines", r._docId),
-          { completed: false, completedAt: null }, { merge: true })
-      ));
-      return routines.map(r =>
-        toReset.find(tr => tr._docId === r._docId)
-          ? { ...r, completed: false, completedAt: null }
-          : r
-      );
-    }
-
-    return routines;
-  } catch(e) { return []; }
-}
-
-async function getAthleteData(athleteUid) {
-  try {
-    const [sessSnap, userSnap, bodySnap] = await Promise.all([
-      getDoc(doc(db, "sessions", athleteUid)),
-      getDoc(doc(db, "users", athleteUid)),
-      getDoc(doc(db, "body_stats", athleteUid)),
-    ]);
-    return {
-      sessions: sessSnap.exists() ? (sessSnap.data().list || []) : [],
-      user: userSnap.exists() ? userSnap.data() : {},
-      bodyStats: bodySnap.exists() ? bodySnap.data() : {},
-    };
-  } catch(e) { return { sessions: [], user: {}, bodyStats: {} }; }
-}
-
 async function joinCoachByCode(athleteUid, athleteName, athleteEmail, code) {
   try {
     const q = query(collection(db, "coaches"), where("code", "==", code));
@@ -5294,16 +4427,16 @@ async function deleteCustomExercise(id) {
 async function getFullRoutine(coachUid, routineId) {
   try {
     if (!coachUid || !routineId) {
-      console.warn("[getFullRoutine] Missing args:", { coachUid, routineId });
+      // removed log
       return null;
     }
-    console.log("[getFullRoutine] Reading:", `coaches/${coachUid}/routines/${routineId}`);
+    // removed log
     const snap = await getDoc(doc(db, "coaches", coachUid, "routines", routineId));
     if (!snap.exists()) {
-      console.warn("[getFullRoutine] Doc not found:", coachUid, routineId);
+      // removed log
       return null;
     }
-    console.log("[getFullRoutine] OK:", snap.data()?.name);
+    // removed log
     return { id: snap.id, ...snap.data(), coachUid, routineId };
   } catch(e) {
     console.error("[getFullRoutine] ERROR:", e.code, e.message, { coachUid, routineId });
@@ -5312,6 +4445,7 @@ async function getFullRoutine(coachUid, routineId) {
 }
 
 async function unassignRoutineFromAthlete(athleteUid, routineId) {
+  if (!athleteUid || !routineId) return { ok: false };
   try {
     await deleteDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId));
     return { ok: true };
@@ -5319,6 +4453,7 @@ async function unassignRoutineFromAthlete(athleteUid, routineId) {
 }
 
 async function markRoutineCompleted(athleteUid, routineId) {
+  if (!athleteUid || !routineId) return false;
   try {
     await setDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId),
       { completed: true, completedAt: todayStr() }, { merge: true });
@@ -5360,6 +4495,24 @@ async function teamsSet(code, val) {
   } catch(e) { console.error("teamsSet:", e); return false; }
 }
 
+function compressImage(file, maxWidth = 300, quality = 0.7) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(1, maxWidth / img.width);
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
@@ -5384,11 +4537,10 @@ function AvatarEditor({ user, onPhotoUpdate }) {
 
     setUploading(true);
     try {
-      const storageRef = ref(storage, `avatars/${user.uid}`);
-      await uploadBytes(storageRef, file, { contentType: file.type });
-      const downloadURL = await getDownloadURL(storageRef);
-      await updateDoc(doc(db, "users", user.uid), { photoURL: downloadURL });
-      onPhotoUpdate(downloadURL);
+      const base64 = await compressImage(file);
+      if (!base64) throw new Error("No se pudo comprimir la imagen");
+      await updateDoc(doc(db, "users", user.uid), { photoURL: base64 });
+      onPhotoUpdate(base64);
     } catch(err) {
       console.error(err);
       setAvatarError("Error al subir la foto. Intenta de nuevo.");
@@ -5483,6 +4635,7 @@ function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose,
 }
 
 function TeamsModal({ user, sessions, onClose }) {
+  const { logout } = useAuth();
   const [tab, setTab] = useState("home");
   const [myTeams, setMyTeams] = useState(() => load(`gym_teams_${user.email}`, []));
   const [activeTeam, setActiveTeam] = useState(null);
@@ -5730,7 +4883,7 @@ function TeamsModal({ user, sessions, onClose }) {
                   Para crear o unirte a un GymTeam necesitas una cuenta registrada.<br/>
                   Así tu historial y ranking quedan guardados permanentemente.
                 </p>
-                <button className="btn-primary" style={{ fontSize:16, padding:"12px 28px" }} onClick={onClose}>
+                <button className="btn-primary" style={{ fontSize:16, padding:"12px 28px" }} onClick={() => { onClose(); logout(true); }}>
                   Crear cuenta gratis →
                 </button>
                 <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:12 }}>Ya tienes cuenta? Cierra sesión e inicia con tu email.</p>
@@ -6089,1139 +5242,8 @@ function TeamsModal({ user, sessions, onClose }) {
 
 
 // ─── Firebase Error Translator ─────────────────────────────────────────────────
-function firebaseErrMsg(code) {
-  const map = {
-    "auth/email-already-in-use":   "Este email ya está registrado",
-    "auth/invalid-email":          "Email inválido",
-    "auth/weak-password":          "Contraseña muy débil",
-    "auth/user-not-found":         "Email o contraseña incorrectos",
-    "auth/wrong-password":         "Email o contraseña incorrectos",
-    "auth/invalid-credential":     "Email o contraseña incorrectos",
-    "auth/too-many-requests":      "Demasiados intentos. Resetea tu contraseña.",
-    "auth/network-request-failed": "Sin conexión a internet",
-  };
-  return map[code] || "Ocurrió un error. Intenta de nuevo.";
-}
 
-// ─── Login ────────────────────────────────────────────────────────────────────
-function PasswordStrength({ pass }) {
-  const checks = {
-    length: pass.length >= 8,
-    upper: /[A-Z]/.test(pass),
-    lower: /[a-z]/.test(pass),
-    number: /[0-9]/.test(pass),
-  };
-  const score = Object.values(checks).filter(Boolean).length;
-  const colors = ["#ef4444","#f97316","#eab308","#22c55e"];
-  if (!pass) return null;
-  return (
-    <div style={{marginTop:6}}>
-      <div style={{display:"flex",gap:3,marginBottom:4}}>
-        {[0,1,2,3].map(i=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<score?colors[score-1]:"var(--border)"}}/>)}
-      </div>
-      {[{ok:checks.length,l:"8+ caracteres"},{ok:checks.upper,l:"Mayúscula"},{ok:checks.lower,l:"Minúscula"},{ok:checks.number,l:"Número"}].map(x=>(
-        <div key={x.l} style={{fontSize:10,color:x.ok?"#22c55e":"var(--text-muted)"}}>{x.ok?"✓":"○"} {x.l}</div>
-      ))}
-    </div>
-  );
-}
 
-function AdminExercisesModal({ onClose }) {
-  const [exercises, setExercises] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [gifInputs, setGifInputs] = useState({});
-  const [saving, setSaving] = useState({});
-  const [gifErrors, setGifErrors] = useState({}); // { [exId]: mensaje }
-  const [filter, setFilter] = useState("");
-  const [uploadMode, setUploadMode] = useState({});
-  const [uploadPreviews, setUploadPreviews] = useState({});
-  const fileInputRefs = useRef({});
-  const [editing, setEditing] = useState({}); // { [id]: { name, muscle } }
-  const [savingMeta, setSavingMeta] = useState({});
-  const { setGif } = useCustomGifs();
-
-  useEffect(() => {
-    loadCustomExercises().then(list => {
-      setExercises(list);
-      const inputs = {};
-      list.forEach(e => { inputs[e.id] = e.gifUrl || ""; });
-      setGifInputs(inputs);
-      setLoading(false);
-    });
-  }, []);
-
-  function getMode(id) { return uploadMode[id] || "url"; }
-  function setMode(id, mode) { setUploadMode(p => ({ ...p, [id]: mode })); }
-
-  function startEdit(ex) {
-    setEditing(p => ({ ...p, [ex.id]: { name: ex.name, muscle: ex.muscle } }));
-  }
-  function cancelEdit(id) {
-    setEditing(p => { const n = { ...p }; delete n[id]; return n; });
-  }
-  async function saveEdit(ex) {
-    const { name, muscle } = editing[ex.id];
-    if (!name.trim()) return;
-    setSavingMeta(s => ({ ...s, [ex.id]: true }));
-    await updateCustomExerciseMeta(ex.id, name.trim(), muscle.trim());
-    setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, name: name.trim(), muscle: muscle.trim() } : e));
-    setSavingMeta(s => ({ ...s, [ex.id]: false }));
-    cancelEdit(ex.id);
-  }
-
-  function handleFileChange(ex, file) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setGifErrors(p => ({ ...p, [ex.id]: "⚠️ Solo se admiten imágenes/GIFs" }));
-      return;
-    }
-    setGifErrors(p => ({ ...p, [ex.id]: "" }));
-    setUploadPreviews(p => ({ ...p, [ex.id]: URL.createObjectURL(file) }));
-    setGifInputs(p => ({ ...p, [ex.id]: file }));
-  }
-
-  async function handleSaveGif(ex) {
-    setSaving(s => ({ ...s, [ex.id]: true }));
-    let url = gifInputs[ex.id] || "";
-    try {
-      if (url instanceof File) {
-        const storageRef = ref(storage, `exercise_gifs/${ex.id}_${Date.now()}`);
-        await uploadBytes(storageRef, url);
-        url = await getDownloadURL(storageRef);
-      }
-      const ok = await updateCustomExerciseGif(ex.id, url);
-      if (!ok) {
-        setGifErrors(p => ({ ...p, [ex.id]: "❌ Error al guardar." }));
-        setSaving(s => ({ ...s, [ex.id]: false }));
-        return;
-      }
-      setGifInputs(p => ({ ...p, [ex.id]: url }));
-      setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, gifUrl: url } : e));
-      setGif(ex.name, url);
-      setGifErrors(p => ({ ...p, [ex.id]: "" }));
-    } catch(e) {
-      console.error(e);
-      setGifErrors(p => ({ ...p, [ex.id]: "❌ Error al subir el GIF: " + e.message }));
-    }
-    setSaving(s => ({ ...s, [ex.id]: false }));
-  }
-
-  async function handleDelete(ex) {
-    if (!window.confirm(`¿Eliminar "${ex.name}"?`)) return;
-    await deleteCustomExercise(ex.id);
-    setExercises(prev => prev.filter(e => e.id !== ex.id));
-  }
-
-  const filtered = exercises.filter(e =>
-    e.name?.toLowerCase().includes(filter.toLowerCase()) ||
-    e.muscle?.toLowerCase().includes(filter.toLowerCase())
-  );
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
-        <div className="modal-header">
-          <h3 className="modal-title">⚙️ Ejercicios personalizados</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 14 }}>
-          Ejercicios creados por usuarios. Sube un GIF local o pega una URL para que aparezca en la app.
-        </div>
-        <input className="input" placeholder="🔍 Filtrar por nombre o músculo..."
-          value={filter} onChange={e => setFilter(e.target.value)} style={{ marginBottom: 14 }} />
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>⏳ Cargando...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
-            {exercises.length === 0 ? "Aún no hay ejercicios personalizados." : "Sin resultados."}
-          </div>
-        ) : filtered.map(ex => {
-          const mode = getMode(ex.id);
-          const preview = uploadPreviews[ex.id] || ex.gifUrl;
-          const inputVal = gifInputs[ex.id] || "";
-          const isSaved = ex.gifUrl && inputVal === ex.gifUrl;
-          const isEditing = !!editing[ex.id];
-          return (
-            <div key={ex.id} style={{ background: "var(--input-bg)", border: `1px solid ${ex.gifUrl ? "rgba(34,197,94,0.4)" : "var(--border)"}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                <div style={{ flex: 1, marginRight: 10 }}>
-                  {isEditing ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <input className="input" style={{ fontSize: 13, fontWeight: 700, padding: "5px 10px" }}
-                        placeholder="Nombre del ejercicio"
-                        value={editing[ex.id].name}
-                        onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], name: e.target.value } }))} />
-                      <select className="input" style={{ fontSize: 12, padding: "5px 10px" }}
-                        value={editing[ex.id].muscle}
-                        onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], muscle: e.target.value } }))}>
-                        {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => saveEdit(ex)} disabled={savingMeta[ex.id]}
-                          className="btn-primary" style={{ fontSize: 11, padding: "5px 12px" }}>
-                          {savingMeta[ex.id] ? "⏳" : "✅ Guardar"}
-                        </button>
-                        <button onClick={() => cancelEdit(ex.id)}
-                          style={{ fontSize: 11, padding: "5px 12px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif" }}>
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>💪 {ex.muscle} · {ex.createdAt}</div>
-                      </div>
-                      <button onClick={() => startEdit(ex)}
-                        title="Editar nombre y músculo"
-                        style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 7px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}>
-                        ✏️
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {preview && (
-                    <img src={preview} alt={ex.name}
-                      style={{ width: 54, height: 54, borderRadius: 8, objectFit: "cover", border: "1px solid var(--accent)" }}
-                      onError={e => { e.target.style.display = "none"; }} />
-                  )}
-                  <button onClick={() => handleDelete(ex)}
-                    style={{ background: "none", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444",
-                      borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 11 }}>🗑️</button>
-                </div>
-              </div>
-
-              {/* Toggle URL / Archivo local */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                <button onClick={() => setMode(ex.id, "url")}
-                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontWeight: 600,
-                    background: mode === "url" ? "var(--accent)" : "none",
-                    color: mode === "url" ? "white" : "var(--text-muted)",
-                    border: `1px solid ${mode === "url" ? "var(--accent)" : "var(--border)"}`,
-                    transition: "all 0.15s" }}>
-                  🔗 URL
-                </button>
-                <button onClick={() => setMode(ex.id, "file")}
-                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontWeight: 600,
-                    background: mode === "file" ? "var(--accent)" : "none",
-                    color: mode === "file" ? "white" : "var(--text-muted)",
-                    border: `1px solid ${mode === "file" ? "var(--accent)" : "var(--border)"}`,
-                    transition: "all 0.15s" }}>
-                  📁 Archivo local
-                </button>
-              </div>
-
-              {mode === "url" ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input className="input" style={{ flex: 1, fontSize: 12 }}
-                    placeholder="URL del GIF (https://...gif)"
-                    value={inputVal.startsWith("data:") ? "" : inputVal}
-                    onChange={e => {
-                      setGifInputs(p => ({ ...p, [ex.id]: e.target.value }));
-                      setUploadPreviews(p => ({ ...p, [ex.id]: null }));
-                    }} />
-                  <button onClick={() => handleSaveGif(ex)} disabled={saving[ex.id]}
-                    className="btn-primary" style={{ fontSize: 12, padding: "8px 14px", flexShrink: 0 }}>
-                    {saving[ex.id] ? "⏳" : ex.gifUrl ? "✏️ Actualizar" : "💾 Guardar"}
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <input
-                    type="file"
-                    accept="image/gif,image/webp,image/png,image/jpeg"
-                    ref={el => { fileInputRefs.current[ex.id] = el; }}
-                    style={{ display: "none" }}
-                    onChange={e => handleFileChange(ex, e.target.files[0])}
-                  />
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <button
-                      onClick={() => fileInputRefs.current[ex.id]?.click()}
-                      style={{ flex: 1, background: "var(--input-bg)", border: "1.5px dashed var(--border)", color: "var(--text-muted)",
-                        borderRadius: 8, padding: "9px 12px", cursor: "pointer", fontSize: 12, fontFamily: "Barlow, sans-serif",
-                        textAlign: "left", transition: "border-color 0.15s" }}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent)"}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                      {uploadPreviews[ex.id] ? "✅ GIF cargado — click para cambiar" : "📂 Seleccionar GIF local (máx. 3 MB)"}
-                    </button>
-                    <button onClick={() => handleSaveGif(ex)} disabled={saving[ex.id] || !gifInputs[ex.id]}
-                      className="btn-primary" style={{ fontSize: 12, padding: "8px 14px", flexShrink: 0 }}>
-                      {saving[ex.id] ? "⏳" : ex.gifUrl ? "✏️ Actualizar" : "💾 Guardar"}
-                    </button>
-                  </div>
-                  {uploadPreviews[ex.id] && (
-                    <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>
-                      Vista previa ↑ · Se subirá a Firebase Storage
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {gifErrors[ex.id] && (
-                <div className="err-msg" style={{ marginTop: 6, fontSize: 12 }}>{gifErrors[ex.id]}</div>
-              )}
-              {isSaved && !uploadPreviews[ex.id] && (
-                <div style={{ fontSize: 11, color: "#22c55e", marginTop: 6 }}>✅ GIF asignado</div>
-              )}
-            </div>
-          );
-        })}
-        <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(59,130,246,0.08)", borderRadius: 10, fontSize: 12, color: "var(--text-muted)" }}>
-          💡 GIFs gratis en <a href="https://giphy.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>giphy.com</a> o <a href="https://tenor.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>tenor.com</a> — o sube directamente desde tu dispositivo
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ParticlesBackground() {
-  const canvasRef = useRef();
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let W = canvas.width = window.innerWidth;
-    let H = canvas.height = window.innerHeight;
-
-    const WORDS = [
-      "YEAH BUDDY", "LIGHT WEIGHT", "AIN'T NOTHIN'", "GET SOME",
-      "NO PAIN NO GAIN", "EAT BIG GET BIG", "BEAST MODE",
-      "DO YOU EVEN LIFT", "STAY HUNGRY", "ONE MORE REP",
-      "BUILT DIFFERENT", "NO DAYS OFF", "EMBRACE THE GRIND",
-      "1RM", "PR!", "5x5", "AMRAP", "DROP SET",
-      "100KG", "200KG", "315KG", "140KG", "180KG",
-      "SQUAT", "BENCH", "DEADLIFT", "OHP",
-      "GAINS", "SWOLE", "GRIND", "SHRED", "BULK",
-      "💪", "🔥", "⚡", "🏋️",
-      "DALE DURO", "SIN EXCUSAS", "A TOPE", "TÚ PUEDES",
-      "MÁS PESO", "UNA MÁS", "NO TE RINDAS", "MODO BESTIA",
-      "SIN DOLOR SIN GLORIA", "ENTRENA DURO", "SUDA MÁS",
-      "HOY ES DÍA DE PIERNA", "EL QUE PARA PIERDE",
-      "CONSISTENCIA", "DISCIPLINA", "SACRIFICIO",
-      "YA VIENE EL PR", "SUPÉRATE", "ROMPE LÍMITES",
-      "COME DUERME ENTRENA",
-    ];
-
-    // Speed tiers: slow, medium, fast, shooting star
-    function randomDrop() {
-      const tier = Math.random();
-      let speed, fontSize, alpha, trailLength;
-      if (tier < 0.5) {
-        // slow
-        speed = 0.3 + Math.random() * 0.4;
-        fontSize = 14 + Math.floor(Math.random() * 4);
-        alpha = 0.4 + Math.random() * 0.3;
-        trailLength = 0;
-      } else if (tier < 0.8) {
-        // medium
-        speed = 1.2 + Math.random() * 1.0;
-        fontSize = 16 + Math.floor(Math.random() * 5);
-        alpha = 0.6 + Math.random() * 0.3;
-        trailLength = 20;
-      } else if (tier < 0.95) {
-        // fast
-        speed = 3.5 + Math.random() * 2.0;
-        fontSize = 18 + Math.floor(Math.random() * 4);
-        alpha = 0.8 + Math.random() * 0.2;
-        trailLength = 50;
-      } else {
-        // shooting star — very fast, bright, long trail
-        speed = 8 + Math.random() * 6;
-        fontSize = 20;
-        alpha = 1.0;
-        trailLength = 120;
-      }
-      return {
-        x: Math.random() * W,
-        y: -40 - Math.random() * H * 0.5,
-        speed,
-        fontSize,
-        alpha,
-        trailLength,
-        word: WORDS[Math.floor(Math.random() * WORDS.length)],
-        color: Math.random() < 0.15 ? "#ffffff" : Math.random() < 0.5 ? "#60a5fa" : "#a78bfa",
-        trail: [], // stores previous y positions for shooting star effect
-      };
-    }
-
-    const NUM_DROPS = Math.floor(W / 22);
-    const drops = Array.from({ length: NUM_DROPS }, (_, i) => {
-      const d = randomDrop();
-      d.x = (i / NUM_DROPS) * W + Math.random() * (W / NUM_DROPS);
-      d.y = -40 - Math.random() * H; // stagger start positions
-      return d;
-    });
-
-    // ── YEAH BUDDY special state ──
-    let yeahBuddyFreeze = 0;   // frames remaining in freeze
-    let shockwave = null;      // { x, y, r, alpha } explosion ring
-    let flashAlpha = 0;        // screen flash
-    const FREEZE_FRAMES = 48;  // ~0.8s at 60fps
-    let yeahBuddyHits = 0;     // 0 = first drop, 1 = encore, 2 = gone forever
-
-    // Make one random drop always be YEAH BUDDY at start
-    const yeahDrop = drops[Math.floor(Math.random() * drops.length)];
-    yeahDrop.word = "YEAH BUDDY";
-    yeahDrop.isYeah = true;
-    yeahDrop.color = "#e8ff00";
-    yeahDrop.fontSize = 14;        // small, subtle
-    yeahDrop.alpha = 0.45;         // barely visible
-    yeahDrop.speed = 0.4;          // very slow
-    yeahDrop.trailLength = 0;      // no trail
-    yeahDrop.trail = [];
-
-    function spawnYeahBuddyEncore(drop) {
-      // Encore — HUGE, fast, epic
-      drop.y = -120;
-      drop.x = W * 0.1 + Math.random() * W * 0.8;
-      drop.word = "YEAH BUDDY";
-      drop.isYeah = true;
-      drop.color = "#e8ff00";
-      drop.fontSize = 48;        // big and proud
-      drop.alpha = 1.0;
-      drop.speed = 5 + Math.random() * 2;
-      drop.trailLength = 140;
-      drop.trail = [];
-    }
-
-    let raf;
-    function loop() {
-      const frozen = yeahBuddyFreeze > 0;
-
-      // Dark fade
-      ctx.fillStyle = frozen
-        ? "rgba(6,13,24,0.04)"   // slower fade during freeze = longer afterglow
-        : "rgba(6,13,24,0.15)";
-      ctx.fillRect(0, 0, W, H);
-
-      // Screen flash on impact
-      if (flashAlpha > 0) {
-        ctx.fillStyle = `rgba(232,255,0,${flashAlpha})`;
-        ctx.fillRect(0, 0, W, H);
-        flashAlpha = Math.max(0, flashAlpha - 0.06);
-      }
-
-      // Shockwave ring
-      if (shockwave) {
-        shockwave.r += 12;
-        shockwave.alpha -= 0.035;
-        if (shockwave.alpha <= 0) {
-          shockwave = null;
-        } else {
-          ctx.beginPath();
-          ctx.arc(shockwave.x, shockwave.y, shockwave.r, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(232,255,0,${shockwave.alpha})`;
-          ctx.lineWidth = 3;
-          ctx.shadowBlur = 20;
-          ctx.shadowColor = "#e8ff00";
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          ctx.lineWidth = 1;
-        }
-      }
-
-      drops.forEach(drop => {
-        const isYeah = drop.isYeah;
-
-        // Freeze all non-yeah drops
-        if (frozen && !isYeah) {
-          // Just redraw in place, fading out slowly
-          ctx.font = `800 ${drop.fontSize}px "Barlow Condensed", sans-serif`;
-          ctx.globalAlpha = drop.alpha * (yeahBuddyFreeze / FREEZE_FRAMES) * 0.5;
-          ctx.fillStyle = drop.color;
-          ctx.fillText(drop.word, Math.min(drop.x, W - ctx.measureText(drop.word).width - 4), drop.y);
-          ctx.globalAlpha = 1;
-          return;
-        }
-
-        // Draw trail
-        if (drop.trailLength > 0 && drop.trail.length > 1) {
-          for (let t = 0; t < drop.trail.length; t++) {
-            const ratio = t / drop.trail.length;
-            const trailAlpha = drop.alpha * ratio * (isYeah ? 0.6 : 0.4);
-            ctx.font = `800 ${drop.fontSize * (0.5 + ratio * 0.5)}px "Barlow Condensed", sans-serif`;
-            if (isYeah) {
-              ctx.fillStyle = `rgba(232,255,0,${trailAlpha})`;
-            } else {
-              ctx.fillStyle = drop.color.startsWith("#fff")
-                ? `rgba(255,255,255,${trailAlpha})`
-                : drop.color.includes("a7")
-                ? `rgba(167,139,250,${trailAlpha})`
-                : `rgba(96,165,250,${trailAlpha})`;
-            }
-            ctx.shadowBlur = 0;
-            ctx.fillText(drop.word, Math.min(drop.x, W - ctx.measureText(drop.word).width - 4), drop.trail[t]);
-          }
-        }
-
-        // Draw main word
-        ctx.font = `800 ${drop.fontSize}px "Barlow Condensed", sans-serif`;
-        if (isYeah) {
-          ctx.shadowBlur = 30;
-          ctx.shadowColor = "#e8ff00";
-          ctx.globalAlpha = drop.alpha;
-          ctx.fillStyle = "#e8ff00";
-        } else {
-          ctx.shadowBlur = drop.trailLength > 80 ? 24 : drop.trailLength > 0 ? 10 : 4;
-          ctx.shadowColor = drop.color;
-          ctx.globalAlpha = drop.alpha;
-          ctx.fillStyle = drop.color;
-        }
-        ctx.fillText(drop.word, Math.min(drop.x, W - ctx.measureText(drop.word).width - 4), drop.y);
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1;
-
-        // Update trail
-        if (drop.trailLength > 0) {
-          drop.trail.push(drop.y);
-          if (drop.trail.length > Math.floor(drop.trailLength / drop.speed)) {
-            drop.trail.shift();
-          }
-        }
-
-        drop.y += drop.speed;
-
-        // YEAH BUDDY hits bottom → trigger impact
-        if (isYeah && drop.y > H + 10) {
-          yeahBuddyHits++;
-          flashAlpha = yeahBuddyHits === 1 ? 0.22 : 0.35;
-          shockwave = { x: drop.x, y: H, r: 10, alpha: 0.9 };
-          yeahBuddyFreeze = FREEZE_FRAMES;
-
-          if (yeahBuddyHits === 1) {
-            // First hit → spawn encore
-            spawnYeahBuddyEncore(drop);
-          } else {
-            // Second hit (encore) → retire forever, become normal drop
-            drop.isYeah = false;
-            Object.assign(drop, randomDrop());
-          }
-          return;
-        }
-
-        if (!isYeah && drop.y > H + 60) {
-          const laneX = drop.x;
-          Object.assign(drop, randomDrop());
-          drop.x = laneX + (Math.random() - 0.5) * 30;
-        }
-      });
-
-      if (frozen) yeahBuddyFreeze--;
-
-      raf = requestAnimationFrame(loop);
-    }
-
-    ctx.fillStyle = "#060d18";
-    ctx.fillRect(0, 0, W, H);
-    loop();
-
-    const onResize = () => {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-      ctx.fillStyle = "#060d18";
-      ctx.fillRect(0, 0, W, H);
-    };
-    window.addEventListener("resize", onResize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
-  }, []);
-  return <canvas ref={canvasRef} style={{ position:"fixed", top:0, left:0, width:"100vw", height:"100vh", zIndex:1, pointerEvents:"none" }} />;
-}
-
-function LoginScreen() {
-  const { loginWithFirebase, registerWithFirebase, loginAsGuest, resetPassword, loginWithGoogle } = useAuth();
-  const [mode, setMode] = useState("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [passConfirm, setPassConfirm] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [err, setErr] = useState("");
-  const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
-  const [animKey, setAnimKey] = useState(0);
-
-  function switchMode(m) {
-    setMode(m); setErr(""); setMsg("");
-    setAnimKey(k => k + 1);
-  }
-
-  async function submit() {
-    setErr(""); setMsg("");
-    if (mode === "forgot") {
-      if (!email) { setErr("Ingresa tu email"); return; }
-      setLoading(true);
-      const result = await resetPassword(email);
-      setLoading(false);
-      if (result.ok) setMsg("✅ Revisa tu correo para restablecer la contraseña.");
-      else setErr(result.msg);
-      return;
-    }
-    if (!email || !pass) { setErr("Completa todos los campos"); return; }
-    if (mode === "register") {
-      if (!name.trim()) { setErr("Ingresa tu nombre"); return; }
-      if (pass !== passConfirm) { setErr("Las contraseñas no coinciden"); return; }
-      setLoading(true);
-      const result = await registerWithFirebase(name.trim(), email, pass);
-      setLoading(false);
-      if (!result.ok) setErr(result.msg);
-    } else {
-      setLoading(true);
-      const result = await loginWithFirebase(email, pass);
-      setLoading(false);
-      if (!result.ok) setErr(result.msg);
-    }
-  }
-
-  const SLOGANS = [
-    { top: "ROMPE", bottom: "TUS LÍMITES" },
-    { top: "MODO", bottom: "BESTIA" },
-    { top: "SIN", bottom: "EXCUSAS" },
-    { top: "DALE", bottom: "DURO" },
-  ];
-  const slogan = SLOGANS[Math.floor(Date.now() / 86400000) % SLOGANS.length];
-
-  const inputStyle = (field) => ({
-    width: "100%",
-    background: "transparent",
-    border: "none",
-    borderBottom: `2px solid ${focusedField === field ? "#e8ff00" : "rgba(255,255,255,0.2)"}`,
-    color: "white",
-    fontFamily: "'Barlow', sans-serif",
-    fontSize: 15,
-    fontWeight: 500,
-    padding: "10px 0 8px",
-    outline: "none",
-    transition: "border-color 0.25s",
-    letterSpacing: 0.5,
-  });
-
-  const labelStyle = (field) => ({
-    fontSize: 10,
-    fontWeight: 800,
-    letterSpacing: 3,
-    textTransform: "uppercase",
-    color: focusedField === field ? "#e8ff00" : "rgba(255,255,255,0.4)",
-    display: "block",
-    marginBottom: 4,
-    transition: "color 0.25s",
-  });
-
-  return (
-    <div style={{
-      minHeight: "100dvh",
-      width: "100vw",
-      maxWidth: "100%",
-      background: "#0a0a0a",
-      display: "flex",
-      flexDirection: "row",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      {/* Background particles */}
-      <ParticlesBackground />
-
-      {/* Diagonal red accent */}
-      <div style={{
-        position: "fixed",
-        top: 0, right: 0,
-        width: "45vw",
-        height: "100vh",
-        background: "linear-gradient(135deg, transparent 0%, rgba(220,38,38,0.06) 100%)",
-        pointerEvents: "none",
-        zIndex: 2,
-      }} />
-
-      {/* Left panel - branding */}
-      <div style={{
-        width: "42%",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-        padding: "60px 48px",
-        position: "relative",
-        zIndex: 10,
-        flexShrink: 0,
-      }}
-        className="login-left-panel"
-      >
-        {/* Logo top-left */}
-        <div style={{
-          position: "absolute", top: 32, left: 40,
-          display: "flex", alignItems: "center", gap: 10,
-        }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 6,
-            background: "linear-gradient(135deg, #e8ff00, #facc15)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 15, fontWeight: 900, flexShrink: 0,
-          }}>⚡</div>
-          <span style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 15, fontWeight: 900, letterSpacing: 6,
-            color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
-          }}>GYMTRACKER</span>
-        </div>
-
-        {/* Giant slogan */}
-        <div>
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: "clamp(56px, 7.5vw, 96px)",
-            fontWeight: 900,
-            lineHeight: 0.88,
-            letterSpacing: "-2px",
-            color: "white",
-            textTransform: "uppercase",
-            whiteSpace: "nowrap",
-          }}>
-            {slogan.top}
-          </div>
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: "clamp(56px, 7.5vw, 96px)",
-            fontWeight: 900,
-            lineHeight: 0.88,
-            letterSpacing: "-2px",
-            WebkitTextStroke: "2.5px #e8ff00",
-            color: "transparent",
-            textShadow: "0 0 0 transparent",
-            textTransform: "uppercase",
-            whiteSpace: "nowrap",
-            paintOrder: "stroke fill",
-          }}>
-            {slogan.bottom}
-          </div>
-
-          {/* Rule + motivational phrase */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, marginBottom: 16 }}>
-            <div style={{ width: 44, height: 3, background: "#e8ff00", borderRadius: 2, flexShrink: 0 }} />
-            <span style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 14, fontWeight: 700, letterSpacing: 2,
-              color: "rgba(255,255,255,0.3)", textTransform: "uppercase",
-            }}>ENTRENA CADA MALDITO DÍA</span>
-          </div>
-
-          <p style={{
-            color: "rgba(255,255,255,0.3)",
-            fontSize: 13,
-            fontFamily: "'Barlow', sans-serif",
-            lineHeight: 1.6,
-            maxWidth: 260,
-            letterSpacing: 0.3,
-          }}>
-            Registra cada set. Rompe cada récord. Construye el cuerpo que mereces.
-          </p>
-
-          {/* Stats row */}
-          <div style={{
-            display: "flex", gap: 32, marginTop: 36,
-          }}>
-            {[["∞", "Ejercicios"], ["100%", "Gratis"], ["🏆", "Tus PRs"]].map(([val, lbl]) => (
-              <div key={lbl}>
-                <div style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: 22, fontWeight: 900, color: "#e8ff00",
-                }}>{val}</div>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: 2, textTransform: "uppercase" }}>{lbl}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Right panel - form */}
-      <div className="login-right-panel" style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px 16px",
-        position: "relative",
-        zIndex: 10,
-        minHeight: "100dvh",
-        width: "100%",
-        minWidth: 0,
-        boxSizing: "border-box",
-      }}>
-        {/* Vertical line divider - desktop only */}
-        <div className="login-divider" style={{
-          position: "absolute",
-          left: 0, top: "10%", bottom: "10%",
-          width: 1,
-          background: "linear-gradient(to bottom, transparent, rgba(232,255,0,0.3), transparent)",
-        }} />
-
-        <div style={{
-          width: "100%",
-          maxWidth: 380,
-          background: "rgba(10,10,10,0.55)",
-          backdropFilter: "blur(18px)",
-          WebkitBackdropFilter: "blur(18px)",
-          border: "1px solid rgba(232,255,0,0.12)",
-          borderRadius: 16,
-          padding: "22px 20px",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
-          animation: "loginSlideIn 0.35s cubic-bezier(0.22,1,0.36,1) both",
-          boxSizing: "border-box",
-        }} key={animKey}>
-
-        {/* Mobile header — shown only on small screens */}
-        <div className="login-mobile-logo" style={{
-          display: "none",
-          flexDirection: "column",
-          alignItems: "center",
-          marginBottom: 16,
-        }}>
-          {/* Icon */}
-          <div style={{
-            width: 38, height: 38, borderRadius: 10,
-            background: "linear-gradient(135deg, #e8ff00, #facc15)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 20, marginBottom: 8,
-            boxShadow: "0 0 20px rgba(232,255,0,0.3)",
-          }}>⚡</div>
-          {/* App name — protagonist */}
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 28, fontWeight: 900, letterSpacing: 7,
-            color: "white", textTransform: "uppercase",
-            lineHeight: 1,
-          }}>GYMTRACKER</div>
-          {/* Slogan — subordinado, pequeño */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, marginTop: 10,
-          }}>
-            <div style={{ width: 20, height: 2, background: "#e8ff00", borderRadius: 1 }} />
-            <span style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 12, fontWeight: 700, letterSpacing: 3,
-              color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
-            }}>{slogan.top} {slogan.bottom}</span>
-            <div style={{ width: 20, height: 2, background: "#e8ff00", borderRadius: 1 }} />
-          </div>
-          {/* Motivational phrase */}
-          <div style={{
-            marginTop: 6,
-            fontFamily: "'Barlow', sans-serif",
-            fontSize: 11, fontWeight: 500,
-            color: "rgba(255,255,255,0.45)",
-            letterSpacing: 1.5, textTransform: "uppercase",
-          }}>Entrena cada maldito día</div>
-        </div>
-
-          {/* Mode indicator */}
-          {mode !== "forgot" && (
-            <div style={{
-              display: "flex",
-              gap: 0,
-              marginBottom: 24,
-              borderBottom: "1px solid rgba(255,255,255,0.08)",
-            }}>
-              {[["login", "Iniciar sesión"], ["register", "Crear cuenta"]].map(([m, label]) => (
-                <button key={m} onClick={() => switchMode(m)} style={{
-                  flex: 1,
-                  background: "none",
-                  border: "none",
-                  padding: "0 0 14px",
-                  fontFamily: "'Barlow', sans-serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                  color: mode === m ? "#e8ff00" : "rgba(255,255,255,0.25)",
-                  cursor: "pointer",
-                  borderBottom: mode === m ? "2px solid #e8ff00" : "2px solid transparent",
-                  marginBottom: -1,
-                  transition: "all 0.2s",
-                }}>{label}</button>
-              ))}
-            </div>
-          )}
-
-          {mode === "forgot" && (
-            <div style={{ marginBottom: 32 }}>
-              <button onClick={() => switchMode("login")} style={{
-                background: "none", border: "none", color: "rgba(255,255,255,0.4)",
-                fontFamily: "'Barlow', sans-serif", fontSize: 12, fontWeight: 700,
-                letterSpacing: 2, textTransform: "uppercase", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 6, padding: 0, marginBottom: 24,
-              }}>
-                ← VOLVER
-              </button>
-              <div style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 36, fontWeight: 900, color: "white", textTransform: "uppercase",
-                letterSpacing: 1, lineHeight: 1,
-              }}>RECUPERAR<br/><span style={{ color: "#e8ff00" }}>CONTRASEÑA</span></div>
-              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>
-                Te enviaremos un enlace para restablecer tu acceso.
-              </p>
-            </div>
-          )}
-
-          {/* Fields */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            {mode === "register" && (
-              <div>
-                <label style={labelStyle("name")}>Nombre</label>
-                <input
-                  style={inputStyle("name")}
-                  type="text"
-                  placeholder="Tu nombre"
-                  value={name}
-                  onChange={e => setName(lettersOnly(e.target.value))}
-                  onFocus={() => setFocusedField("name")}
-                  onBlur={() => setFocusedField(null)}
-                  autoComplete="name"
-                />
-              </div>
-            )}
-
-            <div>
-              <label style={labelStyle("email")}>Email</label>
-              <input
-                style={inputStyle("email")}
-                type="email"
-                placeholder="email@ejemplo.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onFocus={() => setFocusedField("email")}
-                onBlur={() => setFocusedField(null)}
-                autoComplete="email"
-              />
-            </div>
-
-            {mode !== "forgot" && (
-              <div>
-                <label style={labelStyle("pass")}>Contraseña</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    style={{ ...inputStyle("pass"), paddingRight: 36 }}
-                    type={showPass ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={pass}
-                    onChange={e => setPass(e.target.value)}
-                    onFocus={() => setFocusedField("pass")}
-                    onBlur={() => setFocusedField(null)}
-                    onKeyDown={e => e.key === "Enter" && submit()}
-                    autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  />
-                  <button onClick={() => setShowPass(v => !v)} style={{
-                    position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)",
-                    background: "none", border: "none", cursor: "pointer",
-                    color: "rgba(255,255,255,0.3)", fontSize: 15, padding: 0,
-                  }}>{showPass ? "🙈" : "👁️"}</button>
-                </div>
-                {mode === "register" && <PasswordStrength pass={pass} />}
-                {mode === "login" && (
-                  <div style={{ textAlign: "right", marginTop: 8 }}>
-                    <button onClick={() => switchMode("forgot")} style={{
-                      background: "none", border: "none",
-                      color: "rgba(255,255,255,0.3)", fontSize: 11,
-                      cursor: "pointer", fontFamily: "'Barlow', sans-serif",
-                      letterSpacing: 1, textTransform: "uppercase", padding: 0,
-                      transition: "color 0.2s",
-                    }}
-                      onMouseEnter={e => e.currentTarget.style.color = "#e8ff00"}
-                      onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
-                    >¿Olvidaste tu contraseña?</button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {mode === "register" && (
-              <div>
-                <label style={labelStyle("passConfirm")}>Confirmar contraseña</label>
-                <input
-                  style={{
-                    ...inputStyle("passConfirm"),
-                    borderBottomColor: pass && passConfirm && pass !== passConfirm
-                      ? "#ef4444"
-                      : focusedField === "passConfirm" ? "#e8ff00" : "rgba(255,255,255,0.2)",
-                  }}
-                  type="password"
-                  placeholder="••••••••"
-                  value={passConfirm}
-                  onChange={e => setPassConfirm(e.target.value)}
-                  onFocus={() => setFocusedField("passConfirm")}
-                  onBlur={() => setFocusedField(null)}
-                />
-                {pass && passConfirm && pass !== passConfirm && (
-                  <span style={{ fontSize: 11, color: "#ef4444", marginTop: 4, display: "block" }}>Las contraseñas no coinciden</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Error / Success */}
-          {err && (
-            <div style={{
-              marginTop: 16,
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.3)",
-              color: "#f87171",
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontSize: 13,
-              fontFamily: "'Barlow', sans-serif",
-            }}>{err}</div>
-          )}
-          {msg && (
-            <div style={{
-              marginTop: 16,
-              background: "rgba(34,197,94,0.06)",
-              border: "1px solid rgba(34,197,94,0.25)",
-              color: "#22c55e",
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontSize: 13,
-              fontFamily: "'Barlow', sans-serif",
-            }}>{msg}</div>
-          )}
-
-          {/* CTA button */}
-          <button
-            onClick={submit}
-            disabled={loading}
-            style={{
-              marginTop: 28,
-              width: "100%",
-              padding: "15px 0",
-              background: loading ? "rgba(255,255,255,0.08)" : "#e8ff00",
-              border: "none",
-              borderRadius: 4,
-              color: loading ? "rgba(255,255,255,0.3)" : "#0a0a0a",
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 16,
-              fontWeight: 900,
-              letterSpacing: 3,
-              textTransform: "uppercase",
-              cursor: loading ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-              boxShadow: loading ? "none" : "0 0 30px rgba(232,255,0,0.25)",
-            }}
-            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = "#f0ff40"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 40px rgba(232,255,0,0.4)"; } }}
-            onMouseLeave={e => { e.currentTarget.style.background = loading ? "rgba(255,255,255,0.08)" : "#e8ff00"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = loading ? "none" : "0 0 30px rgba(232,255,0,0.25)"; }}
-          >
-            {loading ? "⏳ Cargando..." : mode === "login" ? "ENTRAR →" : mode === "register" ? "CREAR CUENTA →" : "ENVIAR ENLACE →"}
-          </button>
-
-          {mode !== "forgot" && (
-            <>
-              {/* Divider */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 14,
-                margin: "24px 0 20px",
-              }}>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: 2, textTransform: "uppercase", fontFamily: "'Barlow', sans-serif" }}>O</span>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-              </div>
-
-              {/* Google button */}
-              <button
-                onClick={() => loginWithGoogle()}
-                style={{
-                  width: "100%",
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                  padding: "12px 16px",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                  cursor: "pointer", marginBottom: 10,
-                  fontFamily: "'Barlow', sans-serif",
-                  fontSize: 13, fontWeight: 700,
-                  color: "rgba(255,255,255,0.7)",
-                  letterSpacing: 0.5,
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
-              >
-                <svg width="16" height="16" viewBox="0 0 48 48">
-                  <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
-                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
-                  <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36.5 24 36.5c-5.2 0-9.6-3.4-11.2-8.1l-6.5 5C9.9 40 16.4 44 24 44z"/>
-                  <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.2 5.2C40.9 35.4 44 30.1 44 24c0-1.3-.2-2.7-.4-4z"/>
-                </svg>
-                Continuar con Google
-              </button>
-
-              {/* Guest button */}
-              <button
-                onClick={loginAsGuest}
-                style={{
-                  width: "100%",
-                  background: "transparent",
-                  border: "1px dashed rgba(255,255,255,0.1)",
-                  borderRadius: 4,
-                  padding: "12px 16px",
-                  display: "flex", alignItems: "center", gap: 12,
-                  cursor: "pointer",
-                  fontFamily: "'Barlow', sans-serif",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,255,0,0.3)"; e.currentTarget.style.background = "rgba(232,255,0,0.03)"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{ fontSize: 18 }}>👤</span>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontWeight: 700, fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 }}>Entrar como invitado</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>3 sesiones · Sin historial guardado</div>
-                </div>
-              </button>
-
-              {/* Switch mode link */}
-              <p style={{ textAlign: "center", marginTop: 22, fontSize: 12, color: "rgba(255,255,255,0.25)", fontFamily: "'Barlow', sans-serif" }}>
-                {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
-                <button
-                  onClick={() => switchMode(mode === "login" ? "register" : "login")}
-                  style={{
-                    background: "none", border: "none",
-                    color: "#e8ff00", fontWeight: 800, cursor: "pointer",
-                    fontFamily: "'Barlow', sans-serif", fontSize: 12, padding: 0,
-                  }}
-                >
-                  {mode === "login" ? "Regístrate gratis" : "Inicia sesión"}
-                </button>
-              </p>
-            </>
-          )}
-        </div>{/* end inner card */}
-      </div>
-
-      <style>{`
-        @keyframes loginSlideIn {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 768px) {
-          .login-left-panel { display: none !important; }
-          .login-divider    { display: none !important; }
-          .login-mobile-logo { display: flex !important; }
-          .login-right-panel {
-            width: 100vw !important;
-            flex: unset !important;
-            align-items: center !important;
-            justify-content: center !important;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-
-
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-
-// ─── Músculo más descuidado ────────────────────────────────────────────────────
-// ─── BRUX — Mascota motivadora (Mancuerna) ────────────────────────────────────
 const BRUX_MOODS = {
   hype:     { face: "hype",     color: "#3b82f6", glow: "#3b82f625", label: "¡Listo!" },
   happy:    { face: "happy",    color: "#22c55e", glow: "#22c55e25", label: "Contento" },
@@ -7753,22 +5775,6 @@ function BruxMascot({ sessions, todayPlanned, streak, onStartSession, inNewSessi
         </div>
       )}
 
-      {/* Stats strip — solo si hay sesiones */}
-      {sessions.length > 0 && (
-        <div style={{ display:"flex", gap:6, marginBottom: ctx.cta ? 10 : 0 }}>
-          {[
-            { label: "Esta semana", value: `${weekCount} sesiones`, color: weekCount>=3?"#22c55e":weekCount>=1?"#f59e0b":"#ef4444" },
-            { label: "Racha", value: streak > 0 ? `🔥 ${streak}sem` : "0sem", color: streak>=7?"#ef4444":streak>=3?"#f97316":"var(--text-muted)" },
-            { label: "Total", value: `${totalSessions}`, color: "var(--text-muted)" },
-          ].map(s => (
-            <div key={s.label} style={{ flex:1, background:"var(--card)", borderRadius:8, padding:"5px 6px", textAlign:"center", border:"1px solid var(--border)" }}>
-              <div style={{ fontSize:9, color:"var(--text-muted)", marginBottom:1 }}>{s.label}</div>
-              <div style={{ fontSize:12, fontWeight:800, color:s.color, fontFamily:"Barlow Condensed,sans-serif" }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* CTA Button */}
       {ctx.cta && onStartSession && (
         <button onClick={() => onStartSession(ctx.cta)} style={{
@@ -7874,168 +5880,7 @@ function WeekComparison({ sessions }) {
 }
 
 // ─── Progresión Automática Inteligente ────────────────────────────────────────
-function getProgressionSuggestion(exName, sessions) {
-  if (!exName || exName === "__custom__") return null;
-  const history = sessions
-    .flatMap(s => (s.exercises||[]).filter(e=>e.name===exName).map(e=>({date:s.date,...e})))
-    .sort((a,b)=>b.date.localeCompare(a.date));
-  if (history.length === 0) return null;
-  const last = history[0];
-  const lastWeight = parseFloat(last.sets?.length ? Math.max(...last.sets.map(st=>parseFloat(st.weight)||0)) : last.weight)||0;
-  const lastReps   = parseFloat(last.sets?.length ? Math.max(...last.sets.map(st=>parseFloat(st.reps)||0)) : last.reps)||0;
-  const lastSeries = last.sets?.length||3;
-  const targetReps = 12;
-  if (!lastWeight||!lastReps) return null;
-  let sugWeight=lastWeight, sugReps=lastReps, reason="", type="maintain";
-  if (history.length >= 2) {
-    const prev=history[1];
-    const prevWeight=parseFloat(prev.sets?.length?Math.max(...prev.sets.map(st=>parseFloat(st.weight)||0)):prev.weight)||0;
-    const prevReps  =parseFloat(prev.sets?.length?Math.max(...prev.sets.map(st=>parseFloat(st.reps)||0)):prev.reps)||0;
-    if (history.length>=3) {
-      const third=history[2];
-      const thirdWeight=parseFloat(third.sets?.length?Math.max(...third.sets.map(st=>parseFloat(st.weight)||0)):third.weight)||0;
-      if (lastWeight<prevWeight && prevWeight<thirdWeight) {
-        sugWeight=prevWeight; sugReps=Math.max(lastReps-1,6);
-        reason="Rendimiento bajando — prueba un peso intermedio"; type="deload";
-      }
-    }
-    if (type!=="deload") {
-      if (lastReps>=targetReps) {
-        const inc=lastWeight>=60?5:lastWeight>=30?2.5:1.25;
-        sugWeight=lastWeight+inc; sugReps=Math.max(lastReps-4,6);
-        reason=`Llegaste a ${lastReps} reps — hora de subir peso`; type="up_weight";
-      } else if (lastWeight>prevWeight||lastReps>prevReps) {
-        sugWeight=lastWeight; sugReps=Math.min(lastReps+1,targetReps);
-        reason="Buen progreso — sube 1 rep más"; type="up_reps";
-      } else {
-        sugWeight=lastWeight; sugReps=Math.min(lastReps+1,targetReps);
-        reason="Estancado — intenta 1 rep extra"; type="up_reps";
-      }
-    }
-  } else {
-    sugReps=lastReps<targetReps?lastReps+1:lastReps;
-    reason="Basado en tu último registro"; type="up_reps";
-  }
-  const colors={up_weight:"#22c55e",up_reps:"#3b82f6",maintain:"#a855f7",deload:"#f97316"};
-  const icons ={up_weight:"⬆️",up_reps:"🔁",maintain:"✅",deload:"⚠️"};
-  return {sugWeight,sugReps,lastSeries,reason,type,color:colors[type],icon:icons[type]};
-}
-
-// ─── Insights Engine ──────────────────────────────────────────────────────────
-function generateInsights(sessions, bodyStats) {
-  const insights = [];
-  if (sessions.length < 3) return insights;
-  const now = new Date();
-  const daysSince = d => Math.round((now - new Date(d+"T00:00:00"))/86400000);
-  const volByMuscle = (d1,d2) => {
-    const out={};
-    sessions.filter(s=>{const d=daysSince(s.date);return d>=d1&&d<d2;})
-      .forEach(s=>(s.exercises||[]).forEach(ex=>{
-        const m=EXERCISE_DB.find(e=>e.name===ex.name)?.muscle||"Otro";
-        const vol=(parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1);
-        out[m]=(out[m]||0)+vol;
-      }));
-    return out;
-  };
-  const recent=volByMuscle(0,14), prev=volByMuscle(14,28);
-  const lastByMuscle={};
-  sessions.forEach(s=>(s.exercises||[]).forEach(ex=>{
-    const m=EXERCISE_DB.find(e=>e.name===ex.name)?.muscle||"Otro";
-    if(!lastByMuscle[m]||s.date>lastByMuscle[m]) lastByMuscle[m]=s.date;
-  }));
-  Object.entries(lastByMuscle).forEach(([muscle,date])=>{
-    const d=daysSince(date);
-    if(d>=10) insights.push({id:`neglect_${muscle}`,category:"frecuencia",icon:"😴",color:"#f97316",
-      title:`${muscle} sin entrenar`,msg:`Llevas ${d} días sin trabajar ${muscle}.`,priority:d>=14?3:2});
-  });
-  Object.entries(prev).forEach(([muscle,prevVol])=>{
-    const recVol=recent[muscle]||0;
-    const drop=((prevVol-recVol)/prevVol)*100;
-    if(drop>30&&prevVol>0) insights.push({id:`vol_drop_${muscle}`,category:"volumen",icon:"📉",color:"#ef4444",
-      title:`Volumen de ${muscle} bajó`,msg:`Cayó un ${Math.round(drop)}% vs las 2 semanas anteriores.`,priority:2});
-  });
-  Object.entries(recent).forEach(([muscle,recVol])=>{
-    const prevVol=prev[muscle]||0;
-    if(prevVol>0){const rise=((recVol-prevVol)/prevVol)*100;
-      if(rise>20) insights.push({id:`vol_rise_${muscle}`,category:"volumen",icon:"📈",color:"#22c55e",
-        title:`${muscle} en racha`,msg:`Volumen subió ${Math.round(rise)}% esta quincena.`,priority:1});}
-  });
-  const recentSessions=sessions.filter(s=>daysSince(s.date)<=14).length;
-  if(recentSessions<=2&&sessions.length>=5) insights.push({id:"low_freq",category:"hábitos",icon:"⚠️",color:"#f59e0b",
-    title:"Frecuencia baja",msg:`Solo ${recentSessions} sesión${recentSessions===1?"":"es"} en 14 días.`,priority:3});
-  const byDay=[0,0,0,0,0,0,0];
-  sessions.forEach(s=>{byDay[new Date(s.date+"T00:00:00").getDay()]++;});
-  const bestDayIdx=byDay.indexOf(Math.max(...byDay));
-  const DIAS=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  if(Math.max(...byDay)>=3) insights.push({id:"best_day",category:"hábitos",icon:"📅",color:"#3b82f6",
-    title:"Tu mejor día",msg:`El ${DIAS[bestDayIdx]} es cuando más entrenas.`,priority:1});
-  const prs=getPRs(sessions);
-  const recentPRs=sessions.filter(s=>daysSince(s.date)<=7)
-    .flatMap(s=>(s.exercises||[]).filter(ex=>{
-      const rm=calc1RM(ex.sets?.length?Math.max(...ex.sets.map(st=>parseFloat(st.weight)||0)):parseFloat(ex.weight)||0,
-        ex.sets?.length?Math.max(...ex.sets.map(st=>parseFloat(st.reps)||0)):parseFloat(ex.reps)||0);
-      return prs[ex.name]&&rm>=prs[ex.name].rm;
-    }));
-  if(recentPRs.length>0) insights.push({id:"recent_pr",category:"rendimiento",icon:"🏆",color:"#a855f7",
-    title:`${recentPRs.length} PR${recentPRs.length>1?"s":""}  esta semana`,
-    msg:`Récord en: ${recentPRs.slice(0,3).map(e=>e.name).join(", ")}.`,priority:1});
-  const entries=bodyStats?.entries||[];
-  if(entries.length>=3){
-    const diff=(entries[entries.length-1].weight-entries[entries.length-3].weight).toFixed(1);
-    if(Math.abs(diff)>=0.5) insights.push({id:"weight_trend",category:"cuerpo",
-      icon:parseFloat(diff)<0?"⬇️":"⬆️",color:parseFloat(diff)<0?"#22c55e":"#f97316",
-      title:parseFloat(diff)<0?"Bajando de peso":"Subiendo de peso",
-      msg:`${parseFloat(diff)<0?"Perdiste":"Ganaste"} ${Math.abs(diff)} kg en los últimos registros.`,priority:1});
-  }
-  return insights.sort((a,b)=>b.priority-a.priority);
-}
-
-function InsightsModal({ sessions, bodyStats, onClose }) {
-  const insights = generateInsights(sessions, bodyStats);
-  const categories = ["rendimiento","volumen","frecuencia","hábitos","cuerpo"];
-  const catLabels = {rendimiento:"🏋️ Rendimiento",volumen:"📊 Volumen",frecuencia:"🔁 Frecuencia",hábitos:"📅 Hábitos",cuerpo:"⚖️ Cuerpo"};
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e=>e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">💡 Insights Premium</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
-        {insights.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"40px 0", color:"var(--text-muted)" }}>
-            <div style={{ fontSize:48, marginBottom:12 }}>📊</div>
-            <p style={{ fontSize:14 }}>Registra al menos 5 sesiones para ver tus insights.</p>
-          </div>
-        ) : (
-          <div>
-            {categories.map(cat=>{
-              const items=insights.filter(i=>i.category===cat);
-              if(!items.length) return null;
-              return (
-                <div key={cat} style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:11, fontWeight:700, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", marginBottom:10 }}>{catLabels[cat]}</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {items.map(ins=>(
-                      <div key={ins.id} style={{ display:"flex", gap:12, alignItems:"flex-start", background:`${ins.color}0d`, border:`1px solid ${ins.color}30`, borderRadius:12, padding:"12px 14px" }}>
-                        <div style={{ fontSize:22, flexShrink:0 }}>{ins.icon}</div>
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:700, color:ins.color, marginBottom:3 }}>{ins.title}</div>
-                          <div style={{ fontSize:13, color:"var(--text)", lineHeight:1.5 }}>{ins.msg}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user }) {
+function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false }) {
   const total = sessions.length;
   const thisWeek = sessions.filter(s => (new Date() - new Date(s.date + "T00:00:00")) / 86400000 <= 7).length;
   const exCount = {};
@@ -8129,21 +5974,43 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
         const todayDateStr = new Date().toISOString().slice(0,10);
         const alreadyDone = sessions.some(s => s.date === todayDateStr &&
           (s.workout === todayRoutine.name || s.workout === todayRoutine.routineName));
+        if (alreadyDone) {
+          if (!showCompletedBanner) return null;
+          return (
+            <div style={{
+              display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"8px 14px", marginBottom:14,
+              background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.25)",
+              borderRadius:10,
+              animation:"fadeOutBanner 5s forwards",
+            }}>
+              <span style={{fontSize:13, color:"#22c55e", fontWeight:700}}>
+                ✅ {todayRoutine.name || todayRoutine.routineName} completada hoy
+              </span>
+              {coachRoutines.length > 1 && (
+                <button onClick={onOpenCoach} style={{background:"none",border:"none",
+                  color:"var(--accent)",fontSize:11,fontWeight:700,cursor:"pointer",padding:0}}>
+                  Ver todas ({coachRoutines.length}) →
+                </button>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div style={{
-            background: alreadyDone ? "rgba(34,197,94,0.07)" : "rgba(232,255,0,0.04)",
-            border: `2px solid ${alreadyDone ? "rgba(34,197,94,0.4)" : "var(--accent)"}`,
-            borderRadius: 12, marginBottom: 14, overflow: "hidden",
-            boxShadow: alreadyDone ? "none" : "0 0 24px rgba(232,255,0,0.12)",
+            background:"rgba(232,255,0,0.04)",
+            border:"2px solid var(--accent)",
+            borderRadius:12, marginBottom:14, overflow:"hidden",
+            boxShadow:"0 0 24px rgba(232,255,0,0.12)",
           }}>
             <div style={{
-              background: alreadyDone ? "rgba(34,197,94,0.15)" : "rgba(232,255,0,0.12)",
-              padding: "8px 14px", display: "flex", alignItems: "center", gap: 8,
-              borderBottom: `1px solid ${alreadyDone ? "rgba(34,197,94,0.2)" : "rgba(232,255,0,0.15)"}`,
+              background:"rgba(232,255,0,0.12)",
+              padding:"8px 14px", display:"flex", alignItems:"center", gap:8,
+              borderBottom:"1px solid rgba(232,255,0,0.15)",
             }}>
-              <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
-                color: alreadyDone ? "#22c55e" : "var(--accent)"}}>
-                {alreadyDone ? "✅ RUTINA COMPLETADA HOY" : isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
+              <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",color:"var(--accent)"}}>
+                {isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
               </span>
             </div>
             <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:14}}>
@@ -8169,16 +6036,14 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
                   </button>
                 )}
               </div>
-              {!alreadyDone && (
-                <button onClick={e=>{e.stopPropagation(); onStartCoachRoutine && onStartCoachRoutine(todayRoutine);}} style={{
-                  background:"var(--accent)", border:"none", borderRadius:10,
-                  color:"#0a0a0a", fontWeight:900, fontSize:13,
-                  padding:"10px 16px", cursor:"pointer", flexShrink:0,
-                  display:"flex",alignItems:"center",gap:5,
-                  letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
-                  textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)",
-                }}>⚡ INICIAR</button>
-              )}
+              <button onClick={e=>{e.stopPropagation(); onStartCoachRoutine && onStartCoachRoutine(todayRoutine);}} style={{
+                background:"var(--accent)", border:"none", borderRadius:10,
+                color:"#0a0a0a", fontWeight:900, fontSize:13,
+                padding:"10px 16px", cursor:"pointer", flexShrink:0,
+                display:"flex",alignItems:"center",gap:5,
+                letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
+                textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)",
+              }}>⚡ INICIAR</button>
             </div>
           </div>
         );
@@ -8234,6 +6099,66 @@ function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick
 }
 
 // ─── Session Card ─────────────────────────────────────────────────────────────
+
+function StreakBanner({ sessions }) {
+  const streak = getStreak(sessions);
+  if (streak < 1) return null;
+  const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
+  const msg   = streak >= 365 ? "¡LEYENDA VIVIENTE!" : streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡INCENDIO TOTAL!" : streak >= 14 ? "¡En llamas!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!";
+  // Next milestone
+  const milestones = [3,7,14,30,90,365];
+  const nextMilestone = milestones.find(m => m > streak) || null;
+  const prevMilestone = [...milestones].reverse().find(m => m <= streak) || 0;
+  const pct = nextMilestone ? ((streak - prevMilestone) / (nextMilestone - prevMilestone)) * 100 : 100;
+
+  return (
+    <div style={{ background:`linear-gradient(135deg,${color}15,${color}05)`, border:`1px solid ${color}40`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:`0 4px 24px ${color}15` }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ fontSize:36, lineHeight:1, filter:`drop-shadow(0 0 8px ${color}80)` }}>🔥</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:10, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:1 }}>{msg}</div>
+          <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
+            <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:38, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
+            <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>semanas seguidas</span>
+          </div>
+        </div>
+        {nextMilestone && (
+          <div style={{ textAlign:"center", flexShrink:0 }}>
+            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, marginBottom:4 }}>Próximo hito</div>
+            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}sem</div>
+            <div style={{ fontSize:9, color:"var(--text-muted)" }}>faltan {nextMilestone-streak}</div>
+          </div>
+        )}
+      </div>
+      {/* Progress bar toward next milestone */}
+      {nextMilestone && (
+        <div style={{ marginTop:10 }}>
+          <div style={{ background:"var(--border)", borderRadius:20, height:5, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${color}80,${color})`, borderRadius:20, transition:"width 0.6s ease", boxShadow:`0 0 6px ${color}60` }} />
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{prevMilestone}sem</span>
+            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{nextMilestone}sem</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StreakChip({ sessions, compact = false }) {
+  const streak = getStreak(sessions);
+  if (streak < 2) return null;
+  const color = streak >= 30 ? "#f97316" : streak >= 14 ? "#a855f7" : streak >= 7 ? "#3b82f6" : "#f59e0b";
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${color}18`, border:`1px solid ${color}50`, borderRadius:20, padding: compact ? "2px 7px" : "3px 10px", fontSize: compact ? 10 : 11, fontWeight:700, color, flexShrink:0 }}>
+      🔥 {streak}sem
+    </span>
+  );
+}
+// ─── Streak Modal ─────────────────────────────────────────────────────────────
+
+
 function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onShare, getProgressData, expanded, onToggle, allSessions, onUpdate }) {
   const u = s.unit || unit;
   const [editingExId, setEditingExId] = useState(null);
@@ -8562,1114 +6487,7 @@ function RestTimerFloating({ timer, setTimer }) {
 //        calc1RM, ExerciseGif, uid, numDot
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LiveTrainMode({
-  exercises, workout, date, notes, unit, sessions,
-  onSaveSession, onBack,
-  floatTimer, setFloatTimer,
-}) {
-  // Restore draft if available
-  const draft = (() => { try { const d = localStorage.getItem(LIVE_DRAFT_KEY); return d ? JSON.parse(d) : null; } catch { return null; } })();
-  const draftMatches = draft && draft.workout === workout && draft.date === date;
 
-  const [elapsed, setElapsed] = useState(() => draftMatches ? (draft.elapsed || 0) : 0);
-  const [running, setRunning] = useState(true);
-  const [currentEx, setCurrentEx] = useState(() => draftMatches ? (draft.currentEx || 0) : 0);
-  const [exData, setExData] = useState(() => {
-    if (draftMatches && draft.exData) return draft.exData;
-    return exercises.map(ex => ({
-      ...ex,
-      restSecs: ex.restSecs || null,
-      sets: ex.sets?.length
-        ? ex.sets.map(s => ({ ...s, done: false }))
-        : Array.from({ length: parseInt(ex.series) || 3 }, () => ({
-            id: uid(), weight: ex.weight || "", reps: ex.reps || "", done: false
-          })),
-    }));
-  });
-  const [restoredDraft] = useState(draftMatches);
-  const [showSummary, setShowSummary] = useState(false);
-  const timerRef = useRef();
-  const restRef = useRef();
-  const [restTimer, setRestTimer] = useState(null); // null | { total, left }
-
-  // Countdown de descanso
-  useEffect(() => {
-    if (restTimer && restTimer.left > 0) {
-      restRef.current = setInterval(() => {
-        setRestTimer(prev => {
-          if (!prev || prev.left <= 1) { clearInterval(restRef.current); return prev ? { ...prev, left: 0 } : null; }
-          return { ...prev, left: prev.left - 1 };
-        });
-      }, 1000);
-    }
-    return () => clearInterval(restRef.current);
-  }, [restTimer?.total, restTimer?.left]);
-
-  function startRest(secs) {
-    clearInterval(restRef.current);
-    setRestTimer({ total: secs, left: secs });
-  }
-
-  const REST_OPTS_LIVE = [
-    { label: "1m", secs: 60 },
-    { label: "1.5m", secs: 90 },
-    { label: "2m", secs: 120 },
-    { label: "3m", secs: 180 },
-  ];
-  const [defaultRest, setDefaultRest] = useState(() => load("gym_default_rest", 90));
-
-  function saveDefaultRest(secs) {
-    setDefaultRest(secs);
-    store("gym_default_rest", secs);
-  }
-
-  useEffect(() => {
-    if (running) timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
-    else clearInterval(timerRef.current);
-    return () => clearInterval(timerRef.current);
-  }, [running]);
-
-  // Autosave draft on every change
-  useEffect(() => {
-    try {
-      localStorage.setItem(LIVE_DRAFT_KEY, JSON.stringify({ workout, date, elapsed, currentEx, exData }));
-    } catch {}
-  }, [exData, elapsed, currentEx]);
-
-  const fmt = s => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
-  const [showRestoredBanner, setShowRestoredBanner] = useState(restoredDraft);
-  useEffect(() => {
-    if (showRestoredBanner) { const t = setTimeout(() => setShowRestoredBanner(false), 3500); return () => clearTimeout(t); }
-  }, [showRestoredBanner]);
-  const totalSets = exData.reduce((a, e) => a + e.sets.length, 0);
-  const doneSets  = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-  const pct = totalSets > 0 ? doneSets / totalSets : 0;
-
-  function toggleSet(exIdx, setIdx) {
-    const wasDone = exData[exIdx].sets[setIdx].done;
-    setExData(prev => prev.map((ex, i) =>
-      i !== exIdx ? ex : {
-        ...ex,
-        sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, done: !s.done }),
-      }
-    ));
-    // Auto-lanzar timer de descanso al COMPLETAR una serie
-    if (!wasDone) {
-      const exRestSecs = exData[exIdx]?.restSecs ?? defaultRest;
-      startRest(exRestSecs);
-      if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-      }
-    }
-  }
-
-  function updateSet(exIdx, setIdx, field, val) {
-    setExData(prev => prev.map((ex, i) =>
-      i !== exIdx ? ex : {
-        ...ex,
-        sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val }),
-      }
-    ));
-  }
-
-  function addSet(exIdx) {
-    setExData(prev => prev.map((ex, i) =>
-      i !== exIdx ? ex : {
-        ...ex,
-        sets: [...ex.sets, {
-          id: uid(),
-          weight: ex.sets[ex.sets.length - 1]?.weight || "",
-          reps:   ex.sets[ex.sets.length - 1]?.reps   || "",
-          done:   false,
-        }],
-      }
-    ));
-  }
-
-  function removeSet(exIdx) {
-    setExData(prev => prev.map((ex, i) =>
-      i !== exIdx || ex.sets.length <= 1 ? ex : {
-        ...ex, sets: ex.sets.slice(0, -1),
-      }
-    ));
-  }
-
-  // ── PANTALLA RESUMEN ────────────────────────────────────────────────────────
-  if (showSummary) {
-    const totalVol = exData.reduce((acc, ex) =>
-      acc + ex.sets.filter(s => s.done)
-        .reduce((a, s) => a + (parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 1), 0), 0);
-    const completedSets = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-    const completionPct = exData.length > 0 ? Math.round(completedSets / exData.reduce((a,e)=>a+e.sets.length,0) * 100) : 0;
-
-    // Pick celebration mood based on performance
-    const celebMood = completionPct >= 90 ? BRUX_MOODS.celebrate
-      : completionPct >= 60 ? BRUX_MOODS.proud
-      : BRUX_MOODS.happy;
-
-    const celebMessages = completionPct >= 90
-      ? [
-          "¡Lo completaste todo! Eso es nivel élite 🔥",
-          "¡100%! Eres una bestia del gym 🏆",
-          "¡Brutal! Brux está sin palabras. Buenas, claro. 💪",
-          "Sesión perfecta. Así se construye un cuerpo de acero. 🔩",
-          "Todo completado. Cada rep contó. Brux lo vio todo.",
-          "¡Imparable! Eso no lo hace cualquiera. Bien hecho. 🎯",
-          "Nivel desbloqueado. Brux actualiza tu expediente. 📋",
-          "¿100%? Brux se quita el sombrero. Literalmente. 🎩",
-          "Completaste todo. El gym te debe una reverencia. 🙇",
-        ]
-      : completionPct >= 60
-      ? [
-          "¡Buen trabajo! Cada serie cuenta 👊",
-          "¡Sesión completada! Mañana más 💪",
-          "¡Así se hace! Consistencia es la clave 🗝️",
-          "Más de la mitad bien ejecutada. Eso se llama progreso real.",
-          "Sólido. No todos los días son perfectos y está bien. ✅",
-          "Trabajo hecho. Brux anota el esfuerzo, no solo el resultado.",
-          "Buen ritmo hoy. Con esto se construyen hábitos de hierro. 🏗️",
-          "Sesión cerrada. Tu yo del futuro te lo va a agradecer. ⏳",
-          "No fue el 100%, pero fue tuyo. Y eso vale mucho. 💛",
-        ]
-      : [
-          "Algo es algo. Lo importante es aparecer 💯",
-          "¡Viniste y eso ya es una victoria! 🌟",
-          "El primer paso siempre es el más difícil. ¡Seguí! 🚀",
-          "Días difíciles también cuentan. Brux lo respeta.",
-          "Hoy no fue tu mejor día y de todas formas entrenaste. Eso es carácter. 💪",
-          "Medio entrenamiento sigue siendo mejor que ninguno. Siempre.",
-          "El cuerpo no siempre coopera. Lo que importa es que volviste. 🔄",
-          "Brux sabe que no fue fácil hoy. Por eso vale más. 🙌",
-          "Apareciste. Eso ya te pone en el top. El resto viene solo. 📈",
-        ];
-    const celebMsg = celebMessages[Math.floor(Date.now()/86400000) % celebMessages.length];
-
-    return (
-      <div style={{
-        minHeight: "calc(100vh - 60px)", background: "var(--bg)",
-        display: "flex", flexDirection: "column", padding: "28px 20px",
-        animation: "fadeIn 0.4s ease",
-      }}>
-        {/* Mascota celebrando — animada */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <style>{`
-            @keyframes dumbbellCelebrate {
-              0%   { transform: scale(1) rotate(0deg); }
-              15%  { transform: scale(1.3) rotate(-15deg); }
-              30%  { transform: scale(1.2) rotate(12deg); }
-              45%  { transform: scale(1.25) rotate(-10deg); }
-              60%  { transform: scale(1.15) rotate(8deg); }
-              75%  { transform: scale(1.1) rotate(-5deg); }
-              100% { transform: scale(1) rotate(0deg); }
-            }
-            @keyframes confettiFall {
-              0%   { transform: translateY(-20px) rotate(0deg); opacity:1; }
-              100% { transform: translateY(60px) rotate(360deg); opacity:0; }
-            }
-          `}</style>
-
-          {/* Confetti particles */}
-          <div style={{ position: "relative", display: "inline-block" }}>
-            {["🎊","✨","🌟","💥","🎉","⭐","🔥","💫"].map((e, i) => (
-              <div key={i} style={{
-                position: "absolute",
-                left: `${10 + (i * 11) % 80}%`,
-                top: `${(i * 17) % 40}%`,
-                fontSize: 16 + (i % 3) * 4,
-                animation: `confettiFall ${0.8 + (i % 4) * 0.3}s ease-out ${i * 0.1}s forwards`,
-                pointerEvents: "none",
-              }}>{e}</div>
-            ))}
-
-          {/* Personaje celebrando */}
-          <div style={{ animation: "dumbbellCelebrate 1s ease-out 0.2s both", display: "inline-block" }}>
-            <svg viewBox="0 0 80 88" width="120" height="132">
-              <defs>
-                <filter id="glowCelebrate"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                <filter id="neonCelebrate"><feGaussianBlur stdDeviation="1.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              </defs>
-              {/* Aura glow */}
-              <ellipse cx="40" cy="44" rx="36" ry="40" fill={`${celebMood.color}20`} filter="url(#glowCelebrate)"/>
-              {/* HEAD */}
-              <path d="M22 8 L58 8 L60 14 L60 36 L54 42 L26 42 L20 36 L20 14 Z"
-                fill="#0a0a0a" stroke={celebMood.color} strokeWidth="2.2" strokeLinejoin="miter" filter="url(#glowCelebrate)"/>
-              <path d="M24 8 L56 8 L58 10 L22 10 Z" fill={celebMood.color}/>
-              <path d="M26 16 L54 16 L56 20 L56 36 L52 39 L28 39 L24 36 L24 20 Z"
-                fill="#111" stroke={`${celebMood.color}70`} strokeWidth="1" strokeLinejoin="miter"/>
-              {/* Star eyes */}
-              {completionPct >= 90
-                ? (<>
-                    <text x="27" y="27" fontSize="9" textAnchor="middle" fill={celebMood.color} fontWeight="900">★</text>
-                    <text x="37" y="27" fontSize="9" textAnchor="middle" fill={celebMood.color} fontWeight="900">★</text>
-                  </>)
-                : (<>
-                    <rect x="24" y="21" width="7" height="5" rx="1" fill={celebMood.color}/>
-                    <rect x="33" y="21" width="7" height="5" rx="1" fill={celebMood.color}/>
-                    <rect x="25" y="22" width="2" height="2" fill="#0a0a0a"/>
-                    <rect x="34" y="22" width="2" height="2" fill="#0a0a0a"/>
-                  </>)
-              }
-              {/* Big angular grin */}
-              <path d="M25 30 L32 36 L39 30" stroke={celebMood.color} strokeWidth="2.8" fill={`${celebMood.color}35`} strokeLinecap="square" strokeLinejoin="miter"/>
-              <line x1="29" y1="30" x2="30" y2="34" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
-              <line x1="32" y1="30.5" x2="32" y2="36" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
-              <line x1="35" y1="30" x2="34" y2="34" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
-              {/* Jaw accents */}
-              <line x1="20" y1="32" x2="26" y2="36" stroke={celebMood.color} strokeWidth="1.5" opacity="0.6"/>
-              <line x1="60" y1="32" x2="54" y2="36" stroke={celebMood.color} strokeWidth="1.5" opacity="0.6"/>
-              {/* NECK */}
-              <rect x="33" y="42" width="14" height="7" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.5"/>
-              {/* TORSO */}
-              <path d="M14 49 L66 49 L62 76 L18 76 Z"
-                fill="#0a0a0a" stroke={celebMood.color} strokeWidth="2.2" strokeLinejoin="miter" filter="url(#neonCelebrate)"/>
-              <path d="M18 49 L40 49 L38 62 L20 62 Z" fill={`${celebMood.color}25`} stroke={`${celebMood.color}60`} strokeWidth="1"/>
-              <path d="M62 49 L40 49 L42 62 L60 62 Z" fill={`${celebMood.color}25`} stroke={`${celebMood.color}60`} strokeWidth="1"/>
-              <line x1="40" y1="49" x2="40" y2="76" stroke={celebMood.color} strokeWidth="1.5" opacity="0.7"/>
-              <line x1="21" y1="62" x2="59" y2="62" stroke={celebMood.color} strokeWidth="1" opacity="0.35"/>
-              <line x1="22" y1="69" x2="58" y2="69" stroke={celebMood.color} strokeWidth="1" opacity="0.35"/>
-              {/* LEFT ARM */}
-              <path d="M14 49 L4 44 L0 34 L6 32 L10 40 L18 47 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <path d="M0 34 L-2 22 L4 18 L8 28 L6 32 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <rect x="-6" y="11" width="18" height="6" rx="0" fill={celebMood.color} filter="url(#glowCelebrate)"/>
-              <rect x="-8" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="8" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="-9" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              <rect x="14" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              {/* RIGHT ARM */}
-              <path d="M66 49 L76 44 L80 34 L74 32 L70 40 L62 47 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <path d="M80 34 L82 22 L76 18 L72 28 L74 32 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <rect x="68" y="11" width="18" height="6" rx="0" fill={celebMood.color} filter="url(#glowCelebrate)"/>
-              <rect x="66" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="80" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="64" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              <rect x="83" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              {/* LEGS */}
-              <path d="M18 76 L28 76 L26 88 L16 88 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <path d="M52 76 L62 76 L64 88 L54 88 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <rect x="14" y="86" width="14" height="4" fill={celebMood.color} opacity="0.9"/>
-              <rect x="52" y="86" width="14" height="4" fill={celebMood.color} opacity="0.9"/>
-              {/* FX */}
-              <text x="14" y="6" fontSize="10">✨</text>
-              <text x="56" y="5" fontSize="10">🎉</text>
-            </svg>
-          </div>
-          </div>
-
-          {/* Mensaje de celebración */}
-          <div style={{ marginTop: 12, padding: "10px 20px", background: `${celebMood.color}15`, border: `1px solid ${celebMood.color}40`, borderRadius: 14, display: "inline-block", maxWidth: 320 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: celebMood.color, textTransform: "uppercase", marginBottom: 2 }}>🏋️ tu compañero de gym</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{celebMsg}</div>
-          </div>
-        </div>
-
-        {/* Título */}
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 38, fontWeight: 900, letterSpacing: 1, marginBottom: 4 }}>
-            ¡Sesión completada!
-          </div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{workout} · {fmt(elapsed)}</div>
-        </div>
-
-        {/* Stats grid */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-          gap: 12, marginBottom: 28, maxWidth: 560, width: "100%", margin: "0 auto 28px",
-        }}>
-          {[
-            { icon: "⏱️", label: "Tiempo",      value: fmt(elapsed) },
-            { icon: "🏋️", label: "Ejercicios",  value: exData.length },
-            { icon: "🔢", label: "Series",       value: completedSets },
-            { icon: "📦", label: "Volumen",
-              value: totalVol >= 1000 ? `${(totalVol / 1000).toFixed(1)}t` : `${Math.round(totalVol)}kg` },
-          ].map(s => (
-            <div key={s.label} style={{
-              background: "var(--card)", border: "1px solid var(--border)",
-              borderRadius: 16, padding: "16px 12px", textAlign: "center",
-            }}>
-              <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
-              <div style={{
-                fontFamily: "Barlow Condensed, sans-serif",
-                fontSize: 28, fontWeight: 800, color: "var(--accent)",
-              }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Per-exercise breakdown */}
-        <div style={{ maxWidth: 560, margin: "0 auto", width: "100%", marginBottom: 28 }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 2,
-            color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12,
-          }}>
-            Resumen por ejercicio
-          </div>
-          {exData.map((ex, i) => {
-            const doneS  = ex.sets.filter(s => s.done);
-            const maxW   = doneS.length > 0 ? Math.max(...doneS.map(s => parseFloat(s.weight) || 0)) : 0;
-            const best1rm = doneS.length > 0
-              ? Math.max(...doneS.map(s => calc1RM(parseFloat(s.weight) || 0, parseFloat(s.reps) || 0)))
-              : 0;
-            return (
-              <div key={i} style={{
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-                display: "flex", gap: 12, alignItems: "center",
-              }}>
-                <ExerciseGif exName={ex.name} size={44} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
-                    {doneS.length > 0 ? "✓ " : "○ "}{ex.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    {doneS.length}/{ex.sets.length} series
-                    {maxW > 0 && ` · máx ${maxW}kg`}
-                    {best1rm > 0 && ` · ~${best1rm}kg 1RM`}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxWidth: 150, justifyContent: "flex-end" }}>
-                  {doneS.map((s, j) => (
-                    <span key={j} style={{
-                      fontSize: 11, padding: "2px 7px",
-                      background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)",
-                      borderRadius: 6, color: "#22c55e", fontWeight: 600,
-                    }}>
-                      {s.weight || "—"}×{s.reps || "—"}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Action buttons */}
-        <div style={{ maxWidth: 560, margin: "0 auto", width: "100%", display: "flex", gap: 12 }}>
-          <button
-            onClick={onBack}
-            style={{
-              flex: 1, background: "var(--card)", border: "1px solid var(--border)",
-              color: "var(--text-muted)", borderRadius: 12, padding: 14,
-              fontFamily: "Barlow, sans-serif", fontSize: 14, cursor: "pointer",
-            }}
-          >
-            ✕ Descartar
-          </button>
-          <button
-            onClick={() => {
-              const finalExercises = exData
-                .map(ex => ({ ...ex, sets: ex.sets.filter(s => s.weight || s.reps) }))
-                .filter(ex => ex.sets.length > 0);
-              onSaveSession(finalExercises, elapsed);
-            }}
-            style={{
-              flex: 2, background: "var(--accent)", border: "none",
-              color: "#0a0a0a", borderRadius: 12, padding: 14,
-              fontFamily: "Barlow Condensed, sans-serif",
-              fontSize: 20, fontWeight: 900, letterSpacing: 1, cursor: "pointer",
-              boxShadow: "0 0 24px rgba(232,255,0,0.3)",
-            }}
-          >
-            ✅ GUARDAR SESIÓN
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── PANTALLA PRINCIPAL DE ENTRENAMIENTO ─────────────────────────────────────
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", display: "flex", flexDirection: "column", zIndex: 400, overflowY: "auto" }}>
-      {/* ── Sticky header ── */}
-      <div style={{
-        background: "var(--surface)", borderBottom: "1px solid var(--border)",
-        padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
-        flexShrink: 0, position: "fixed", top: 0, left: 0, right: 0, zIndex: 500,
-      }}>
-        <button
-          onClick={() => {
-            const hasDone = exData.some(ex => ex.sets.some(s => s.done));
-            try { localStorage.removeItem(LIVE_DRAFT_KEY); } catch {}
-            if (hasDone) {
-              if (!window.confirm("¿Salir del entrenamiento? El borrador guardado se eliminará.")) return;
-            }
-            onBack();
-          }}
-          style={{
-            background: "none", border: "1px solid var(--border)",
-            color: "var(--text-muted)", borderRadius: 8, padding: "6px 10px",
-            cursor: "pointer", fontSize: 12, flexShrink: 0,
-          }}
-        >← Salir</button>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800,
-            letterSpacing: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            ⚡ {workout || "Entrenamiento"}
-            {showRestoredBanner && (
-              <span style={{ marginLeft: 8, fontSize: 11, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.4)", color: "#22c55e", borderRadius: 6, padding: "2px 8px", fontWeight: 700, letterSpacing: 0.5, verticalAlign: "middle" }}>
-                ✅ Sesión restaurada
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {doneSets}/{totalSets} series completadas
-          </div>
-        </div>
-
-        {/* Cronómetro + pausar en línea */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <div style={{
-            fontFamily: "Barlow Condensed, sans-serif", fontSize: 30, fontWeight: 800,
-            letterSpacing: 2, color: running ? "var(--accent)" : "var(--text-muted)",
-          }}>
-            {fmt(elapsed)}
-          </div>
-          <button
-            onClick={() => setRunning(r => !r)}
-            style={{
-              background: "var(--input-bg)", border: "1px solid var(--border)",
-              color: "var(--text-muted)", borderRadius: 8, padding: "5px 10px",
-              fontSize: 12, cursor: "pointer", fontFamily: "Barlow, sans-serif",
-              fontWeight: 600, flexShrink: 0,
-            }}
-          >
-            {running ? "⏸" : "▶"}
-          </button>
-        </div>
-      </div>
-
-      {/* Spacer para el header fixed */}
-      <div style={{ height: 57, flexShrink: 0 }} />
-      {/* Progress bar */}
-      <div style={{ height: 4, background: "var(--border)", flexShrink: 0 }}>
-        <div style={{
-          height: "100%",
-          background: "linear-gradient(90deg, var(--accent), #22c55e)",
-          width: `${pct * 100}%`,
-          transition: "width 0.4s ease", borderRadius: 2,
-        }} />
-      </div>
-
-      {/* Exercise tabs */}
-      <div style={{
-        display: "flex", gap: 6, padding: "10px 16px 0",
-        overflowX: "auto", flexShrink: 0, scrollbarWidth: "none",
-      }}>
-        {exData.map((ex, i) => {
-          const allDone = ex.sets.every(s => s.done) && ex.sets.length > 0;
-          const anyDone = ex.sets.some(s => s.done);
-          return (
-            <button key={i} onClick={() => setCurrentEx(i)} style={{
-              background: currentEx === i ? "var(--accent)"
-                : allDone ? "rgba(232,255,0,0.08)"
-                : anyDone ? "rgba(232,255,0,0.04)"
-                : "var(--card)",
-              border: `1px solid ${currentEx === i ? "var(--accent)" : allDone ? "rgba(232,255,0,0.3)" : "var(--border)"}`,
-              color: currentEx === i ? "#0a0a0a" : allDone ? "var(--accent)" : "var(--text-muted)",
-              borderRadius: 4, padding: "6px 12px", cursor: "pointer",
-              fontFamily: "'Barlow Condensed', sans-serif", fontSize: 12, fontWeight: 900,
-              whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1, textTransform: "uppercase",
-            }}>
-              {allDone ? "✓ " : anyDone ? "◑ " : ""}{ex.name}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Current exercise panel */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-        {exData[currentEx] && (() => {
-          const ex = exData[currentEx];
-          const doneCount = ex.sets.filter(s => s.done).length;
-
-          // PR anterior
-          const bestPrev = sessions
-            .flatMap(s => (s.exercises || [])
-              .filter(e => e.name === ex.name)
-              .map(e => {
-                const w = e.sets?.length > 0 ? Math.max(...e.sets.map(st => parseFloat(st.weight) || 0)) : parseFloat(e.weight) || 0;
-                const r = e.sets?.length > 0 ? Math.max(...e.sets.map(st => parseFloat(st.reps) || 0)) : parseFloat(e.reps) || 0;
-                return calc1RM(w, r);
-              })
-            ).reduce((best, v) => Math.max(best, v), 0);
-
-          return (
-            <div style={{ maxWidth: 580, margin: "0 auto" }}>
-
-              {/* Exercise header */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 18, gap: 8 }}>
-                  <ExerciseGif exName={ex.name} size={100} />
-                  <div style={{
-                    fontFamily: "Barlow Condensed, sans-serif",
-                    fontSize: 28, fontWeight: 800,
-                  }}>
-                    {ex.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    {doneCount}/{ex.sets.length} series
-                  </div>
-                  {bestPrev > 0 && (
-                    <div style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      background: "var(--accent-dim)", border: "1px solid rgba(232,255,0,0.3)",
-                      borderRadius: 4, padding: "4px 10px", fontSize: 12, color: "var(--accent)",
-                    }}>
-                      ★ MEJOR: {bestPrev}kg 1RM
-                    </div>
-                  )}
-                  {/* Per-exercise rest time selector */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
-                    <span style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 800, letterSpacing: 3, textTransform:"uppercase" }}>DESCANSO</span>
-                    {[60, 90, 120, 180].map(secs => {
-                      const active = (ex.restSecs ?? defaultRest) === secs;
-                      return (
-                        <button key={secs} onClick={() => setExData(prev => prev.map((e, i) => i !== currentEx ? e : { ...e, restSecs: secs }))}
-                          style={{
-                            background: active ? "var(--accent)" : "var(--input-bg)",
-                            border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                            color: active ? "#0a0a0a" : "var(--text-muted)",
-                            borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                          }}>
-                          {secs < 120 ? `${secs}s` : `${secs/60}m`}
-                        </button>
-                      );
-                    })}
-                  </div>
-              </div>
-
-              {/* Sets table */}
-              <div style={{
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: 14, overflow: "hidden", marginBottom: 10,
-              }}>
-                {/* Header row */}
-                <div style={{
-                  display: "grid", gridTemplateColumns: "36px 1fr 1fr 56px",
-                  gap: 8, padding: "9px 14px",
-                  background: "var(--input-bg)", borderBottom: "1px solid var(--border)",
-                }}>
-                  {["#", `Peso (${unit})`, "Reps", "✓"].map(h => (
-                    <div key={h} style={{
-                      fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
-                      textAlign: "center", letterSpacing: 1, textTransform: "uppercase",
-                    }}>{h}</div>
-                  ))}
-                </div>
-
-                {/* Set rows */}
-                {ex.sets.map((s, j) => (
-                  <div key={s.id} style={{
-                    display: "grid", gridTemplateColumns: "36px 1fr 1fr 56px",
-                    gap: 8, padding: "9px 14px", alignItems: "center",
-                    background: s.done ? "rgba(34,197,94,0.05)" : "transparent",
-                    borderBottom: j < ex.sets.length - 1 ? "1px solid var(--border)" : "none",
-                    transition: "background 0.25s",
-                  }}>
-                    <div style={{
-                      textAlign: "center", fontWeight: 800, fontSize: 14,
-                      fontFamily: "Barlow Condensed, sans-serif",
-                      color: s.done ? "var(--accent)" : "var(--text-muted)",
-                    }}>
-                      S{j + 1}
-                    </div>
-                    <input
-                      value={s.weight}
-                      onChange={e => updateSet(currentEx, j, "weight", numDot(e.target.value))}
-                      placeholder="—"
-                      style={{
-                        background: "var(--input-bg)",
-                        border: `1px solid ${s.done ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
-                        borderRadius: 8, padding: "8px", color: "var(--text)",
-                        fontFamily: "Barlow, sans-serif", fontSize: 16, fontWeight: 700,
-                        textAlign: "center", outline: "none", width: "100%",
-                      }}
-                    />
-                    <input
-                      value={s.reps}
-                      onChange={e => updateSet(currentEx, j, "reps", numDot(e.target.value))}
-                      placeholder="—"
-                      style={{
-                        background: "var(--input-bg)",
-                        border: `1px solid ${s.done ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
-                        borderRadius: 8, padding: "8px", color: "var(--text)",
-                        fontFamily: "Barlow, sans-serif", fontSize: 16, fontWeight: 700,
-                        textAlign: "center", outline: "none", width: "100%",
-                      }}
-                    />
-                    <button
-                      onClick={() => toggleSet(currentEx, j)}
-                      style={{
-                        width: 50, height: 38, margin: "0 auto",
-                        background: s.done ? "#22c55e" : "var(--input-bg)",
-                        border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`,
-                        borderRadius: 10, cursor: "pointer", fontSize: 18,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "all 0.2s", transform: s.done ? "scale(1.05)" : "scale(1)",
-                      }}
-                    >
-                      {s.done ? "✓" : "○"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add / remove series */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-                <button
-                  onClick={() => addSet(currentEx)}
-                  style={{
-                    flex: 1, background: "none", border: "1px dashed var(--border)",
-                    color: "var(--text-muted)", borderRadius: 10, padding: 9,
-                    cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 13,
-                  }}
-                >
-                  + Añadir serie
-                </button>
-                {ex.sets.length > 1 && (
-                  <button
-                    onClick={() => removeSet(currentEx)}
-                    style={{
-                      background: "none", border: "1px solid rgba(239,68,68,0.3)",
-                      color: "#ef4444", borderRadius: 10, padding: "9px 14px",
-                      cursor: "pointer", fontSize: 13,
-                    }}
-                  >
-                    − Quitar
-                  </button>
-                )}
-              </div>
-
-              {/* Inline rest timer */}
-              <div style={{
-                background: "var(--card)", border: `1px solid ${restTimer ? "var(--accent)" : "var(--border)"}`,
-                borderRadius: 12, padding: "11px 14px", marginBottom: 18,
-                transition: "border-color 0.3s",
-              }}>
-                {restTimer ? (
-                  <div>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 3, textTransform: "uppercase", marginBottom: 8 }}>DESCANSANDO</div>
-                    <div style={{ height: 5, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 10 }}>
-                      <div style={{ height: "100%", background: "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
-                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
-                      <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 34, fontWeight: 800, color: "var(--accent)" }}>
-                        {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
-                      </div>
-                      <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
-                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                      {REST_OPTS_LIVE.map(o => (
-                        <button key={o.label} onClick={() => startRest(o.secs)}
-                          style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#0a0a0a" : "var(--text-muted)", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
-                          {o.label}
-                        </button>
-                      ))}
-                      <button onClick={() => setRestTimer(null)}
-                        style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontSize: 11 }}>
-                        ✕ Quitar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                        <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 3, textTransform: "uppercase" }}>DESCANSO</div>
-                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                          Auto: <span style={{ color: "var(--accent)", fontWeight: 700 }}>{defaultRest < 60 ? `${defaultRest}s` : `${defaultRest/60}m`}</span>
-                          <span style={{ margin: "0 4px", opacity: 0.4 }}>·</span>
-                          {REST_OPTS_LIVE.map(o => (
-                            <button key={o.secs} onClick={() => saveDefaultRest(o.secs)}
-                              style={{ background: defaultRest === o.secs ? "var(--accent-dim)" : "none", border: "none", color: defaultRest === o.secs ? "var(--accent)" : "var(--text-muted)", borderRadius: 4, padding: "1px 5px", cursor: "pointer", fontSize: 10, fontWeight: defaultRest === o.secs ? 800 : 400 }}>
-                              {o.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {REST_OPTS_LIVE.map(o => (
-                          <button key={o.label} onClick={() => startRest(o.secs)}
-                            style={{ background: o.secs === defaultRest ? "var(--accent-dim)" : "var(--input-bg)", border: `1px solid ${o.secs === defaultRest ? "var(--accent)" : "var(--border)"}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: o.secs === defaultRest ? "var(--accent)" : "var(--text-muted)", fontSize: 11, fontWeight: o.secs === defaultRest ? 700 : 600 }}>
-                            {o.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Previous / Next navigation */}
-              <div style={{ display: "flex", gap: 10 }}>
-                {currentEx > 0 && (
-                  <button
-                    onClick={() => setCurrentEx(i => i - 1)}
-                    style={{
-                      flex: 1, background: "var(--card)", border: "1px solid var(--border)",
-                      color: "var(--text-muted)", borderRadius: 10, padding: 11,
-                      cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 13,
-                    }}
-                  >
-                    ← Anterior
-                  </button>
-                )}
-                {currentEx < exData.length - 1 ? (
-                  <button
-                    onClick={() => setCurrentEx(i => i + 1)}
-                    style={{
-                      flex: 2, background: "var(--accent)", border: "none",
-                      color: "#0a0a0a", borderRadius: 10, padding: 11,
-                      cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
-                      fontSize: 17, fontWeight: 700,
-                    }}
-                  >
-                    Siguiente →
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setRunning(false); setShowSummary(true); }}
-                    style={{
-                      flex: 2, background: "var(--accent)",
-                      border: "none", color: "#0a0a0a", borderRadius: 4, padding: 11,
-                      cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
-                      fontSize: 17, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase",
-                      boxShadow: "0 0 20px rgba(232,255,0,0.2)",
-                    }}
-                  >
-                    FINALIZAR →
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-    </div>
-  );
-}
-
-function StreakBanner({ sessions }) {
-  const streak = getStreak(sessions);
-  if (streak < 1) return null;
-  const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
-  const msg   = streak >= 365 ? "¡LEYENDA VIVIENTE!" : streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡INCENDIO TOTAL!" : streak >= 14 ? "¡En llamas!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!";
-  // Next milestone
-  const milestones = [3,7,14,30,90,365];
-  const nextMilestone = milestones.find(m => m > streak) || null;
-  const prevMilestone = [...milestones].reverse().find(m => m <= streak) || 0;
-  const pct = nextMilestone ? ((streak - prevMilestone) / (nextMilestone - prevMilestone)) * 100 : 100;
-
-  return (
-    <div style={{ background:`linear-gradient(135deg,${color}15,${color}05)`, border:`1px solid ${color}40`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:`0 4px 24px ${color}15` }}>
-      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-        <div style={{ fontSize:36, lineHeight:1, filter:`drop-shadow(0 0 8px ${color}80)` }}>🔥</div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:10, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:1 }}>{msg}</div>
-          <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
-            <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:38, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
-            <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>semanas seguidas</span>
-          </div>
-        </div>
-        {nextMilestone && (
-          <div style={{ textAlign:"center", flexShrink:0 }}>
-            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, marginBottom:4 }}>Próximo hito</div>
-            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}sem</div>
-            <div style={{ fontSize:9, color:"var(--text-muted)" }}>faltan {nextMilestone-streak}</div>
-          </div>
-        )}
-      </div>
-      {/* Progress bar toward next milestone */}
-      {nextMilestone && (
-        <div style={{ marginTop:10 }}>
-          <div style={{ background:"var(--border)", borderRadius:20, height:5, overflow:"hidden" }}>
-            <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${color}80,${color})`, borderRadius:20, transition:"width 0.6s ease", boxShadow:`0 0 6px ${color}60` }} />
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{prevMilestone}sem</span>
-            <span style={{ fontSize:8, color:"var(--text-muted)" }}>{nextMilestone}sem</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StreakChip({ sessions, compact = false }) {
-  const streak = getStreak(sessions);
-  if (streak < 2) return null;
-  const color = streak >= 30 ? "#f97316" : streak >= 14 ? "#a855f7" : streak >= 7 ? "#3b82f6" : "#f59e0b";
-  return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${color}18`, border:`1px solid ${color}50`, borderRadius:20, padding: compact ? "2px 7px" : "3px 10px", fontSize: compact ? 10 : 11, fontWeight:700, color, flexShrink:0 }}>
-      🔥 {streak}sem
-    </span>
-  );
-}
-// ─── Streak Modal ─────────────────────────────────────────────────────────────
-function StreakModal({ sessions, user, onClose }) {
-  const [teamStreaks, setTeamStreaks] = useState([]);
-  const [loadingTeam, setLoadingTeam] = useState(true);
-
-  const streak = getStreak(sessions);
-  const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
-  const milestones = [3, 7, 14, 30, 90, 180, 365];
-  const nextMilestone = milestones.find(m => m > streak) || null;
-  const prevMilestone = [...milestones].reverse().find(m => m <= streak) || 0;
-  const pct = nextMilestone ? ((streak - prevMilestone) / (nextMilestone - prevMilestone)) * 100 : 100;
-
-  // Build last 12 weeks calendar (84 days)
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const sessionDates = new Set(sessions.map(s => s.date));
-
-  // Build 12 weeks grid starting from monday 11 weeks ago
-  const startDay = new Date(today);
-  const dow = (today.getDay() + 6) % 7; // 0=Mon
-  startDay.setDate(startDay.getDate() - dow - 77); // go back 11 full weeks + current week
-
-  const weeks = [];
-  for (let w = 0; w < 12; w++) {
-    const week = [];
-    for (let d = 0; d < 7; d++) {
-      const day = new Date(startDay);
-      day.setDate(startDay.getDate() + w * 7 + d);
-      const ds = day.toISOString().slice(0, 10);
-      const isToday = ds === today.toISOString().slice(0, 10);
-      const trained = sessionDates.has(ds);
-      const isFuture = day > today;
-      week.push({ ds, trained, isToday, isFuture, dayNum: day.getDate(), month: day.getMonth() });
-    }
-    weeks.push(week);
-  }
-
-  // Month labels
-  const monthNames = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  const monthLabels = weeks.map((week, wi) => {
-    const firstDay = week[0];
-    if (wi === 0 || firstDay.dayNum <= 7) return { wi, label: monthNames[firstDay.month] };
-    return null;
-  }).filter(Boolean);
-
-  // Count active days & best streak
-  const totalActiveDays = sessions.length;
-  function calcBestStreak(sessions) {
-    // Best weekly streak: max consecutive weeks meeting the target
-    const weeklyTarget = 3; // default
-    const getMonday = (d) => { const date = new Date(d); date.setHours(0,0,0,0); const day = date.getDay(); date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day)); return date; };
-    const toKey = (d) => d.toISOString().slice(0,10);
-    const weekMap = {};
-    sessions.forEach(s => { const mon = toKey(getMonday(new Date(s.date+"T00:00:00"))); weekMap[mon]=(weekMap[mon]||0)+1; });
-    const weekKeys = Object.keys(weekMap).sort();
-    let best = 0, cur = 0;
-    for (let i = 0; i < weekKeys.length; i++) {
-      if (weekMap[weekKeys[i]] >= weeklyTarget) {
-        if (i > 0) {
-          const prev = new Date(weekKeys[i-1]+"T00:00:00");
-          const curr = new Date(weekKeys[i]+"T00:00:00");
-          const diff = Math.round((curr-prev)/604800000);
-          cur = diff === 1 ? cur + 1 : 1;
-        } else { cur = 1; }
-        best = Math.max(best, cur);
-      } else { cur = 0; }
-    }
-    return best;
-  }
-  const bestStreak = calcBestStreak(sessions);
-
-  // Load team streaks
-  useEffect(() => {
-    async function load() {
-      setLoadingTeam(true);
-      try {
-        const raw = localStorage.getItem("gym_my_teams");
-        const myTeams = raw ? JSON.parse(raw) : [];
-        const allMembers = [];
-        for (const t of myTeams.slice(0, 2)) {
-          const data = await teamsGet(`team_${t.code}`);
-          if (data?.members) {
-            Object.values(data.members).forEach(m => {
-              if (m.email !== user.email && m.streak != null) {
-                if (!allMembers.find(x => x.email === m.email)) {
-                  allMembers.push({ name: m.name || m.email.split("@")[0], streak: m.streak, email: m.email });
-                }
-              }
-            });
-          }
-        }
-        // Add self
-        const all = [{ name: "Tú", streak, email: user.email, isMe: true }, ...allMembers]
-          .sort((a, b) => b.streak - a.streak);
-        setTeamStreaks(all);
-      } catch(e) { setTeamStreaks([{ name: "Tú", streak, isMe: true }]); }
-      setLoadingTeam(false);
-    }
-    load();
-  }, []);
-
-  const DAY_LABELS = ["L","M","X","J","V","S","D"];
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 480, width: "100%" }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">🔥 Mi Racha</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        {/* Hero streak */}
-        <div style={{ textAlign: "center", padding: "10px 0 20px", borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color, textTransform: "uppercase", marginBottom: 4 }}>
-            {streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡EN LLAMAS!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!"}
-          </div>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 72, fontWeight: 900, color, lineHeight: 1, filter: `drop-shadow(0 0 20px ${color}60)` }}>
-            {streak}
-          </div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 12 }}>semanas seguidas</div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", background: "var(--input-bg)", borderRadius: 8, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
-            ℹ️ La racha cuenta semanas donde cumpliste tu meta de días
-          </div>
-
-          {/* Progress toward next milestone */}
-          {nextMilestone && (
-            <div style={{ maxWidth: 280, margin: "0 auto" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-                <span>{prevMilestone}sem</span>
-                <span style={{ color, fontWeight: 700 }}>→ {nextMilestone}sem</span>
-              </div>
-              <div style={{ background: "var(--border)", borderRadius: 20, height: 8, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: 20, boxShadow: `0 0 10px ${color}60`, transition: "width 0.8s ease" }} />
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
-                {nextMilestone - streak === 1 ? "¡La semana que viene llegas al hito! 🎯" : `Faltan ${nextMilestone - streak} semanas para el próximo hito`}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 22 }}>
-          {[
-            { label: "Racha actual", value: `${streak}sem`, color },
-            { label: "Mejor racha", value: `${bestStreak}sem`, color: "#f59e0b" },
-            { label: "Días activos", value: totalActiveDays, color: "#3b82f6" },
-          ].map(s => (
-            <div key={s.label} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar heatmap */}
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>
-            📅 Últimas 12 semanas
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 280 }}>
-              {/* Day labels */}
-              <div style={{ display: "flex", gap: 3, marginBottom: 4, paddingLeft: 28 }}>
-                {DAY_LABELS.map(d => (
-                  <div key={d} style={{ width: 20, fontSize: 9, color: "var(--text-muted)", textAlign: "center", fontWeight: 600, flexShrink: 0 }}>{d}</div>
-                ))}
-              </div>
-              {/* Weeks as rows */}
-              {weeks.map((week, wi) => {
-                const monthLabel = monthLabels.find(m => m.wi === wi);
-                return (
-                  <div key={wi} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 3 }}>
-                    {/* Month label col */}
-                    <div style={{ width: 24, fontSize: 8, color: "var(--text-muted)", fontWeight: 700, flexShrink: 0, textAlign: "right", paddingRight: 4 }}>
-                      {monthLabel ? monthLabel.label : ""}
-                    </div>
-                    {week.map(day => (
-                      <div
-                        key={day.ds}
-                        title={day.ds}
-                        style={{
-                          width: 20, height: 20, borderRadius: 5, flexShrink: 0,
-                          background: day.isFuture
-                            ? "transparent"
-                            : day.trained
-                              ? color
-                              : "var(--border)",
-                          opacity: day.isFuture ? 0.2 : 1,
-                          border: day.isToday ? `2px solid ${color}` : "2px solid transparent",
-                          boxShadow: day.trained && !day.isFuture ? `0 0 6px ${color}60` : undefined,
-                          transition: "all 0.2s",
-                          cursor: "default",
-                        }}
-                      />
-                    ))}
-                  </div>
-                );
-              })}
-              {/* Legend */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, paddingLeft: 28, fontSize: 10, color: "var(--text-muted)" }}>
-                <div style={{ width: 12, height: 12, borderRadius: 3, background: "var(--border)" }} />
-                <span>Sin entreno</span>
-                <div style={{ width: 12, height: 12, borderRadius: 3, background: color, boxShadow: `0 0 6px ${color}60` }} />
-                <span>Entrenado</span>
-                <div style={{ width: 12, height: 12, borderRadius: 3, border: `2px solid ${color}`, background: "transparent" }} />
-                <span>Hoy</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Team streaks leaderboard */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>
-            👥 Racha entre amigos
-          </div>
-          {loadingTeam ? (
-            <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>Cargando equipo...</div>
-          ) : teamStreaks.length <= 1 && !teamStreaks[0]?.isMe ? (
-            <div style={{ textAlign: "center", padding: "16px", background: "var(--input-bg)", borderRadius: 12, fontSize: 13, color: "var(--text-muted)" }}>
-              Únete a un GymTeam para comparar rachas con amigos 💪
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {teamStreaks.map((m, i) => {
-                const mColor = m.streak >= 30 ? "#f97316" : m.streak >= 14 ? "#a855f7" : m.streak >= 7 ? "#3b82f6" : m.streak >= 3 ? "#22c55e" : "#6b7280";
-                const maxStreak = Math.max(...teamStreaks.map(x => x.streak), 1);
-                const barPct = (m.streak / maxStreak) * 100;
-                const medals = ["🥇","🥈","🥉"];
-                return (
-                  <div key={m.email || i} style={{
-                    background: m.isMe ? `${color}10` : "var(--input-bg)",
-                    border: `1px solid ${m.isMe ? color + "40" : "var(--border)"}`,
-                    borderRadius: 12, padding: "12px 14px",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 16, flexShrink: 0 }}>{medals[i] || "🔥"}</span>
-                      <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: m.isMe ? color : "var(--text)" }}>
-                        {m.name} {m.isMe && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)" }}>(tú)</span>}
-                      </div>
-                      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: mColor }}>
-                        {m.streak}sem
-                      </div>
-                    </div>
-                    {/* Mini bar */}
-                    <div style={{ background: "var(--border)", borderRadius: 20, height: 5, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${barPct}%`, background: mColor, borderRadius: 20, transition: "width 0.8s ease" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-      </div>
-    </div>
-  );
-}
 
 function GymApp() {
   const { dark, toggleDark } = useTheme();
@@ -9788,6 +6606,13 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   const [showAdminExercises, setShowAdminExercises] = useState(false);
   const [athleteCoachInitialRoutine, setAthleteCoachInitialRoutine] = useState(null);
   const [coachRoutines, setCoachRoutines] = useState([]);
+  const [showCompletedBanner, setShowCompletedBanner] = useState(false);
+
+  useEffect(() => {
+    if (!showCompletedBanner) return;
+    const t = setTimeout(() => setShowCompletedBanner(false), 5000);
+    return () => clearTimeout(t);
+  }, [showCompletedBanner]);
 
   // Cargar ejercicios personalizados de Firestore al iniciar
   useEffect(() => {
@@ -9801,21 +6626,30 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     });
   }, []);
 
+  const [coachRoutinesLoading, setCoachRoutinesLoading] = useState(false);
+
   const loadCoachRoutines = async () => {
-    if (user.isGuest) return;
+    if (user.isGuest || coachRoutinesLoading) return;
+    setCoachRoutinesLoading(true);
     try {
       const assigned = await getAthleteRoutines(user.uid);
-      console.log("[coachRoutines] assigned from DB:", assigned);
       const full = await Promise.all(
-        assigned.map(async r => {
-          const routine = await getFullRoutine(r.coachUid, r.routineId);
-          if (!routine) return null;
-          return { ...routine, dayOfWeek: r.dayOfWeek ?? -1, coachUid: r.coachUid, routineId: r.routineId };
-        })
+        assigned
+          .filter(r => r.coachUid && r.routineId)  // guard: skip docs with missing IDs
+          .map(async r => {
+            try {
+              const routine = await getFullRoutine(r.coachUid, r.routineId);
+              if (!routine) return null;
+              return { ...routine, dayOfWeek: r.dayOfWeek ?? -1, coachUid: r.coachUid, routineId: r.routineId, _docId: r._docId };
+            } catch(e) {
+              console.error("[loadCoachRoutines] error on routine", r.routineId, e);
+              return null;
+            }
+          })
       );
-      console.log("[coachRoutines] full routines loaded:", full.filter(Boolean));
       setCoachRoutines(full.filter(Boolean));
     } catch(e) { console.error("[coachRoutines] load error:", e); }
+    finally { setCoachRoutinesLoading(false); }
   };
 
   useEffect(() => {
@@ -9872,7 +6706,22 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch(e) {}
             // Notificación web (funciona aunque la app esté en segundo plano)
             try {
-              if ("Notification" in window && Notification.permission === "granted") {
+              if (Capacitor.isNativePlatform()) {
+                import("@capacitor/local-notifications").then(({ LocalNotifications }) => {
+                  LocalNotifications.schedule({
+                    notifications: [{
+                      id: 998,
+                      title: "¡Tiempo de descanso terminado! 💪",
+                      body: "Listo para la siguiente serie.",
+                      schedule: { at: new Date(Date.now() + 500) },
+                      smallIcon: "ic_notification",
+                      channelId: "gymtracker_default",
+              iconColor: "#e8ff00",
+                      sound: null,
+                    }]
+                  }).catch(() => {});
+                }).catch(() => {});
+              } else if ("Notification" in window && Notification.permission === "granted") {
                 new Notification("¡Tiempo de descanso terminado! 💪", {
                   body: "Listo para la siguiente serie.",
                   icon: "/favicon.ico",
@@ -9906,6 +6755,210 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   }, [bodyStats]);
   useEffect(() => { store(plannerKey, weeklyPlan); }, [weeklyPlan]);
   useEffect(() => { store(goalKey, weeklyGoal); }, [weeklyGoal]);
+
+  // ─── Notificaciones locales (Capacitor) ────────────────────────────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || sessionsLoading) return;
+
+    async function setupNotifications() {
+      try {
+        const { LocalNotifications } = await import("@capacitor/local-notifications");
+        console.log("[Notif] Plugin cargado");
+
+        // Crear canal de notificaciones (obligatorio Android 8+)
+        try {
+          await LocalNotifications.createChannel({
+            id: "gymtracker_default",
+            name: "GymTracker",
+            description: "Recordatorios y alertas de entrenamiento",
+            importance: 4, // HIGH
+            visibility: 1,
+            vibration: true,
+          });
+          console.log("[Notif] Canal creado");
+        } catch(chErr) {
+          console.warn("[Notif] Canal (puede ya existir):", chErr);
+        }
+
+        // Pedir permiso
+        const perm = await LocalNotifications.requestPermissions();
+        console.log("[Notif] Permiso:", perm.display);
+        if (perm.display !== "granted") return;
+
+        // Cancelar todas las anteriores para reprogramar limpias
+        const pending = await LocalNotifications.getPending();
+        if (pending.notifications.length > 0) {
+          await LocalNotifications.cancel({ notifications: pending.notifications });
+        }
+
+        const notifications = [];
+
+        const motivMessages = [
+          { title: "💪 ¡YEAH BUDDY!", body: "LIGHTWEIGHT BABY! Hoy es día de entrenar. ¡Vamos!" },
+          { title: "🔥 Ronnie te está mirando", body: "Ronnie Coleman nunca faltó al gym. ¿Y tú? 👀" },
+          { title: "🏆 Los resultados no mienten", body: "Cada rep cuenta. Cada sesión importa. ¡A entrenar!" },
+          { title: "😤 Sin excusas", body: "Tu cama es cómoda, pero los músculos no se hacen solos." },
+          { title: "🦵 Hoy toca pierna", body: "No seas de los que olvidaron el día de pierna... otra vez." },
+          { title: "😂 Día de pierna", body: "Skipping leg day again? Las pantorrillas te odian." },
+          { title: "⚡ Modo bestia activado", body: "El gym te espera. Los pesos no se levantan solos." },
+          { title: "🧠 Disciplina > Motivación", body: "La motivación va y viene. La disciplina te lleva igual." },
+          { title: "📈 Progreso real", body: "El que entrena hoy supera al de ayer. Sé ese alguien." },
+          { title: "😴 ¿Aún en cama?", body: "Tu yo del futuro te lo agradecerá. ¡Muévete!" },
+          { title: "🎯 Enfocado", body: "Un mal entrenamiento es mejor que ninguno." },
+          { title: "🤣 Chiste del día", body: "¿Por qué saltan el día de pierna? Para correr de sus responsabilidades 🏃" },
+          { title: "🔑 El secreto", body: "No hay secreto. Solo consistencia. ¡Ve al gym!" },
+          { title: "💀 Arnold dixit", body: "El dolor de hoy es la fuerza de mañana. - Arnold" },
+          { title: "🚫 No hay tiempo", body: "Todos tenemos 24h. La diferencia es qué hacemos con ellas." },
+          { title: "🏋️ ¿PR hoy?", body: "Hoy puede ser el día de tu récord. Ni lo sabrás si no vas." },
+          { title: "😅 Honestidad brutal", body: "No es falta de tiempo. No es prioridad. ¡Cámbialo!" },
+          { title: "🌅 Nuevo día", body: "Cada día es una oportunidad de ser más fuerte que ayer." },
+          { title: "🤝 Tu yo del futuro", body: "Entrena hoy por quien quieres ser mañana." },
+          { title: "🔥 No pain no gain", body: "Sin dolor no hay gloria. Pero estírate primero 😅" },
+          { title: "🍕 Cardio o pizza", body: "Puedes comer la pizza o correr de ella. Tú decides." },
+          { title: "😤 ¿Mañana?", body: "'Mañana empiezo' lleva años diciéndolo. ¡Hoy!" },
+          { title: "🧱 Ladrillo a ladrillo", body: "Roma no se construyó en un día. Pero se construyó cada día." },
+          { title: "🐔 El pollo te llama", body: "Arroz, pollo y gym. La santísima trinidad del físico. 🙏" },
+          { title: "💤 Descanso activo", body: "¿Día de descanso? Bien. Mañana sin excusas al gym." },
+          { title: "🎮 Pause y al gym", body: "El juego guarda progreso. Tu cuerpo también, si entrenas." },
+          { title: "🥊 Rocky mode", body: "Si Rocky entrenaba en Siberia, tú puedes ir al gym." },
+          { title: "📉 Sin retroceder", body: "Cada día que no entrenas, alguien más sí lo hace." },
+          { title: "🧬 Genética no es excusa", body: "La genética carga la pistola. Tú aprietas el gatillo." },
+          { title: "🌮 Cheat meal ganado", body: "El cheat meal sabe mejor tras entrenar toda la semana." },
+          { title: "🪞 Mírate al espejo", body: "¿Te gusta lo que ves? El gym tiene la solución. 💪" },
+          { title: "🎒 La mochila te espera", body: "Está lista desde ayer. Solo falta que tú vayas al gym." },
+          { title: "😬 ¿Cuánto llevas sin ir?", body: "Exacto. Demasiado. Es hora de volver al gym hoy." },
+          { title: "🦾 Brazos de fideos", body: "Si no levantas peso, los brazos siguen siendo fideos. Facts." },
+          { title: "🏃 Empieza con 5 minutos", body: "Solo 5 minutos. Siempre terminas haciendo una hora completa." },
+          { title: "😎 Tú vs tú", body: "No compitas con nadie más. Solo sé mejor que el tú de ayer." },
+          { title: "🌙 Antes de dormir", body: "¿Hiciste algo por tu cuerpo hoy? Si no, mañana sin excusas." },
+          { title: "🧂 El sudor no miente", body: "El sudor es la grasa llorando. Ve al gym y hazla llorar más." },
+          { title: "🪑 Llevas horas sentado", body: "Tu espalda lo sabe. Tu cuerpo lo pide. El gym te espera." },
+          { title: "💸 Pagas igual", body: "La mensualidad se cobra vayas o no. Aprovecha tu dinero." },
+          { title: "🎯 Una serie más siempre", body: "Cuando creas que ya no puedes, haz una serie más. Siempre." },
+          { title: "🏅 Nadie te regala nada", body: "El físico no se hereda ni se compra. Se construye en el gym." },
+          { title: "😏 Sé lo que hiciste ayer", body: "Tampoco fuiste ayer, ¿verdad? Hoy no hay excusa que valga." },
+          { title: "🦷 Como el dentista", body: "Ir al gym duele menos que arrepentirte de no haber ido." },
+          { title: "🔄 La rutina gana siempre", body: "No necesitas motivación. Necesitas una rutina y respetarla." },
+          { title: "🌊 Siempre te sentirás mejor", body: "Nadie salió del gym arrepentido de haber ido. Nunca." },
+          { title: "🥵 Que duela un poco", body: "Si no duele un poco, probablemente no estás haciendo nada." },
+          { title: "📸 La foto de progreso", body: "En 3 meses te alegrarás de haber empezado hoy. Foto incluida." },
+          { title: "🍗 Proteína primero", body: "Pollo, huevo, atún. Después el gym. El orden importa. 🔑" },
+          { title: "🛌 El descanso se gana", body: "Descansas mejor cuando sabes que entrenaste duro hoy." },
+          { title: "🧪 ¡Tu creatina!", body: "No te olvides de la creatina. Cada día cuenta, incluso hoy." },
+          { title: "🏗️ En construcción", body: "Tu cuerpo es una obra. Cada entrenamiento pone un ladrillo." },
+          { title: "🎵 Pon la playlist", body: "Busca tu canción favorita y úsala de excusa para ir al gym." },
+          { title: "🌡️ Frío o calor", body: "El clima no es excusa. El gym tiene techo. ¡Vamos!" },
+          { title: "🤒 ¿Cansado?", body: "Cansancio mental se cura con ejercicio. Lo dice la ciencia." },
+          { title: "🧃 Hidratación primero", body: "Toma agua, agarra la mochila y al gym. En ese orden." },
+          { title: "📊 Lleva la cuenta", body: "¿Cuántas veces fuiste esta semana? Si la respuesta duele, al gym." },
+          { title: "🦁 Mentalidad de león", body: "El león no se pregunta si tiene ganas. Sale y caza. Tú también." },
+          { title: "🎽 Ya estás vestido", body: "Ponte la ropa de gym ahora. El resto se da solo." },
+          { title: "💡 Dato curioso", body: "20 minutos de ejercicio mejoran el humor por horas. ¿Vale la pena?" },
+          { title: "🧗 Un peldaño a la vez", body: "No necesitas ser el mejor. Solo ser constante. Eso es todo." },
+          { title: "🌿 Mente sana", body: "El gym no es solo físico. Tu cabeza también lo necesita." },
+          { title: "🥇 Primer lugar", body: "En tu propia vida, el primer lugar siempre debe ser tuyo." },
+          { title: "⏰ Son solo 60 minutos", body: "Una hora al día. El día tiene 24. No hay excusa matemática." },
+          { title: "🔋 Recarga energía", body: "Paradójico pero real: entrenar te da más energía. Inténtalo." },
+          { title: "🌐 El mundo no para", body: "Mientras tú descansas, otros entrenan. Tú decides." },
+          { title: "🤜 Golpea fuerte hoy", body: "Imagina todos tus problemas en el saco. Ahora ve al gym." },
+          { title: "🏄 Fluye", body: "Cuando entras en modo gym, todo lo demás desaparece. Úsalo." },
+          { title: "👟 Los zapatos listos", body: "Están en la puerta desde ayer. Póntelos y sal." },
+          { title: "🎖️ Medalla invisible", body: "Nadie te la da, pero tú sabes cuándo te la ganaste." },
+          { title: "🧩 La pieza que falta", body: "Tu semana perfecta le falta una pieza: el gym de hoy." },
+          { title: "🐢 Lento pero seguro", body: "No importa el ritmo. Importa que no pares. Nunca pares." },
+          { title: "🌟 Hoy puede ser el día", body: "El día que todo cambia empieza igual que cualquier otro." },
+          { title: "💬 Díselo al espejo", body: "Mírate y di: hoy voy al gym. Ahora cúmplelo." },
+          { title: "🏋️ Los pesos te esperan", body: "Están ahí, fríos y quietos. Ve a calentarlos un poco." },
+          { title: "😁 La cara del gym", body: "Esa cara de satisfacción al salir del gym no tiene precio." },
+          { title: "🔑 Abre la puerta", body: "La puerta del gym es la más importante que abrirás hoy." },
+          { title: "🧘 Equilibrio total", body: "Cuerpo fuerte, mente fuerte. Uno no funciona sin el otro." },
+          { title: "🌈 Después de la lluvia", body: "Después de cada sesión dura viene la mejor versión de ti." },
+          { title: "🤩 Tu momento", body: "En el gym no hay jefes, no hay problemas. Solo tú y los pesos." },
+          { title: "📅 Marca el día", body: "Tachar el gym en el calendario es uno de los mejores feels." },
+          { title: "🦅 Vuela alto", body: "Los que entrenan ven el mundo desde arriba. Sé uno de ellos." },
+          { title: "🎯 Sin distracciones", body: "Teléfono en modo avión, música a tope y a levantar peso." },
+          { title: "💥 Explota hoy", body: "Guarda toda tu energía para el gym. Deja todo ahí adentro." },
+          { title: "🍌 Carbohidratos cargados", body: "Come bien, descansa bien, entrena mejor. La fórmula es simple." },
+          { title: "🤸 Movilidad primero", body: "5 minutos de movilidad antes = menos lesiones + mejor sesión." },
+          { title: "🏆 Campeón de tu vida", body: "No necesitas un trofeo. Solo ser el campeón de tu propia historia." },
+          { title: "🕶️ Modo profesional", body: "Entra al gym como si fuera tu trabajo. Porque lo es." },
+          { title: "🌙 Noche de gym", body: "¿No pudiste ir de día? La noche también tiene gym. Sin excusas." },
+          { title: "🧠 Tu cerebro lo pide", body: "El ejercicio libera dopamina. Tu cerebro literalmente lo necesita." },
+          { title: "🥗 Come para rendir", body: "La nutrición es el 70%. El gym el 30%. Cuida los dos." },
+          { title: "🔥 Fuego interno", body: "Ese fuego que sientes antes de entrenar... aliméntalo hoy." },
+          { title: "😤 Demuéstrate algo", body: "No lo hagas por nadie más. Hazlo para demostrarte a ti mismo." },
+          { title: "🎬 Última escena", body: "En la película de tu vida, ¿eres el héroe o el que se rindió?" },
+          { title: "🚀 Despegue", body: "Los primeros 10 minutos son los más difíciles. Después vuela solo." },
+          { title: "🌍 Un día a la vez", body: "No pienses en meses. Piensa en hoy. Solo en hoy. ¡Vamos!" },
+          { title: "💪 Versión mejorada", body: "Cada sesión instala una actualización en tu cuerpo. ¡Actualízate!" },
+        ];
+
+        const usedIndexes = new Set();
+        const getUniqueMsg = () => {
+          if (usedIndexes.size >= motivMessages.length) usedIndexes.clear();
+          let idx;
+          do { idx = Math.floor(Math.random() * motivMessages.length); } while (usedIndexes.has(idx));
+          usedIndexes.add(idx);
+          return motivMessages[idx];
+        };
+
+        // 1 notificación por día, hora aleatoria entre 8 y 22
+        for (let d = 1; d <= 7; d++) {
+          const msg = getUniqueMsg();
+          notifications.push({
+            id: 100 + d,
+            title: msg.title,
+            body: msg.body,
+            schedule: {
+              on: { weekday: d, hour: Math.floor(Math.random() * (22 - 8 + 1)) + 8, minute: Math.floor(Math.random() * 60) },
+              repeats: true,
+              allowWhileIdle: true,
+            },
+            sound: null,
+            smallIcon: "ic_notification",
+            channelId: "gymtracker_default",
+            iconColor: "#e8ff00",
+          });
+        }
+
+        // +1 extra si llevas 2+ días sin entrenar
+        const lastSessionDate = sessions.length > 0
+          ? sessions.reduce((latest, s) => s.date > latest ? s.date : latest, sessions[0].date)
+          : null;
+        if (lastSessionDate) {
+          const daysSinceLast = Math.floor((new Date() - new Date(lastSessionDate + "T00:00:00")) / 86400000);
+          if (daysSinceLast >= 2) {
+            const msg = getUniqueMsg();
+            notifications.push({
+              id: 200,
+              title: "😬 ¡Tu racha está en riesgo! " + daysSinceLast + " días sin entrenar",
+              body: msg.body,
+              schedule: { at: new Date(Date.now() + 10000), repeats: false, allowWhileIdle: true },
+              sound: null,
+              smallIcon: "ic_notification",
+              channelId: "gymtracker_default",
+              iconColor: "#e8ff00",
+            });
+          }
+        }
+
+        if (notifications.length > 0) {
+          console.log("[Notif] Programando", notifications.length, "notificaciones");
+          await LocalNotifications.schedule({ notifications });
+          console.log("[Notif] ✅ Programadas OK");
+        } else {
+          console.log("[Notif] Sin notificaciones que programar");
+        }
+      } catch(e) {
+        console.error("[Notif] Error:", e);
+      }
+    }
+
+    setupNotifications();
+  }, [sessionsLoading, weeklyPlan]);
+
+
+
   useEffect(() => {
     const handle = (e) => { if (presetRef.current && !presetRef.current.contains(e.target)) setShowPresets(false); };
     document.addEventListener("mousedown", handle);
@@ -9984,6 +7037,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       const newSession = { id: uid(), date, workout, notes, exercises: currentExercises, unit };
       const newPRs = detectNewPRs(newSession, sessions);
       setSessions(prev => [newSession, ...prev]);
+      fireConfetti();
       if (newPRs.length > 0) {
         setPrConfetti({ prs: newPRs });
       } else {
@@ -10175,7 +7229,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               {!isGuest && <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}></span>}
             </div>
           </div>
-          <button className="nav-item" onClick={logout}>
+          <button className="nav-item" onClick={() => { if (window.confirm("¿Seguro que quieres salir?")) logout(); }}>
             <span className="nav-icon">→</span>
             <span className="nav-label">Salir</span>
           </button>
@@ -10287,7 +7341,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                     {isGuest ? <button className="plan-badge" style={{ "--pc": "#f59e0b" }} onClick={logout}>Invitado · Salir</button> : <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}>Ver perfil</span>}
                   </div>
                 </div>
-                <button className="nav-item" onClick={logout}>
+                <button className="nav-item" onClick={() => { if (window.confirm("¿Seguro que quieres salir?")) logout(); }}>
                   <span className="nav-icon">→</span>
                   <span className="nav-label">Salir</span>
                 </button>
@@ -10302,6 +7356,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
 
     {/* ── Modo LIVE activo: ocupa toda el área ── */}
     {liveActive && sessionMode === "live" ? (
+      <Suspense fallback={<div style={{color:"var(--text-muted)",textAlign:"center",padding:60,fontSize:14}}>⚡ Cargando...</div>}>
       <LiveTrainMode
         exercises={currentExercises}
         workout={workout}
@@ -10311,6 +7366,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         sessions={sessions}
         floatTimer={floatTimer}
         setFloatTimer={setFloatTimer}
+        ExerciseGif={ExerciseGif}
         calc1RM={calc1RM}
         uid={uid}
         numDot={numDot}
@@ -10325,6 +7381,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           };
           const newPRs = detectNewPRs(newSession, sessions);
           setSessions(prev => [newSession, ...prev]);
+          fireConfetti();
           if (newPRs.length > 0) setPrConfetti({ prs: newPRs });
           else showToast("✅ Sesión guardada");
           if (weeklyPlan.mode === "cycle" && weeklyPlan.cycle?.length > 0)
@@ -10332,8 +7389,10 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
           setDate(todayStr()); setWorkout(""); setNotes(""); setCurrentExercises([]);
           setLiveActive(false); setSessionMode(null);
           setActiveTab("history");
+          setShowCompletedBanner(true);
         }}
       />
+      </Suspense>
     ) : (
 
     /* ── Pantalla normal (selector de modo o formularios) ── */
@@ -10453,21 +7512,43 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
             const todayDateStr = new Date().toISOString().slice(0,10);
             const alreadyDone = sessions.some(s => s.date === todayDateStr &&
               (s.workout === todayRoutine.name || s.workout === todayRoutine.routineName));
+            if (alreadyDone) {
+              if (!showCompletedBanner) return null;
+              return (
+                <div style={{
+                  display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"8px 14px", marginBottom:20,
+                  background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.25)",
+                  borderRadius:10,
+                  animation:"fadeOutBanner 5s forwards",
+                }}>
+                  <span style={{fontSize:13, color:"#22c55e", fontWeight:700}}>
+                    ✅ {todayRoutine.name || todayRoutine.routineName} completada hoy
+                  </span>
+                  {coachRoutines.length > 1 && (
+                    <button onClick={() => setShowAthleteCoach(true)} style={{background:"none",border:"none",
+                      color:"var(--accent)",fontSize:11,fontWeight:700,cursor:"pointer",padding:0}}>
+                      Ver todas ({coachRoutines.length}) →
+                    </button>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <div style={{
-                background: alreadyDone ? "rgba(34,197,94,0.07)" : "rgba(232,255,0,0.04)",
-                border: `2px solid ${alreadyDone ? "rgba(34,197,94,0.4)" : "var(--accent)"}`,
-                borderRadius: 12, marginBottom: 20, overflow: "hidden",
-                boxShadow: alreadyDone ? "none" : "0 0 24px rgba(232,255,0,0.12)",
+                background:"rgba(232,255,0,0.04)",
+                border:"2px solid var(--accent)",
+                borderRadius:12, marginBottom:20, overflow:"hidden",
+                boxShadow:"0 0 24px rgba(232,255,0,0.12)",
               }}>
                 <div style={{
-                  background: alreadyDone ? "rgba(34,197,94,0.15)" : "rgba(232,255,0,0.12)",
-                  padding: "8px 14px", display: "flex", alignItems: "center", gap: 8,
-                  borderBottom: `1px solid ${alreadyDone ? "rgba(34,197,94,0.2)" : "rgba(232,255,0,0.15)"}`,
+                  background:"rgba(232,255,0,0.12)",
+                  padding:"8px 14px", display:"flex", alignItems:"center", gap:8,
+                  borderBottom:"1px solid rgba(232,255,0,0.15)",
                 }}>
-                  <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
-                    color: alreadyDone ? "#22c55e" : "var(--accent)"}}>
-                    {alreadyDone ? "✅ RUTINA COMPLETADA HOY" : isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
+                  <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",color:"var(--accent)"}}>
+                    {isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
                   </span>
                 </div>
                 <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:14}}>
@@ -10493,21 +7574,17 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                       </button>
                     )}
                   </div>
-                  {!alreadyDone && (
-                    <button onClick={() => {
-                      setWorkout(todayRoutine.name || todayRoutine.routineName || "Rutina Coach");
-                      setCurrentExercises((todayRoutine.exercises||[]).map(e => ({...e, id:uid()})));
-                      setSessionMode("live");
-                      setShowNameModal(false);
-                    }} style={{
-                      background:"var(--accent)", border:"none", borderRadius:10,
-                      color:"#0a0a0a", fontWeight:900, fontSize:13,
-                      padding:"10px 16px", cursor:"pointer", flexShrink:0,
-                      display:"flex",alignItems:"center",gap:5,
-                      letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
-                      textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)",
-                    }}>⚡ INICIAR</button>
-                  )}
+                  <button onClick={() => {
+                    setAthleteCoachInitialRoutine(todayRoutine);
+                    setShowAthleteCoach(true);
+                  }} style={{
+                    background:"var(--accent)", border:"none", borderRadius:10,
+                    color:"#0a0a0a", fontWeight:900, fontSize:13,
+                    padding:"10px 16px", cursor:"pointer", flexShrink:0,
+                    display:"flex",alignItems:"center",gap:5,
+                    letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
+                    textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)",
+                  }}>⚡ INICIAR</button>
                 </div>
               </div>
             );
@@ -10755,11 +7832,11 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
       <div className="field">
         <label className="field-label">Peso ({unit})</label>
-        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
       </div>
       <div className="field">
         <label className="field-label">Reps</label>
-        <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+        <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
       </div>
       <div className="field">
         <label className="field-label">Series</label>
@@ -10776,11 +7853,11 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
     <div className="field">
       <label className="field-label">Peso ({unit})</label>
-      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
     </div>
     <div className="field">
       <label className="field-label">Reps</label>
-      <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+      <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
     </div>
     <div className="field">
       <label className="field-label">Series</label>
@@ -10804,14 +7881,14 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
                       <div>
                         <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>PESO (kg)</label>
                         <input className="input" type="number" inputMode="decimal" placeholder="0"
-                          value={ex.weight || ""}
+                          value={ex.weight || ex.sets?.[0]?.weight || ""}
                           onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, weight: e.target.value }))}
                           style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
                       </div>
                       <div>
                         <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>REPS</label>
                         <input className="input" type="number" inputMode="decimal" placeholder="0"
-                          value={ex.reps || ""}
+                          value={ex.reps || ex.sets?.[0]?.reps || ""}
                           onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, reps: e.target.value }))}
                           style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
                       </div>
@@ -11011,11 +8088,11 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
       <div className="field">
         <label className="field-label">Peso ({unit})</label>
-        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
       </div>
       <div className="field">
         <label className="field-label">Reps</label>
-        <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+        <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
       </div>
       <div className="field">
         <label className="field-label">Series</label>
@@ -11032,11 +8109,11 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
     <div className="field">
       <label className="field-label">Peso ({unit})</label>
-      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numDot(e.target.value))} className="input" />
+      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
     </div>
     <div className="field">
       <label className="field-label">Reps</label>
-      <input placeholder="0" value={exReps} onChange={e => setExReps(numDot(e.target.value))} className="input" />
+      <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
     </div>
     <div className="field">
       <label className="field-label">Series</label>
@@ -11258,6 +8335,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
               coachRoutines={coachRoutines}
               onOpenCoach={() => setShowAthleteCoach(true)}
               onStartCoachRoutine={(routine) => { setAthleteCoachInitialRoutine(routine); setShowAthleteCoach(true); }}
+              showCompletedBanner={showCompletedBanner}
               onStartSession={(muscle) => {
                 setExMuscle(muscle);
                 setActiveTab("new");
@@ -11328,30 +8406,64 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       )}
 
       {showChallenge && (
-        <TeamChallengeModal
-          user={user}
-          sessions={sessions}
-          onClose={() => setShowChallenge(false)}
-        />
+        user.isGuest ? (
+          <div className="overlay" onClick={() => setShowChallenge(false)}>
+            <div className="modal" style={{ maxWidth:420 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">🏆 Reto Semanal</h3>
+                <button className="close-btn" onClick={() => setShowChallenge(false)}>✕</button>
+              </div>
+              <GuestWall onClose={() => setShowChallenge(false)} feature="los retos semanales" />
+            </div>
+          </div>
+        ) : (
+          <TeamChallengeModal user={user} sessions={sessions} onClose={() => setShowChallenge(false)} />
+        )
       )}
       {showBodyStats && (
-        <BodyStatsModal
-          stats={bodyStats}
-          uid={user.uid}
-          isGuest={user.isGuest}
-          onSave={s => setBodyStats(s)}
-          onClose={() => setShowBodyStats(false)}
-        />
+        user.isGuest ? (
+          <div className="overlay" onClick={() => setShowBodyStats(false)}>
+            <div className="modal" style={{ maxWidth:420 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">⚖️ Peso & Estatura</h3>
+                <button className="close-btn" onClick={() => setShowBodyStats(false)}>✕</button>
+              </div>
+              <GuestWall onClose={() => setShowBodyStats(false)} feature="el seguimiento de peso y estatura" />
+            </div>
+          </div>
+        ) : (
+          <BodyStatsModal stats={bodyStats} uid={user.uid} isGuest={false} onSave={s => setBodyStats(s)} onClose={() => setShowBodyStats(false)} />
+        )
       )}
       {showAdminExercises && user.isAdmin && (
-        <AdminExercisesModal onClose={() => setShowAdminExercises(false)} />
+        <Suspense fallback={null}>
+          <AdminExercisesModal
+              onClose={() => setShowAdminExercises(false)}
+              user={user}
+              setGif={(name, url) => setCustomGifsMap(p => ({ ...p, [name]: url }))}
+            />
+        </Suspense>
       )}
       {showAthleteCoach && (
-        <AthleteCoachPanel
-          user={user}
-          initialRoutine={athleteCoachInitialRoutine}
-          onClose={() => { setShowAthleteCoach(false); setAthleteCoachInitialRoutine(null); loadCoachRoutines(); }}
-        />
+        user.isGuest ? (
+          <div className="overlay" onClick={() => setShowAthleteCoach(false)}>
+            <div className="modal" style={{ maxWidth:420 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">🤖 Mi Coach</h3>
+                <button className="close-btn" onClick={() => setShowAthleteCoach(false)}>✕</button>
+              </div>
+              <GuestWall onClose={() => setShowAthleteCoach(false)} feature="Mi Coach y las rutinas personalizadas" />
+            </div>
+          </div>
+        ) : (
+          <AthleteCoachPanel
+            user={user}
+            sessions={sessions}
+            initialRoutine={athleteCoachInitialRoutine}
+            ExerciseGif={ExerciseGif}
+            onClose={() => { setShowAthleteCoach(false); setAthleteCoachInitialRoutine(null); loadCoachRoutines(); }}
+          />
+        )
       )}
       {showCoach && (
         <div className="overlay" onClick={() => setShowCoach(false)}>
@@ -11385,11 +8497,13 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         />
       )}
       {showStreakModal && (
-        <StreakModal
-          sessions={sessions}
-          user={user}
-          onClose={() => setShowStreakModal(false)}
-        />
+        <Suspense fallback={null}>
+          <StreakModal
+            sessions={sessions}
+            user={user}
+            onClose={() => setShowStreakModal(false)}
+          />
+        </Suspense>
       )}
       {showProfile && (
         <UserProfileModal
@@ -11402,6 +8516,17 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
         />
       )}
       {showProgressPicker && (() => {
+        if (isGuest) return (
+          <div className="overlay" onClick={() => setShowProgressPicker(false)}>
+            <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">📈 Progreso</h3>
+                <button className="close-btn" onClick={() => setShowProgressPicker(false)}>✕</button>
+              </div>
+              <GuestWall onClose={() => setShowProgressPicker(false)} feature="el progreso y estadísticas" />
+            </div>
+          </div>
+        );
         const exNames = [...new Set(sessions.flatMap(s => (s.exercises||[]).map(e => e.name)))];
         const grouped = {};
         exNames.forEach(name => {
@@ -11582,6 +8707,7 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       {prConfetti && (
         <PRConfetti
           prs={prConfetti.prs}
+          user={user}
           onDone={() => setPrConfetti(null)}
         />
       )}
@@ -11595,6 +8721,7 @@ export default function App() {
   const [dark, setDark] = useState(() => load("gym_dark", true));
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [loginInitTab, setLoginInitTab] = useState("login");
   const [splashDone, setSplashDone] = useState(false);
   const [splashPhrase] = useState(() => {
     const _p = [
@@ -11704,10 +8831,12 @@ export default function App() {
     setAuthLoading(false);
   }
 
-  async function logout() {
-    if (currentUser?.isGuest) { setCurrentUser(null); return; }
+  async function logout(goToRegister = false) {
+    if (goToRegister) localStorage.setItem("gym_login_init_tab", "register");
+    if (currentUser?.isGuest) { setCurrentUser(null); setLoginInitTab(goToRegister ? "register" : "login"); return; }
     await signOut(auth);
     setCurrentUser(null);
+    setLoginInitTab("login");
   }
 
   if (authLoading || !splashDone) {
@@ -11808,328 +8937,11 @@ export default function App() {
   return (
     <ThemeCtx.Provider value={{ dark, toggleDark }}>
       <AuthCtx.Provider value={{ user: currentUser, loginWithFirebase, registerWithFirebase, logout, loginAsGuest, resetPassword, loginWithGoogle }}>
-        <style>{CSS}</style>
         {!currentUser
-          ? <LoginScreen />
+          ? <LoginScreen initialTab={loginInitTab} />
           : <>{typeof document !== "undefined" && (document.body.classList.add("app-loaded"))}<GymApp /></>
         }
       </AuthCtx.Provider>
     </ThemeCtx.Provider>
   );
 }
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@300;400;500;600;700&display=swap');
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body[data-theme="dark"] {
-  --bg:        #0a0a0a;
-  --surface:   #111111;
-  --card:      #141414;
-  --border:    rgba(255,255,255,0.08);
-  --accent:    #e8ff00;
-  --accent-2:  #facc15;
-  --accent-dim: rgba(232,255,0,0.07);
-  --text:      #f0f0f0;
-  --text-muted: rgba(255,255,255,0.35);
-  --danger:    #ef4444;
-  --sidebar-bg: #0a0a0a;
-  --sidebar-text: rgba(255,255,255,0.45);
-  --sidebar-text-hover: rgba(255,255,255,0.9);
-  --sidebar-border: rgba(255,255,255,0.06);
-  --sidebar-hover-bg: rgba(232,255,0,0.08);
-  --input-bg:  #1a1a1a;
-  --shadow:    0 8px 40px rgba(0,0,0,0.7);
-}
-body[data-theme="light"] {
-  --bg:        #f2f2f0;
-  --surface:   #ffffff;
-  --card:      #ffffff;
-  --border:    rgba(0,0,0,0.1);
-  --accent:    #c8e000;
-  --accent-2:  #ca9a04;
-  --accent-dim: rgba(200,224,0,0.1);
-  --text:      #0a0a0a;
-  --text-muted: rgba(0,0,0,0.4);
-  --danger:    #dc2626;
-  --sidebar-bg: #ffffff;
-  --sidebar-text: rgba(0,0,0,0.45);
-  --sidebar-text-hover: rgba(0,0,0,0.9);
-  --sidebar-border: rgba(0,0,0,0.08);
-  --sidebar-hover-bg: rgba(0,0,0,0.05);
-  --input-bg:  #f5f5f3;
-  --shadow:    0 4px 24px rgba(0,0,0,0.1);
-}
-
-html, body { background: var(--bg) !important; }
-body { font-family: 'Barlow', sans-serif; color: var(--text); transition: color 0.3s; }
-body.app-loaded { background: var(--bg) !important; }
-
-/* ── Layout ── */
-.app-layout { display: flex; min-height: 100vh; }
-.main-content { flex: 1; display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); min-width: 0; margin-left: 240px; }
-
-/* ── Sidebar ── */
-.sidebar {
-  position: fixed; top: 0; left: 0; height: 100vh; width: 240px;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
-  display: flex; flex-direction: column; padding: 20px 0; z-index: 100; overflow-y: auto; overflow-x: hidden;
-}
-.sidebar-top {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 16px 20px;
-  border-bottom: 1px solid var(--sidebar-border);
-  margin-bottom: 12px;
-}
-.sidebar-logo { display: flex; align-items: center; gap: 10px; }
-.logo-text {
-  font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
-  font-size: 20px; letter-spacing: 6px; color: var(--sidebar-text-hover); text-transform: uppercase;
-}
-.sidebar-nav { flex: 1; padding: 0 10px; display: flex; flex-direction: column; gap: 2px; }
-.sidebar-bottom { padding: 12px 10px 0; border-top: 1px solid var(--sidebar-border); margin-top: auto; }
-.user-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 4px; }
-.user-avatar {
-  width: 32px; height: 32px; border-radius: 4px;
-  background: var(--accent); display: flex; align-items: center; justify-content: center;
-  font-weight: 900; font-size: 13px; color: #0a0a0a; flex-shrink: 0;
-  font-family: 'Barlow Condensed', sans-serif;
-}
-.user-name { font-size: 12px; font-weight: 600; color: var(--sidebar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; letter-spacing: 0.5px; }
-
-/* ── Nav items ── */
-.nav-item {
-  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-  border-radius: 4px; background: none; border: none;
-  color: var(--sidebar-text);
-  font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700;
-  cursor: pointer; text-align: left; width: 100%;
-  transition: background 0.15s, color 0.15s; white-space: nowrap;
-  letter-spacing: 1px; text-transform: uppercase;
-}
-.nav-item:hover { background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover); }
-.nav-item.active {
-  background: var(--sidebar-hover-bg);
-  color: var(--accent);
-  border-left: 2px solid var(--accent);
-  padding-left: 10px;
-}
-.nav-icon { font-size: 15px; flex-shrink: 0; }
-.plan-badge {
-  background: none; border: 1px solid var(--accent); color: var(--accent);
-  border-radius: 3px; padding: 1px 7px; font-size: 10px; font-weight: 800;
-  cursor: pointer; font-family: 'Barlow Condensed', sans-serif;
-  letter-spacing: 1px; transition: background 0.2s;
-}
-.plan-badge:hover { background: var(--accent); color: #0a0a0a; }
-
-/* ── Topbar ── */
-.topbar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  position: sticky; top: 0; z-index: 10;
-}
-.page-title {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 20px;
-  font-weight: 900; letter-spacing: 3px; text-transform: uppercase;
-}
-.topbar-actions { display: flex; gap: 6px; align-items: center; }
-.topbar-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: var(--input-bg); border: 1px solid var(--border);
-  color: var(--text-muted); border-radius: 4px;
-  padding: 6px 10px; cursor: pointer; min-width: 46px; transition: all 0.2s;
-}
-.topbar-btn:hover { border-color: var(--accent); color: var(--accent); }
-.topbar-btn-icon { font-size: 14px; line-height: 1; }
-.topbar-btn-label { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
-
-/* ── Hamburger ── */
-.hamburger { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 4px; }
-.hamburger span { display: block; width: 22px; height: 2px; background: var(--text); }
-
-/* ── Mobile drawer ── */
-.mobile-drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; backdrop-filter: blur(4px); }
-.mobile-drawer { position: absolute; top: 0; left: 0; width: 280px; height: 100vh; background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; animation: slideRight 0.25s ease; border-right: 1px solid var(--border); }
-@keyframes slideRight { from { transform: translateX(-100%); } to { transform: translateX(0); } }
-
-/* ── Mobile bottom nav ── */
-.mobile-bottom-nav {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  height: calc(60px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  z-index: 100;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  display: flex; align-items: stretch;
-}
-.mobile-nav-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; background: none; border: none; color: var(--text-muted);
-  cursor: pointer; font-family: 'Barlow', sans-serif; transition: color 0.15s; padding: 0;
-  font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-}
-.mobile-nav-btn.active { color: var(--accent); }
-.mobile-nav-btn:hover { color: var(--text); }
-
-/* ── Responsive ── */
-.desktop-only { display: flex !important; }
-.mobile-only { display: none !important; }
-@media (max-width: 768px) {
-  .desktop-only { display: none !important; }
-  .mobile-only { display: flex !important; }
-  .main-content { margin-left: 0 !important; padding-bottom: env(safe-area-inset-bottom); }
-  .sidebar { display: none !important; }
-  .content-area { padding: 16px; }
-  .topbar { padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
-  .form-row { flex-direction: column; }
-  .topbar-actions .topbar-btn { min-width: 38px; padding: 5px 8px; }
-  .modal { padding: 20px 16px; max-height: 85vh; }
-  .modal-wide { max-width: 100%; }
-  .overlay { padding: 12px; align-items: flex-end; }
-  .modal, .modal-wide { border-bottom-left-radius: 0; border-bottom-right-radius: 0; max-height: 92vh; }
-  .modal-profile { position: fixed !important; inset: 0 !important; border-radius: 0 !important; max-height: 100vh !important; height: 100dvh !important; margin: 0 !important; overflow-y: auto !important; }
-  .overlay:has(.modal-profile) { padding: 0 !important; align-items: stretch !important; }
-}
-
-/* ── Content ── */
-.content-area { padding: 24px 28px; max-width: 900px; width: 100%; margin: 0 auto; flex: 1; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 22px; margin-bottom: 16px; box-shadow: var(--shadow); transition: border-color 0.2s, background 0.3s; }
-.card:hover { border-color: var(--accent-dim); }
-.card-label { font-size: 10px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; font-family: 'Barlow Condensed', sans-serif; }
-.form-row { display: flex; gap: 12px; margin-bottom: 14px; }
-.field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
-.field-label { font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; font-family: 'Barlow Condensed', sans-serif; }
-.input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; outline: none; width: 100%; transition: border-color 0.2s, box-shadow 0.2s, background 0.3s; }
-.input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232,255,0,0.12); }
-input[type="date"].input { color-scheme: dark; }
-.textarea { resize: vertical; min-height: 70px; }
-
-/* ── Dropdowns ── */
-.dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1a1a1a; border: 1px solid var(--border); border-radius: 6px; z-index: 200; overflow: hidden; box-shadow: var(--shadow); }
-.dropdown-item { display: block; width: 100%; background: none; border: none; color: var(--text); padding: 10px 16px; text-align: left; font-family: 'Barlow', sans-serif; font-size: 14px; cursor: pointer; transition: background 0.15s; }
-.dropdown-item:hover { background: var(--accent-dim); color: var(--accent); }
-
-/* ── Sets & exercises ── */
-.sets-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.set-chip { background: var(--accent-dim); border: 1px solid rgba(232,255,0,0.25); color: var(--accent); border-radius: 3px; padding: 4px 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.5px; }
-.sets-badge { display: inline-block; background: var(--accent-dim); border: 1px solid rgba(232,255,0,0.25); color: var(--accent); border-radius: 3px; padding: 1px 6px; font-size: 10px; font-weight: 800; margin-left: 8px; vertical-align: middle; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; }
-.chip-del { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 0 2px; transition: color 0.2s; }
-.chip-del:hover { color: var(--danger); }
-.ex-list { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
-.ex-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--input-bg); border-radius: 4px; border: 1px solid var(--border); animation: slideIn 0.2s ease; }
-.ex-name { font-weight: 700; font-size: 14px; font-family: 'Barlow', sans-serif; }
-.ex-detail { color: var(--text-muted); font-size: 12px; }
-
-/* ── Buttons ── */
-.btn-primary { background: var(--accent); border: none; border-radius: 4px; padding: 13px 24px; color: #0a0a0a; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 20px rgba(232,255,0,0.2); }
-.btn-primary:hover { background: #f0ff40; transform: translateY(-1px); box-shadow: 0 4px 24px rgba(232,255,0,0.35); }
-.btn-primary:active { transform: scale(0.98); }
-.btn-ghost { background: var(--input-bg); border: 1px solid var(--border); color: var(--text-muted); border-radius: 4px; padding: 9px 16px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.btn-ghost:hover { border-color: var(--accent); color: var(--text); }
-.btn-ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
-.btn-ghost.small { padding: 6px 12px; font-size: 12px; }
-.btn-add-ex { width: 100%; background: none; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); border-radius: 4px; padding: 10px; margin-top: 12px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
-.btn-add-ex:hover { border-color: var(--accent); color: var(--accent); }
-.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-family: 'Barlow', sans-serif; font-size: inherit; font-weight: 700; }
-.link-btn:hover { text-decoration: underline; }
-.icon-action { background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px; opacity: 0.5; transition: opacity 0.2s; }
-.icon-action:hover { opacity: 1; }
-
-/* ── Session cards ── */
-.session-card { animation: slideIn 0.25s ease both; }
-.session-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; flex-wrap: wrap; gap: 8px; }
-.session-date { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-family: 'Barlow Condensed', sans-serif; }
-.session-workout { font-weight: 900; font-size: 16px; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
-.ex-count { font-size: 10px; color: var(--text-muted); background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; padding: 3px 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: 1px; }
-.chevron { color: var(--text-muted); font-size: 10px; }
-.session-body { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; animation: fadeIn 0.2s ease; }
-.session-notes { color: var(--text-muted); font-size: 13px; margin-bottom: 12px; font-style: italic; }
-.ex-row-saved { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; }
-.session-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-
-/* ── Dashboard ── */
-.section-title { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 20px; color: var(--text); }
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 18px 16px; display: flex; flex-direction: column; gap: 6px; animation: slideIn 0.3s ease both; transition: border-color 0.2s, transform 0.2s; }
-.stat-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.stat-value { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 900; color: var(--accent); }
-
-/* ── Login ── */
-.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); }
-.login-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 40px 36px; width: 100%; max-width: 420px; box-shadow: var(--shadow); animation: fadeIn 0.4s ease; }
-.login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.tab-row { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
-.tab-btn { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); padding: 10px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-bottom: -1px; }
-.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-.err-msg { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 4px; padding: 9px 12px; font-size: 13px; margin-bottom: 10px; }
-
-/* ── Plans ── */
-.plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 8px; }
-.plan-card { border: 1px solid var(--border); border-radius: 6px; padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; }
-.plan-card.plan-active { border-color: var(--accent); background: var(--accent-dim); }
-.plan-name { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
-.plan-price { font-size: 16px; font-weight: 700; font-family: 'Barlow Condensed', sans-serif; }
-.plan-features { list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-muted); flex: 1; margin: 4px 0; }
-.plan-btn { border-radius: 4px; padding: 9px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; margin-top: auto; }
-.plan-btn:hover { opacity: 0.85; }
-
-/* ── Library ── */
-.lib-filters { display: flex; gap: 8px; margin-bottom: 12px; }
-.muscle-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; margin-bottom: 14px; }
-.muscle-chip { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 3px; padding: 5px 12px; width: 100%; text-align: center; font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; }
-.muscle-chip:hover { border-color: var(--accent); color: var(--text); }
-.muscle-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; font-weight: 800; }
-.lib-list { overflow-y: auto; flex: 1; padding-right: 4px; }
-.lib-list::-webkit-scrollbar { width: 3px; }
-.lib-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-.lib-group { margin-bottom: 16px; }
-.lib-group-title { font-size: 10px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; padding: 0 4px; font-family: 'Barlow Condensed', sans-serif; }
-.lib-item { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; border-bottom: 1px solid var(--border); padding: 10px 6px; cursor: pointer; text-align: left; margin-bottom: 2px; transition: background 0.15s; }
-.lib-item:hover { background: var(--accent-dim); }
-.lib-info { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.lib-name { color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; font-weight: 600; }
-.lib-meta { color: var(--text-muted); font-size: 11px; }
-.lib-add { color: var(--accent); font-size: 20px; font-weight: 300; flex-shrink: 0; opacity: 0.6; transition: opacity 0.2s; }
-.lib-item:hover .lib-add { opacity: 1; }
-
-/* ── Modals ── */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: fadeIn 0.2s ease; backdrop-filter: blur(6px); }
-.modal { background: var(--card); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 28px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.8); animation: slideUp 0.25s ease; }
-.modal-wide { max-width: 680px; }
-.modal-library { max-width: 520px; max-height: 85vh; display: flex; flex-direction: column; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.modal-title { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-.close-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 4px; transition: color 0.2s; flex-shrink: 0; }
-.close-btn:hover { color: var(--text); }
-
-/* ── Misc ── */
-.text-muted { color: var(--text-muted); }
-.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
-.upgrade-banner { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #f87171; border-radius: 6px; padding: 12px 18px; font-size: 13px; margin-bottom: 16px; }
-.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #1a1a1a; border: 1px solid rgba(232,255,0,0.3); color: var(--text); padding: 12px 22px; border-radius: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; z-index: 9999; white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(232,255,0,0.1); animation: toastIn 0.3s ease; }
-@media (min-width: 769px) { .toast { bottom: 28px; } }
-@media (max-width: 768px) { .history-sidebar { display: none !important; } }
-
-@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
-@keyframes floatPhrase {
-  0%   { transform: rotate(var(--angle, -5deg)) translate(0, 0); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: rotate(var(--angle, -5deg)) translate(var(--dx, 40px), var(--dy, -80px)); opacity: 0; }
-}
-@keyframes floatBadge { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-6px) rotate(5deg); } }
-@keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-.fade-in { animation: fadeIn 0.3s ease; }
-select.input { cursor: pointer; }
-select.input option { background: #1a1a1a; color: var(--text); }
-.btn-guest { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-family: 'Barlow', sans-serif; }
-.btn-guest:hover { border-color: rgba(232,255,0,0.3); background: rgba(232,255,0,0.03); }
-.guest-banner { background: rgba(232,255,0,0.05); border: 1px solid rgba(232,255,0,0.2); color: var(--accent); border-radius: 6px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-weight: 600; }
-@keyframes prBannerIn { from { opacity:0; transform:translate(-50%,-50%) scale(0.6); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
-`;
