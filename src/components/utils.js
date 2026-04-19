@@ -1,5 +1,13 @@
 // ─── Shared utility functions ─────────────────────────────────────────────────
 
+// Internal helper — not exported (usado por calcBestStreak y getStreak)
+function getMonday(d) {
+  const date = new Date(d); date.setHours(0,0,0,0);
+  const day = date.getDay();
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+  return date.toISOString().slice(0,10);
+}
+
 export function calc1RM(weight, reps) {
   if (!weight || !reps || reps <= 0) return 0;
   const w = parseFloat(weight), r = parseFloat(reps);
@@ -55,12 +63,6 @@ export function getPRs(sessions) {
 }
 
 export function calcBestStreak(sessions, weeklyTarget = 3) {
-  const getMonday = (d) => {
-    const date = new Date(d); date.setHours(0,0,0,0);
-    const day = date.getDay();
-    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-    return date.toISOString().slice(0,10);
-  };
   const weekMap = {};
   sessions.forEach(s => { const mon = getMonday(s.date+"T00:00:00"); weekMap[mon]=(weekMap[mon]||0)+1; });
   const weekKeys = Object.keys(weekMap).sort();
@@ -80,12 +82,6 @@ export function calcBestStreak(sessions, weeklyTarget = 3) {
 }
 
 export function getStreak(sessions, weeklyTarget = 3) {
-  const getMonday = (d) => {
-    const date = new Date(d); date.setHours(0,0,0,0);
-    const day = date.getDay();
-    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-    return date.toISOString().slice(0,10);
-  };
   const weekMap = {};
   sessions.forEach(s => { const w = getMonday(s.date + "T00:00:00"); weekMap[w] = (weekMap[w]||0) + 1; });
   const weeks = Object.keys(weekMap).sort((a,b) => b.localeCompare(a));

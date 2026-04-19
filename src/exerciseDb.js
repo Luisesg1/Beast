@@ -54,6 +54,36 @@ export let EXERCISE_DB = [
   { name: "Elíptica", muscle: "Cardio", machine: true, equipment: "Máquina" },
   { name: "Burpees", muscle: "Cardio", machine: false, equipment: "Cuerpo" },
   { name: "Saltar Cuerda", muscle: "Cardio", machine: false, equipment: "Accesorio" },
+
+  // ── Antebrazo ──────────────────────────────────────────────────────────────
+  { name: "Curl de Muñeca", muscle: "Antebrazo", machine: false, equipment: "Barra" },
+  { name: "Curl de Muñeca Invertido", muscle: "Antebrazo", machine: false, equipment: "Barra" },
+  { name: "Agarre Barra", muscle: "Antebrazo", machine: false, equipment: "Barra" },
+  { name: "Farmer Carry", muscle: "Antebrazo", machine: false, equipment: "Mancuernas" },
+  { name: "Extensión de Muñeca", muscle: "Antebrazo", machine: false, equipment: "Mancuernas" },
+
+  // ── Trapecios ──────────────────────────────────────────────────────────────
+  { name: "Encogimientos Barra", muscle: "Trapecios", machine: false, equipment: "Barra" },
+  { name: "Encogimientos Mancuernas", muscle: "Trapecios", machine: false, equipment: "Mancuernas" },
+  { name: "Remo al Mentón", muscle: "Trapecios", machine: false, equipment: "Barra" },
+  { name: "Encogimientos Máquina", muscle: "Trapecios", machine: true, equipment: "Máquina" },
+  { name: "Encogimientos Polea", muscle: "Trapecios", machine: true, equipment: "Polea" },
+
+  // ── Aductores ──────────────────────────────────────────────────────────────
+  { name: "Aductores Máquina", muscle: "Aductores", machine: true, equipment: "Máquina" },
+  { name: "Sentadilla Sumo", muscle: "Aductores", machine: false, equipment: "Barra" },
+  { name: "Sentadilla Sumo Mancuerna", muscle: "Aductores", machine: false, equipment: "Mancuernas" },
+  { name: "Zancada Lateral", muscle: "Aductores", machine: false, equipment: "Cuerpo" },
+
+  // ── Tibial ─────────────────────────────────────────────────────────────────
+  { name: "Dorsiflexión", muscle: "Tibial", machine: false, equipment: "Cuerpo" },
+  { name: "Elevación de Punta de Pies", muscle: "Tibial", machine: false, equipment: "Cuerpo" },
+  { name: "Tibial Máquina", muscle: "Tibial", machine: true, equipment: "Máquina" },
+
+  // ── Cuello ─────────────────────────────────────────────────────────────────
+  { name: "Extensión de Cuello", muscle: "Cuello", machine: false, equipment: "Cuerpo" },
+  { name: "Flexión de Cuello", muscle: "Cuello", machine: false, equipment: "Cuerpo" },
+  { name: "Rotación de Cuello", muscle: "Cuello", machine: false, equipment: "Cuerpo" },
 ];
 
 export let MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];

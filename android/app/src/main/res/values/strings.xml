@@ -1,7 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">GymTracker</string>
-    <string name="title_activity_main">GymTracker</string>
+    <string name="app_name">Beast</string>
+    <string name="title_activity_main">Beast</string>
     <string name="package_name">com.gymtracker.app</string>
     <string name="custom_url_scheme">com.gymtracker.app</string>
+    <string name="server_client_id">1006490404310-ldvlur4mirao8nq5eb99qbti90olcn63.apps.googleusercontent.com</string>
 </resources>

@@ -1,34 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { doc, getDoc, setDoc, collection, getDocs, getDocsFromServer, deleteDoc } from "firebase/firestore";
+import { useConfirm } from "./ConfirmModal";
+import { doc, getDoc, collection, getDocsFromServer, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { EXERCISE_DB, MUSCLES } from "../exerciseDb";
 import { calc1RM, getPRs, getStreak } from "./utils";
-
-// ─── Firebase helpers (custom exercises) ─────────────────────────────────────
-async function loadCustomExercises() {
-  try {
-    const snap = await getDocs(collection(db, "custom_exercises"));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e) { console.error("[loadCustomExercises]", e); return []; }
-}
-async function updateCustomExerciseGif(id, gifUrl) {
-  try { await setDoc(doc(db, "custom_exercises", id), { gifUrl }, { merge: true }); return true; }
-  catch(e) { console.error("[updateCustomExerciseGif]", e); return false; }
-}
-async function updateCustomExerciseMeta(id, name, muscle) {
-  try { await setDoc(doc(db, "custom_exercises", id), { name, muscle }, { merge: true }); return true; }
-  catch(e) { return false; }
-}
-async function deleteCustomExercise(id) {
-  try { await deleteDoc(doc(db, "custom_exercises", id)); return true; }
-  catch(e) { return false; }
-}
+import { loadCustomExercises, updateCustomExerciseGif, updateCustomExerciseMeta, deleteCustomExercise } from "../utils/firebaseService";
 
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const numDot = (v, max = 9999) => { const s = v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"); const n = parseFloat(s); if (isNaN(n) || n < 0) return ""; return n > max ? String(max) : s; };
 
 function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
+  const { confirm: askConfirm, modal: confirmModal } = useConfirm();
   // Guard: only admins can use this panel
   if (!user?.isAdmin) {
     return (
@@ -116,13 +99,47 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
   }
 
   useEffect(() => {
-    loadCustomExercises().then(list => {
-      setExercises(list);
-      const inputs = {};
-      list.forEach(e => { inputs[e.id] = e.gifUrl || ""; });
-      setGifInputs(inputs);
+    async function loadAll() {
+      try {
+        const allExercises = [];
+
+        // 1) Ejercicios globales (usuarios sin coach)
+        const globalSnap = await getDocsFromServer(collection(db, "custom_exercises"));
+        globalSnap.docs.forEach(d => {
+          allExercises.push({
+            id: d.id,
+            _coachUid: null,
+            _coachName: null,
+            ...d.data(),
+          });
+        });
+
+        // 2) Ejercicios privados de cada coach
+        const coachesSnap = await getDocsFromServer(collection(db, "coaches"));
+        await Promise.all(coachesSnap.docs.map(async coachDoc => {
+          const sub = await getDocsFromServer(
+            collection(db, "coaches", coachDoc.id, "custom_exercises")
+          );
+          sub.docs.forEach(d => {
+            allExercises.push({
+              id: d.id,
+              _coachUid: coachDoc.id,
+              _coachName: coachDoc.data().name || coachDoc.id,
+              ...d.data(),
+            });
+          });
+        }));
+
+        setExercises(allExercises);
+        const inputs = {};
+        allExercises.forEach(e => { inputs[e.id] = e.gifUrl || ""; });
+        setGifInputs(inputs);
+      } catch(e) {
+        console.error("[AdminExercisesModal] loadAll ERROR:", e);
+      }
       setLoading(false);
-    });
+    }
+    loadAll();
   }, []);
 
   function getMode(id) { return uploadMode[id] || "url"; }
@@ -138,7 +155,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
     const { name, muscle } = editing[ex.id];
     if (!name.trim()) return;
     setSavingMeta(s => ({ ...s, [ex.id]: true }));
-    await updateCustomExerciseMeta(ex.id, name.trim(), muscle.trim());
+    await updateCustomExerciseMeta(ex._coachUid || null, ex.id, name.trim(), muscle.trim());
     setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, name: name.trim(), muscle: muscle.trim() } : e));
     setSavingMeta(s => ({ ...s, [ex.id]: false }));
     cancelEdit(ex.id);
@@ -167,7 +184,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
           reader.readAsDataURL(url);
         });
       }
-      const ok = await updateCustomExerciseGif(ex.id, url);
+      const ok = await updateCustomExerciseGif(ex._coachUid || null, ex.id, url);
       if (!ok) {
         setGifErrors(p => ({ ...p, [ex.id]: "❌ Error al guardar." }));
         setSaving(s => ({ ...s, [ex.id]: false }));
@@ -185,8 +202,8 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
   }
 
   async function handleDelete(ex) {
-    if (!window.confirm(`¿Eliminar "${ex.name}"?`)) return;
-    await deleteCustomExercise(ex.id);
+    const ok = await askConfirm(`¿Eliminar "${ex.name}"?`); if (!ok) return;
+    await deleteCustomExercise(ex._coachUid || null, ex.id);
     setExercises(prev => prev.filter(e => e.id !== ex.id));
   }
 
@@ -196,6 +213,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
   );
 
   return (
+    <>
     <div className="overlay" onClick={onClose}>
       <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
         <div className="modal-header">
@@ -266,7 +284,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>💪 {ex.muscle} · {ex.createdAt}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>💪 {ex.muscle} · {ex.createdAt}{ex._coachName ? <span style={{ marginLeft: 6, color: "var(--accent)", opacity: 0.7 }}>· 🧑‍💼 {ex._coachName}</span> : <span style={{ marginLeft: 6, color: "var(--text-muted)", opacity: 0.6 }}>· 👤 Usuario</span>}</div>
                       </div>
                       <button onClick={() => startEdit(ex)}
                         title="Editar nombre y músculo"
@@ -425,6 +443,8 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
 
       </div>
     </div>
+    {confirmModal}
+  </>
   );
 }
 

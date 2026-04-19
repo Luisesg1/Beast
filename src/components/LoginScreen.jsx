@@ -309,10 +309,19 @@ function LoginScreen({ initialTab }) {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
-  const [lastSubmitAt, setLastSubmitAt] = useState(0);
+  const lastSubmitAt = useRef(0);
   const SUBMIT_COOLDOWN_MS = 1500;
   const [focusedField, setFocusedField] = useState(null);
   const [animKey, setAnimKey] = useState(0);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function handleGoogleLogin() {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    const result = await loginWithGoogle();
+    setGoogleLoading(false);
+    if (result && !result.ok && result.msg) setErr(result.msg);
+  }
 
   function switchMode(m) {
     setMode(m); setErr(""); setMsg("");
@@ -322,8 +331,8 @@ function LoginScreen({ initialTab }) {
 
   async function submit() {
     const now = Date.now();
-    if (loading || now - lastSubmitAt < SUBMIT_COOLDOWN_MS) return;
-    setLastSubmitAt(now);
+    if (loading || now - lastSubmitAt.current < SUBMIT_COOLDOWN_MS) return;
+    lastSubmitAt.current = now;
     setErr(""); setMsg("");
     if (mode === "forgot") {
       if (!email) { setErr("Ingresa tu email"); return; }
@@ -437,7 +446,7 @@ function LoginScreen({ initialTab }) {
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 15, fontWeight: 900, letterSpacing: 6,
             color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
-          }}>GYMTRACKER</span>
+          }}>BEAST</span>
         </div>
 
         {/* Giant slogan */}
@@ -565,7 +574,7 @@ function LoginScreen({ initialTab }) {
             fontSize: 28, fontWeight: 900, letterSpacing: 7,
             color: "white", textTransform: "uppercase",
             lineHeight: 1,
-          }}>GYMTRACKER</div>
+          }}>BEAST</div>
           {/* Slogan — subordinado, pequeño */}
           <div style={{
             display: "flex", alignItems: "center", gap: 8, marginTop: 10,
@@ -807,7 +816,8 @@ function LoginScreen({ initialTab }) {
 
               {/* Google button */}
               <button
-                onClick={() => loginWithGoogle()}
+                onClick={handleGoogleLogin}
+                disabled={googleLoading}
                 style={{
                   width: "100%",
                   background: "var(--card)",
@@ -815,23 +825,26 @@ function LoginScreen({ initialTab }) {
                   borderRadius: 4,
                   padding: "12px 16px",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                  cursor: "pointer", marginBottom: 10,
+                  cursor: googleLoading ? "not-allowed" : "pointer", marginBottom: 10,
                   fontFamily: "'Barlow', sans-serif",
                   fontSize: 13, fontWeight: 700,
-                  color: "rgba(255,255,255,0.7)",
+                  color: googleLoading ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                   letterSpacing: 0.5,
                   transition: "all 0.2s",
+                  opacity: googleLoading ? 0.6 : 1,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; }}
+                onMouseEnter={e => { if (!googleLoading) { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; } }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
               >
-                <svg width="16" height="16" viewBox="0 0 48 48">
-                  <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
-                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
-                  <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36.5 24 36.5c-5.2 0-9.6-3.4-11.2-8.1l-6.5 5C9.9 40 16.4 44 24 44z"/>
-                  <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.2 5.2C40.9 35.4 44 30.1 44 24c0-1.3-.2-2.7-.4-4z"/>
-                </svg>
-                Continuar con Google
+                {googleLoading ? <span style={{ fontSize: 15 }}>⏳</span> : (
+                  <svg width="16" height="16" viewBox="0 0 48 48">
+                    <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
+                    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
+                    <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36.5 24 36.5c-5.2 0-9.6-3.4-11.2-8.1l-6.5 5C9.9 40 16.4 44 24 44z"/>
+                    <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.2 5.2C40.9 35.4 44 30.1 44 24c0-1.3-.2-2.7-.4-4z"/>
+                  </svg>
+                )}
+                {googleLoading ? "Conectando..." : "Continuar con Google"}
               </button>
 
               {/* Guest button */}
@@ -854,7 +867,7 @@ function LoginScreen({ initialTab }) {
                 <span style={{ fontSize: 18 }}>👤</span>
                 <div style={{ textAlign: "left" }}>
                   <div style={{ fontWeight: 700, fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 }}>Entrar como invitado</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>3 sesiones · Sin historial guardado</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>1 sesión · Sin historial guardado</div>
                 </div>
               </button>
 

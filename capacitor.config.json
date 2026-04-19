@@ -1,6 +1,6 @@
 {
-  "appId": "com.gymtracker.app",
-  "appName": "gym-app",
+  "appId": "com.beast.gymtracker",
+  "appName": "Beast",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

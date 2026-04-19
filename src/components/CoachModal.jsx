@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from "react";
+import { useConfirm } from "./ConfirmModal";
 import { doc, getDoc, setDoc, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
+
+
+
 import { EXERCISE_DB, MUSCLES, registerCustomExercise } from "../exerciseDb";
+import { calc1RM, getPRs } from "../utils/gymCalcs";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
 const fmtDate = (d) => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
@@ -12,12 +18,6 @@ const numWeight = (v) => numDot(v, 500);
 const numReps   = (v) => numDot(v, 100);
 const lettersOnly = (v) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, "");
 
-function calc1RM(weight, reps) {
-  if (!weight || !reps || reps <= 0) return 0;
-  const w = parseFloat(weight), r = parseFloat(reps);
-  if (r === 1) return w;
-  return Math.round(w * (1 + r / 30));
-}
 
 function calcSessionVolume(session) {
   return (session.exercises || []).reduce((acc, ex) => {
@@ -74,16 +74,6 @@ function getStreak(sessions, weeklyTarget = 3) {
   return streak;
 }
 
-function getPRs(sessions) {
-  const prs = {};
-  sessions.forEach(s => (s.exercises||[]).forEach(ex => {
-    const w = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
-    const r = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.reps)||0)) : parseFloat(ex.reps)||0;
-    const rm = calc1RM(w, r);
-    if (!prs[ex.name] || rm > prs[ex.name].rm) prs[ex.name] = { rm, date: s.date };
-  }));
-  return prs;
-}
 
 const BADGE_DEFS = [
   // ⭐ NIVEL 1 — Bronce
@@ -149,10 +139,11 @@ const BADGE_DEFS = [
 
 // registerCustomExercise is imported from ../exerciseDb
 
-async function saveCustomExercise(name, muscle) {
+async function saveCustomExercise(name, muscle, coachUid) {
   try {
     const id = name.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    await setDoc(doc(db, "custom_exercises", id), {
+    // Escritura en subcolección privada del coach — no es visible para otros coaches
+    await setDoc(doc(db, "coaches", coachUid, "custom_exercises", id), {
       name, muscle, equipment: "Personalizado", machine: false,
       gifUrl: "", createdAt: new Date().toISOString().slice(0, 10)
     }, { merge: true });
@@ -287,17 +278,24 @@ async function getAthleteRoutines(athleteUid) {
     }
     const routines = allRoutines.filter(r => r.coachUid && r.routineId);
 
-    // Reset automatico semanal: si completedAt es anterior al ultimo Lunes 00:00
+    // Reset automatico semanal: si completedAt es anterior al lunes de esta semana,
+    // o si está marcada completed:true pero sin completedAt (dato inconsistente)
     const now = new Date();
     const lastMonday = new Date(now);
     lastMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
     lastMonday.setHours(0, 0, 0, 0);
+    const lastMondayStr = lastMonday.toISOString().slice(0, 10);
 
     const toReset = routines.filter(r => {
-      if (!r.completed || !r.completedAt) return false;
-      const completedDate = new Date(r.completedAt + "T00:00:00");
-      return completedDate < lastMonday;
+      if (!r.completed) return false;
+      // Sin completedAt → dato inconsistente, resetear siempre
+      if (!r.completedAt) return true;
+      // Comparar strings YYYY-MM-DD directamente (evita timezone issues)
+      return r.completedAt < lastMondayStr;
     });
+
+    // Forzar reset de todas las marcadas esta semana si ya pasó el lunes
+    // (cubre casos donde completedAt existe pero es de esta semana pasada)
 
     if (toReset.length > 0) {
       await Promise.all(toReset.map(r =>
@@ -313,6 +311,20 @@ async function getAthleteRoutines(athleteUid) {
 
     return routines;
   } catch(e) { return []; }
+}
+
+// Reset manual de todas las rutinas completadas (para el botón de refresh)
+async function resetAthleteRoutinesCompleted(athleteUid) {
+  try {
+    const snap = await getDocsFromServer(collection(db, "athlete_routines", athleteUid, "routines"));
+    const toReset = snap.docs.filter(d => d.data().completed === true);
+    if (toReset.length === 0) return 0;
+    await Promise.all(toReset.map(d =>
+      setDoc(doc(db, "athlete_routines", athleteUid, "routines", d.id),
+        { completed: false, completedAt: null }, { merge: true })
+    ));
+    return toReset.length;
+  } catch(e) { return 0; }
 }
 
 async function getAthleteData(athleteUid) {
@@ -331,9 +343,14 @@ async function getAthleteData(athleteUid) {
 }
 
 
-function CoachModal({ user, sessions, onClose }) {
+const SS_COLORS = ["#a78bfa", "#38bdf8", "#fb923c", "#34d399", "#f472b6"];
+
+function CoachModal({ user, sessions, onClose, embedded, ExerciseGif, onActivated }) {
+  const sendPushToAthlete = httpsCallable(getFunctions(), "sendPushToAthlete");
+  const { confirm: askConfirm, modal: confirmModal } = useConfirm();
   const [tab, setTab] = useState("dashboard");
   const [coachProfile, setCoachProfile] = useState(null);
+  const [readNotes, setReadNotes] = useState({}); // { "sessionId:exName": true }
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
   const [activateError, setActivateError] = useState("");
@@ -373,6 +390,11 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   const [addAthleteEmail, setAddAthleteEmail] = useState("");
   const [addAthleteMsg, setAddAthleteMsg] = useState("");
   const [err, setErr] = useState("");
+  const [customExercises, setCustomExercises] = useState([]);
+  // SS: id del grupo activo que se está construyendo en el editor
+  const [pendingSsGroup, setPendingSsGroup] = useState(null);
+  // Rutina preview en dashboard
+  const [previewRoutine, setPreviewRoutine] = useState(null);
 
   useEffect(() => { loadCoach(); }, []);
 
@@ -380,11 +402,15 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     setLoading(true);
     const profile = await getCoachProfile(user.uid);
     setCoachProfile(profile);
+    // Cargar notas leídas desde el perfil del coach
+    setReadNotes(profile?.readNotes || {});
     if (profile) {
       setEditBio(profile.bio || "");
       setEditSpecialty(profile.specialty || "");
       const r = await getRoutinesByCoach(user.uid);
       setRoutines(r);
+      const customSnap = await getDocsFromServer(collection(db, "coaches", user.uid, "custom_exercises")).catch(() => ({ docs: [] }));
+      setCustomExercises(customSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       const athletesList = Object.values(profile.athletes || {});
       const map = {};
       const quickStats = {};
@@ -396,7 +422,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
         // Filtrar fantasmas y guardar con _docId
         map[a.uid] = routinesSnap.docs
           .map(d => ({ ...d.data(), _docId: d.id }))
-          .filter(r => r.coachUid && r.routineId);
+          .filter(r => r.coachUid === user.uid && r.routineId);
 
         // Calcular stats rápidas
         const allSessions = data.sessions || [];
@@ -412,7 +438,12 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
           ? bodyEntries[bodyEntries.length - 1].weight
           : null;
 
-        quickStats[a.uid] = { sessionsThisWeek, daysSinceLast, lastWeight, totalSessions: allSessions.length, lastWorkout: lastSession?.workout };
+        // Notas del atleta en la última sesión (excluir las ya leídas)
+        const lastNotes = (lastSession?.exercises || [])
+          .filter(ex => ex.notes && ex.notes.trim())
+          .filter(ex => !((profile?.readNotes || {})[`${lastSession?.id}:${ex.name}`]))
+          .map(ex => ({ exName: ex.name, note: ex.notes, sessionId: lastSession?.id }));
+        quickStats[a.uid] = { sessionsThisWeek, daysSinceLast, lastWeight, totalSessions: allSessions.length, lastWorkout: lastSession?.workout, lastNotes };
       }));
       setAthleteRoutinesMap(map);
       setAthleteQuickStats(quickStats);
@@ -421,13 +452,25 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
 
   async function activateCoach() {
-    if (!user.isAdmin) {
-      setActivateError("❌ Solo administradores pueden activar el modo Coach.");
+    // Lee Firestore directamente para evitar falsos negativos por timing de RC/estado en memoria
+    let hasCoachPlan = ["coach", "gym"].includes(user.plan);
+    if (!user.isAdmin && !hasCoachPlan) {
+      try {
+        const freshSnap = await getDoc(doc(db, "users", user.uid));
+        if (freshSnap.exists()) {
+          const freshPlan = freshSnap.data().plan;
+          hasCoachPlan = ["coach", "gym"].includes(freshPlan);
+        }
+      } catch (e) {
+        console.error("[CoachModal] activateCoach: error leyendo Firestore:", e);
+      }
+    }
+    if (!user.isAdmin && !hasCoachPlan) {
+      setActivateError("❌ Necesitas el plan Coach para activar este modo.");
       return;
     }
     setActivateError("");
     setActivating(true);
-    // NOTE: Firestore Security Rules must also enforce isAdmin server-side.
     const profile = await createCoachProfile(user.uid, user.name, user.email);
     if (!profile) {
       setActivateError("❌ No se pudo activar el modo Coach. Verifica los permisos en Firestore.");
@@ -436,6 +479,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     }
     setCoachProfile(profile);
     setActivating(false);
+    if (onActivated) onActivated();
   }
   async function loadAthleteData(athlete) {
     setSelectedAthlete(athlete);
@@ -471,13 +515,20 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     const finalName = rExName === "__custom__" ? rExCustom.trim() : rExName;
     if (!finalName) return;
     if (rExName === "__custom__" && rExCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
-      saveCustomExercise(finalName, rExCustomMuscle);
+      saveCustomExercise(finalName, rExCustomMuscle, user.uid);
       registerCustomExercise(finalName, rExCustomMuscle);
     }
     const n = Math.max(1, Math.min(10, parseInt(rExNumSeries) || 3));
     const sets = Array.from({ length: n }, () => ({ id: uid(), weight: rExWeight, reps: rExReps }));
-    setRoutineExercises(p => [...p, { id: uid(), name: finalName, sets, weight: rExWeight, reps: rExReps, comment: rExComment }]);
+    const newEx = {
+      id: uid(), name: finalName, sets,
+      weight: rExWeight, reps: rExReps, comment: rExComment,
+      supersetGroup: pendingSsGroup || null,
+    };
+    setRoutineExercises(p => [...p, newEx]);
     setRExName(""); setRExCustom(""); setRExCustomMuscle(""); setRExWeight(""); setRExReps(""); setRExNumSeries("3"); setRExSets([]); setRExComment("");
+    // After adding to an SS group, keep group active so coach can add more
+    // If no pending group, don't touch it
   }
 
   async function saveRoutine() {
@@ -498,9 +549,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   }
 
   async function deleteRoutine(id) {
-    if (!window.confirm("¿Eliminar esta rutina?")) return;
-    await deleteCoachRoutine(user.uid, id);
-    setRoutines(r => r.filter(x => x.id !== id));
+    askConfirm("¿Eliminar esta rutina?", async () => {
+      await deleteCoachRoutine(user.uid, id);
+      setRoutines(r => r.filter(x => x.id !== id));
+    });
   }
 
   async function handleAssign() {
@@ -511,6 +563,18 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     setAssignMsg(msg);
     if (result.ok) {
       setTimeout(() => setAssignMsg(""), 3000);
+      // Enviar push al atleta
+      try {
+        const athlete = athletes.find(a => a.email?.toLowerCase() === assignEmail.trim().toLowerCase());
+        if (athlete?.uid) {
+          sendPushToAthlete({
+            athleteUid: athlete.uid,
+            type: "routine_assigned",
+            routineName: routine?.name || "",
+            coachName: user.name || "Tu coach",
+          }).catch(() => {}); // No bloquear UI si falla el push
+        }
+      } catch(_) {}
     }
   }
   async function handleAddAthlete() {
@@ -526,8 +590,8 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     else setAddAthleteMsg(`❌ ${result.msg}`);
   }
   async function removeAthlete(athleteUid) {
-    if (!window.confirm("¿Eliminar este atleta? Podrá volver a unirse con tu código.")) return;
-    try {
+    askConfirm("¿Eliminar este atleta? Podrá volver a unirse con tu código.", async () => {
+      try {
       // 1. Eliminar de coaches/{coachUid}.athletes
       const coachSnap = await getDoc(doc(db, "coaches", user.uid));
       if (coachSnap.exists()) {
@@ -560,6 +624,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     } catch(e) {
       console.error("Error eliminando atleta:", e);
     }
+    });
   }
 
   async function uploadCoachPhoto(file) {
@@ -752,14 +817,15 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                               {r.completed ? "✅ " : ""}{r.routineName}{r.dayOfWeek >= 0 ? ` · ${DAYS_ES[r.dayOfWeek]}` : ""}
                               {r.completed && r.completedAt ? <span style={{ color:"var(--text-muted)", fontWeight:400 }}> · {(() => { const [,m,d] = r.completedAt.split("-"); const meses=["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]; return `${parseInt(d)} ${meses[parseInt(m)]}`; })()}</span> : null}
                             </span>
-                            <button onClick={async () => {
-                              if (!window.confirm(`¿Quitar "${r.routineName}" de ${a.name}?`)) return;
+                            <button onClick={() => {
+                              askConfirm(`¿Quitar "${r.routineName}" de ${a.name}?`, async () => {
                               await unassignRoutineFromAthlete(a.uid, r._docId || r.routineId);
                               const updated = await Promise.all(athletes.map(async at => {
                                 const rts = await getDocsFromServer(collection(db, "athlete_routines", at.uid, "routines"));
-                                return [at.uid, rts.docs.map(d => ({...d.data(), _docId: d.id})).filter(x => x.coachUid && x.routineId)];
+                                return [at.uid, rts.docs.map(d => ({...d.data(), _docId: d.id})).filter(x => x.coachUid === user.uid && x.routineId)];
                               }));
                               setAthleteRoutinesMap(Object.fromEntries(updated));
+                              });
                             }} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer",
                               fontSize:12, padding:"0 2px", lineHeight:1 }}>✕</button>
                           </span>
@@ -767,6 +833,33 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                       </div>
                       {veryInactive && <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>🚨 Sin entrenar {qs.daysSinceLast} días</span>}
                       {inactive && !veryInactive && <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>⚠️ Inactivo esta semana</span>}
+                      {qs?.lastNotes?.length > 0 && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6,
+                          background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.25)",
+                          borderRadius: 6, padding: "2px 8px" }}>
+                          <span style={{ fontSize: 11, color: "#60a5fa", fontWeight: 700 }}>
+                            💬 {qs.lastNotes.length} nota{qs.lastNotes.length > 1 ? "s" : ""}
+                          </span>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const newRead = { ...readNotes };
+                              qs.lastNotes.forEach(n => { newRead[`${n.sessionId}:${n.exName}`] = true; });
+                              setReadNotes(newRead);
+                              // Actualizar quickStats para que desaparezca el badge
+                              setAthleteQuickStats(prev => ({ ...prev, [a.uid]: { ...prev[a.uid], lastNotes: [] } }));
+                              // Persistir en Firestore
+                              try {
+                                await setDoc(doc(db, "coaches", user.uid), { readNotes: newRead }, { merge: true });
+                              } catch(e) { console.error("Error guardando readNotes:", e); }
+                            }}
+                            style={{ background: "none", border: "none", cursor: "pointer",
+                              fontSize: 11, color: "rgba(96,165,250,0.6)", padding: "0 2px",
+                              fontFamily: "Barlow, sans-serif", fontWeight: 700 }}
+                            title="Marcar como leída"
+                          >✓ Leída</button>
+                        </span>
+                      )}
                     </div>
                   </div>
                 );})}
@@ -776,28 +869,94 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
             {/* ── ROUTINES ── */}
             {tab === "routines" && (
               <div>
+                {/* Routine preview modal */}
+                {previewRoutine && (
+                  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+                    onClick={() => setPreviewRoutine(null)}>
+                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, maxWidth: 480, width: "100%", maxHeight: "80vh", overflowY: "auto" }}
+                      onClick={e => e.stopPropagation()}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>{previewRoutine.name}</div>
+                        <button onClick={() => setPreviewRoutine(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20 }}>✕</button>
+                      </div>
+                      {previewRoutine.notes && (
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic", marginBottom: 14, padding: "8px 12px", background: "var(--input-bg)", borderRadius: 8 }}>{previewRoutine.notes}</div>
+                      )}
+                      {(() => {
+                        const exs = previewRoutine.exercises || [];
+                        const ssGroups = {};
+                        exs.forEach(ex => { if (ex.supersetGroup) { if (!ssGroups[ex.supersetGroup]) ssGroups[ex.supersetGroup]=[]; ssGroups[ex.supersetGroup].push(ex.id); }});
+                        const ssGroupKeys = Object.keys(ssGroups);
+                        const ssColor = (gid) => SS_COLORS[ssGroupKeys.indexOf(gid) % SS_COLORS.length];
+                        return exs.map((ex, i) => {
+                          const col = ex.supersetGroup ? ssColor(ex.supersetGroup) : null;
+                          const isFirst = col && ssGroups[ex.supersetGroup]?.[0] === ex.id;
+                          const isLast  = col && ssGroups[ex.supersetGroup]?.slice(-1)[0] === ex.id;
+                          return (
+                            <div key={ex.id} style={{ display: "flex", alignItems: "stretch", gap: 0, marginBottom: 6 }}>
+                              {col && <div style={{ width: 4, flexShrink: 0, marginRight: 8, background: col, borderRadius: isFirst?"4px 4px 0 0":isLast?"0 0 4px 4px":"0", opacity: 0.8 }} />}
+                              <div style={{ flex: 1, padding: "10px 12px", background: col ? `${col}0d` : "var(--input-bg)", border: `1px solid ${col ? col+"40" : "var(--border)"}`, borderRadius: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  {ExerciseGif && <ExerciseGif exName={ex.name} size={44} />}
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                                      {ex.name}
+                                      {col && <span style={{ background: col, color: "#0a0a0a", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                                      {ex.sets?.length > 0 ? `${ex.sets.length} series · ${ex.sets[0].weight||"—"}kg × ${ex.sets[0].reps||"—"} reps` : ex.weight ? `${ex.weight}kg × ${ex.reps}` : "Sin peso definido"}
+                                    </div>
+                                    {ex.comment && (
+                                      <div style={{ fontSize: 11, marginTop: 4, color: "var(--accent)", display: "flex", gap: 4 }}>
+                                        <span>💬</span><span>{ex.comment}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+
                 <button className="btn-primary" style={{ width: "100%", marginBottom: 16, fontSize: 16 }} onClick={startNewRoutine}>+ Crear nueva rutina</button>
                 {routines.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: "20px 0" }}>Sin rutinas aún.</p>}
-                {routines.map(r => (
+                {routines.map(r => {
+                  const ssCount = new Set((r.exercises||[]).map(e=>e.supersetGroup).filter(Boolean)).size;
+                  return (
                   <div key={r.id} style={{ padding: "14px 16px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{r.name}</div>
                       <div style={{ display: "flex", gap: 6 }}>
+                        <button className="btn-ghost small" onClick={() => setPreviewRoutine(r)}>👁 Ver</button>
                         <button className="btn-ghost small" onClick={() => startEditRoutine(r)}>✏️ Editar</button>
                         <button className="btn-ghost small danger" onClick={() => deleteRoutine(r.id)}>🗑️</button>
                       </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{(r.exercises||[]).length} ejercicios · creada {fmtDate(r.createdAt)}</div>
-                    {r.notes && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>{r.notes}</div>}
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}>
-                      {(r.exercises||[]).map(ex => (
-                        <span key={ex.id} style={{ fontSize: 11, padding: "2px 8px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 10, color: "var(--text-muted)" }}>
-                          {ex.name}{ex.sets?.length > 0 ? ` · ${ex.sets.length}s` : ex.weight ? ` · ${ex.weight}kg` : ""}
-                        </span>
-                      ))}
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
+                      {(r.exercises||[]).length} ejercicios
+                      {ssCount > 0 && <span style={{ marginLeft: 8, color: "#a78bfa", fontWeight: 700 }}>⚡ {ssCount} superset{ssCount > 1 ? "s" : ""}</span>}
+                      {" · "}creada {fmtDate(r.createdAt)}
+                    </div>
+                    {r.notes && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginBottom: 6 }}>{r.notes}</div>}
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {(r.exercises||[]).map(ex => {
+                        const ssGid = ex.supersetGroup;
+                        const ssGroups = {};
+                        (r.exercises||[]).forEach(e => { if(e.supersetGroup){if(!ssGroups[e.supersetGroup])ssGroups[e.supersetGroup]=[];ssGroups[e.supersetGroup].push(e.id);}});
+                        const col = ssGid ? SS_COLORS[Object.keys(ssGroups).indexOf(ssGid) % SS_COLORS.length] : null;
+                        return (
+                          <span key={ex.id} style={{ fontSize: 11, padding: "2px 8px", background: col ? `${col}18` : "rgba(59,130,246,0.1)", border: `1px solid ${col ? col+"50" : "rgba(59,130,246,0.2)"}`, borderRadius: 10, color: col || "var(--text-muted)" }}>
+                            {col && "⚡ "}{ex.name}{ex.sets?.length > 0 ? ` · ${ex.sets.length}s` : ex.weight ? ` · ${ex.weight}kg` : ""}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
             )}
 
@@ -832,6 +991,9 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                         {(rExMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === rExMuscle)).map(ex => (
                           <option key={ex.name} value={ex.name}>{ex.name}</option>
                         ))}
+                        {customExercises.filter(e => rExMuscle === "Todos" || e.muscle === rExMuscle).map(ex => (
+                          <option key={"custom_" + ex.id} value={ex.name}>✏️ {ex.name}</option>
+                        ))}
                         <option value="__custom__">✏️ Personalizado... (escribe el tuyo)</option>
                       </select>
                       {rExName === "__custom__" && (
@@ -845,6 +1007,20 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                       )}
                     </div>
                   </div>
+
+                  {/* GIF preview */}
+                  {ExerciseGif && rExName && rExName !== "__custom__" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10 }}>
+                      <ExerciseGif exName={rExName} size={72} />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{rExName}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                          {EXERCISE_DB.find(e => e.name === rExName)?.muscle || ""}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="form-row" style={{ marginBottom: 8 }}>
                     <div className="field" style={{ flex: 1 }}>
                       <input className="input" style={{ fontSize: 13 }} placeholder="Peso kg" value={rExWeight} onChange={e => setRExWeight(numWeight(e.target.value))} inputMode="decimal" />
@@ -859,35 +1035,133 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   {rExWeight && rExReps && rExNumSeries && (
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>→ {rExNumSeries} × {rExWeight}kg × {rExReps} reps</div>
                   )}
-                  <div className="field" style={{ marginBottom: 8 }}>
+                  <div className="field" style={{ marginBottom: 10 }}>
                     <label className="field-label">Comentario del coach para este ejercicio</label>
                     <input className="input" style={{ fontSize: 13 }} placeholder="Ej: Baja lento, 3 segundos de excéntrica..." value={rExComment} onChange={e => setRExComment(e.target.value)} />
                   </div>
+
+                  {/* Superset toggle */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <button
+                      onClick={() => setPendingSsGroup(g => g ? null : uid().slice(0, 8))}
+                      style={{
+                        background: pendingSsGroup ? "rgba(167,139,250,0.15)" : "none",
+                        border: `1px ${pendingSsGroup ? "solid" : "dashed"} ${pendingSsGroup ? "#a78bfa" : "rgba(255,255,255,0.2)"}`,
+                        color: pendingSsGroup ? "#a78bfa" : "var(--text-muted)",
+                        borderRadius: 8, padding: "6px 12px", cursor: "pointer",
+                        fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, fontWeight: 800,
+                        letterSpacing: 1, display: "flex", alignItems: "center", gap: 6,
+                      }}
+                    >
+                      <span>⚡</span>
+                      {pendingSsGroup ? "Modo SUPERSET activo — próximo ejercicio se une" : "Agregar al superset"}
+                    </button>
+                    {pendingSsGroup && (
+                      <button onClick={() => setPendingSsGroup(null)}
+                        style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 12 }}>
+                        ✕ Cancelar SS
+                      </button>
+                    )}
+                  </div>
+
                   <button className="btn-add-ex" onClick={addRExercise}>+ Agregar ejercicio</button>
                 </div>
 
                 {/* Exercise list */}
                 {routineExercises.length > 0 && (
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>Ejercicios ({routineExercises.length})</div>
-                    {routineExercises.map((ex, i) => (
-                      <div key={ex.id} style={{ padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, fontSize: 14 }}>{ex.name}</span>
-                          <button className="chip-del" style={{ fontSize: 16 }} onClick={() => setRoutineExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
-                        </div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
-                          {ex.sets?.length > 0 ? ex.sets.map((s,i) => `S${i+1}: ${s.weight}kg×${s.reps}`).join(" · ") : ex.weight ? `${ex.weight}kg × ${ex.reps}` : "Sin peso definido"}
-                        </div>
-                        <input
-                          className="input"
-                          style={{ fontSize: 12, padding: "5px 8px" }}
-                          placeholder="💬 Nota del coach para este ejercicio..."
-                          value={ex.comment || ""}
-                          onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : { ...x, comment: e.target.value }))}
-                        />
-                      </div>
-                    ))}
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>
+                      Ejercicios ({routineExercises.length})
+                    </div>
+                    {/* Build SS group colors */}
+                    {(() => {
+                      const ssGroups = {};
+                      routineExercises.forEach(ex => {
+                        if (ex.supersetGroup) {
+                          if (!ssGroups[ex.supersetGroup]) ssGroups[ex.supersetGroup] = [];
+                          ssGroups[ex.supersetGroup].push(ex.id);
+                        }
+                      });
+                      const ssGroupKeys = Object.keys(ssGroups);
+                      const ssColor = (groupId) => SS_COLORS[ssGroupKeys.indexOf(groupId) % SS_COLORS.length];
+
+                      return routineExercises.map((ex, i) => {
+                        const col = ex.supersetGroup ? ssColor(ex.supersetGroup) : null;
+                        const isFirstInGroup = ex.supersetGroup && ssGroups[ex.supersetGroup]?.[0] === ex.id;
+                        const isLastInGroup  = ex.supersetGroup && ssGroups[ex.supersetGroup]?.slice(-1)[0] === ex.id;
+                        return (
+                          <div key={ex.id} style={{ display: "flex", alignItems: "stretch", gap: 0, marginBottom: 6 }}>
+                            {/* SS bracket */}
+                            {col && (
+                              <div style={{
+                                width: 4, flexShrink: 0, marginRight: 8,
+                                background: col,
+                                borderRadius: isFirstInGroup ? "4px 4px 0 0" : isLastInGroup ? "0 0 4px 4px" : "0",
+                                opacity: 0.8,
+                              }} />
+                            )}
+                            <div style={{
+                              flex: 1, padding: "10px 12px",
+                              background: col ? `${col}0d` : "var(--input-bg)",
+                              border: `1px solid ${col ? col + "40" : "var(--border)"}`,
+                              borderRadius: 10,
+                            }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  {ExerciseGif && <ExerciseGif exName={ex.name} size={36} />}
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+                                      {ex.name}
+                                      {col && (
+                                        <span style={{ background: col, color: "#0a0a0a", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                      {ex.sets?.length > 0 ? ex.sets.map((s,i) => `S${i+1}: ${s.weight||"—"}kg×${s.reps||"—"}`).join(" · ") : ex.weight ? `${ex.weight}kg × ${ex.reps}` : "Sin peso"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  {/* Toggle SS membership */}
+                                  <button
+                                    title={ex.supersetGroup ? "Quitar del superset" : "Añadir a superset"}
+                                    onClick={() => setRoutineExercises(p => p.map((x, j) => j !== i ? x : {
+                                      ...x, supersetGroup: x.supersetGroup ? null :
+                                        (routineExercises[i-1]?.supersetGroup || routineExercises[i+1]?.supersetGroup || uid().slice(0,8))
+                                    }))}
+                                    style={{
+                                      background: col ? `${col}20` : "none",
+                                      border: `1px solid ${col ? col + "60" : "rgba(255,255,255,0.15)"}`,
+                                      color: col || "var(--text-muted)",
+                                      borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}
+                                  >⚡</button>
+                                  <button
+                                    title="Subir"
+                                    onClick={() => { if (i === 0) return; setRoutineExercises(p => { const n=[...p]; [n[i-1],n[i]]=[n[i],n[i-1]]; return n; }); }}
+                                    disabled={i === 0}
+                                    style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13, opacity: i===0?0.3:1 }}>↑</button>
+                                  <button
+                                    title="Bajar"
+                                    onClick={() => { if (i === routineExercises.length-1) return; setRoutineExercises(p => { const n=[...p]; [n[i],n[i+1]]=[n[i+1],n[i]]; return n; }); }}
+                                    disabled={i === routineExercises.length - 1}
+                                    style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13, opacity: i===routineExercises.length-1?0.3:1 }}>↓</button>
+                                  <button className="chip-del" style={{ fontSize: 16 }} onClick={() => setRoutineExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
+                                </div>
+                              </div>
+                              <input
+                                className="input"
+                                style={{ fontSize: 12, padding: "5px 8px" }}
+                                placeholder="💬 Nota del coach para este ejercicio..."
+                                value={ex.comment || ""}
+                                onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : { ...x, comment: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 
@@ -1037,6 +1311,51 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.date)}</span>
                           </div>
                           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>{(s.exercises||[]).length} ejercicios</div>
+                          {(s.exercises||[]).filter(ex => ex.notes && ex.notes.trim()).map((ex, ni) => {
+                            const noteKey = `${s.id}:${ex.name}`;
+                            const isRead = readNotes[noteKey];
+                            return (
+                              <div key={ni} style={{
+                                marginTop: 6, padding: "6px 10px",
+                                background: isRead ? "rgba(255,255,255,0.03)" : "rgba(96,165,250,0.07)",
+                                border: `1px solid ${isRead ? "rgba(255,255,255,0.08)" : "rgba(96,165,250,0.25)"}`,
+                                borderRadius: 7,
+                                transition: "all 0.2s",
+                              }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                                  <div style={{ fontSize: 10, fontWeight: 700, color: isRead ? "var(--text-muted)" : "#60a5fa", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                                    💬 {ex.name}
+                                  </div>
+                                  {!isRead ? (
+                                    <button
+                                      onClick={async () => {
+                                        const newRead = { ...readNotes, [noteKey]: true };
+                                        setReadNotes(newRead);
+                                        setAthleteQuickStats(prev => ({
+                                          ...prev,
+                                          [selectedAthlete.uid]: {
+                                            ...prev[selectedAthlete.uid],
+                                            lastNotes: (prev[selectedAthlete.uid]?.lastNotes || []).filter(n => n.exName !== ex.name || n.sessionId !== s.id),
+                                          }
+                                        }));
+                                        try {
+                                          await setDoc(doc(db, "coaches", user.uid), { readNotes: newRead }, { merge: true });
+                                        } catch(e) { console.error(e); }
+                                      }}
+                                      style={{ background: "none", border: "1px solid rgba(96,165,250,0.3)", borderRadius: 4,
+                                        color: "#60a5fa", fontSize: 10, fontWeight: 700, padding: "1px 7px",
+                                        cursor: "pointer", fontFamily: "Barlow, sans-serif" }}
+                                    >✓ Leída</button>
+                                  ) : (
+                                    <span style={{ fontSize: 10, color: "var(--text-muted)" }}>✓ Leída</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 12, color: isRead ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.75)", lineHeight: 1.4 }}>
+                                  {ex.notes}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       ))}
                       {athleteData.sessions.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Sin sesiones registradas aún.</p>}
@@ -1104,10 +1423,11 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
           </>
         )}
       </div>
+      {confirmModal}
     </div>
   );
 }
 
 
-export { getAthleteRoutines };
+export { getAthleteRoutines, resetAthleteRoutinesCompleted };
 export default CoachModal;

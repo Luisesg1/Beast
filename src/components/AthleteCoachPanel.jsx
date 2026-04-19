@@ -1,7 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromServer, deleteDoc, query, where } from "firebase/firestore";
+import { useConfirm } from "./ConfirmModal";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase";
-import { getAthleteRoutines } from "./CoachModal";
+import { getAthleteRoutines, resetAthleteRoutinesCompleted } from "./CoachModal";
+import {
+  joinCoachByCode,
+  getMyCoaches,
+  getFullRoutine,
+  markRoutineCompleted,
+} from "../utils/firebaseService";
+import LiveTrainMode from "./LiveTrainMode";
 
 function fireConfetti() {
   const canvas = document.createElement("canvas");
@@ -73,7 +81,7 @@ function fireConfetti() {
 
 // ─── Helpers locales ──────────────────────────────────────────────────────────
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 const numDot = (v, max = 9999) => { const s = v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"); const n = parseFloat(s); if (isNaN(n) || n < 0) return ""; return n > max ? String(max) : s; };
 const numWeight = (v) => numDot(v, 500);
@@ -81,311 +89,9 @@ const numReps   = (v) => numDot(v, 100);
 const DAYS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const LIVE_DRAFT_KEY = "gym_live_draft";
 
-// ─── Firebase helpers ─────────────────────────────────────────────────────────
-async function joinCoachByCode(athleteUid, athleteName, athleteEmail, code) {
-  try {
-    const q = query(collection(db, "coaches"), where("code", "==", code));
-    const coachesSnap = await getDocs(q);
-    if (coachesSnap.empty) return { ok: false, msg: "Código de coach no encontrado" };
-    const coachDoc = coachesSnap.docs[0];
-    const coachData = coachDoc.data();
-
-    await setDoc(doc(db, "coaches", coachData.uid), {
-      athletes: { [athleteUid]: { email: athleteEmail, name: athleteName, uid: athleteUid, addedAt: todayStr() } }
-    }, { merge: true });
-
-    await setDoc(doc(db, "athlete_coaches", athleteUid, "coaches", coachData.uid), {
-      coachUid: coachData.uid, coachName: coachData.name, coachEmail: coachData.email, addedAt: todayStr()
-    });
-
-    return { ok: true, coachData };
-  } catch(e) { return { ok: false, msg: "Error al conectar con coach" }; }
-}
-
-async function getMyCoaches(athleteUid) {
-  try {
-    const snap = await getDocsFromServer(collection(db, "athlete_coaches", athleteUid, "coaches"));
-    return snap.docs.map(d => d.data());
-  } catch(e) { return []; }
-}
-
-async function getFullRoutine(coachUid, routineId) {
-  try {
-    if (!coachUid || !routineId) return null;
-    const snap = await getDoc(doc(db, "coaches", coachUid, "routines", routineId));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data(), coachUid, routineId };
-  } catch(e) {
-    console.error("[getFullRoutine] ERROR:", e.code, e.message, { coachUid, routineId });
-    return null;
-  }
-}
-
-async function markRoutineCompleted(athleteUid, routineId) {
-  if (!athleteUid || !routineId) return false;
-  try {
-    await setDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId),
-      { completed: true, completedAt: todayStr() }, { merge: true });
-    return true;
-  } catch(e) { return false; }
-}
-
-// ─── AthleteWorkoutRunner ─────────────────────────────────────────────────────
-function AthleteWorkoutRunner({ routine, onClose, onSave, ExerciseGif }) {
-  const [elapsed, setElapsed] = useState(0);
-  const [running, setRunning] = useState(true);
-  const [currentEx, setCurrentEx] = useState(0);
-  const [restTimer, setRestTimer] = useState(null);
-  const [exData, setExData] = useState(
-    (routine.exercises || []).map(ex => ({
-      ...ex,
-      restSecs: ex.restSecs || null,
-      sets: ex.sets?.length
-        ? ex.sets.map(s => ({ ...s, id: s.id || uid(), done: false }))
-        : Array.from({ length: parseInt(ex.series) || 3 }, () => ({ id: uid(), weight: ex.weight || "", reps: ex.reps || "", done: false }))
-    }))
-  );
-  const mainRef = useRef();
-  const restRef = useRef();
-
-  useEffect(() => {
-    if (running) { mainRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
-    else clearInterval(mainRef.current);
-    return () => clearInterval(mainRef.current);
-  }, [running]);
-
-  useEffect(() => {
-    if (restTimer && restTimer.left > 0) {
-      restRef.current = setInterval(() => {
-        setRestTimer(prev => {
-          if (!prev || prev.left <= 1) {
-            clearInterval(restRef.current);
-            try {
-              const ctx = new (window.AudioContext || window.webkitAudioContext)();
-              [0, 0.2, 0.4].forEach((t, i) => {
-                const osc = ctx.createOscillator(), gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = i === 2 ? 880 : 660; osc.type = "sine";
-                gain.gain.setValueAtTime(0.35, ctx.currentTime + t);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.18);
-                osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.18);
-              });
-            } catch(e) {}
-            try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch(e) {}
-            try {
-              if ("Notification" in window && Notification.permission === "granted") {
-                new Notification("¡Tiempo de descanso terminado! 💪", {
-                  body: "Listo para la siguiente serie.",
-                  tag: "rest-timer", renotify: true,
-                });
-              }
-            } catch(e) {}
-            return null;
-          }
-          return { ...prev, left: prev.left - 1 };
-        });
-      }, 1000);
-    }
-    return () => clearInterval(restRef.current);
-  }, [restTimer?.total]);
-
-  const fmt = s => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
-  const totalSets = exData.reduce((a, e) => a + e.sets.length, 0);
-  const doneSets = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-  const ex = exData[currentEx];
-  const defaultRest = load("gym_default_rest", 90);
-
-  const REST_OPTS = [
-    { label: "1M", secs: 60 },
-    { label: "1.5M", secs: 90 },
-    { label: "2M", secs: 120 },
-    { label: "3M", secs: 180 },
-  ];
-
-  function toggleSet(exIdx, setIdx) {
-    const wasDone = exData[exIdx]?.sets[setIdx]?.done;
-    setExData(prev => prev.map((e, i) => i !== exIdx ? e : {
-      ...e, sets: e.sets.map((s, j) => j !== setIdx ? s : { ...s, done: !s.done })
-    }));
-    if (!wasDone) {
-      const exRestSecs = exData[exIdx]?.restSecs ?? defaultRest;
-      setRestTimer(prev => prev ? prev : null);
-      setTimeout(() => startRest(exRestSecs), 50);
-      if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-      }
-    }
-  }
-
-  function updateSet(exIdx, setIdx, field, val) {
-    setExData(prev => prev.map((e, i) => i !== exIdx ? e : {
-      ...e, sets: e.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val })
-    }));
-  }
-
-  function addSet(exIdx) {
-    setExData(prev => prev.map((e, i) => i !== exIdx ? e : {
-      ...e, sets: [...e.sets, { id: uid(), weight: e.sets[e.sets.length-1]?.weight || "", reps: e.sets[e.sets.length-1]?.reps || "", done: false }]
-    }));
-  }
-
-  function removeSet(exIdx) {
-    setExData(prev => prev.map((e, i) => i !== exIdx || e.sets.length <= 1 ? e : {
-      ...e, sets: e.sets.slice(0, -1)
-    }));
-  }
-
-  function startRest(secs) {
-    clearInterval(restRef.current);
-    setRestTimer({ total: secs, left: secs });
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 3000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-      {/* Header */}
-      <div style={{ background: "var(--sidebar-bg)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-        <button onClick={() => {
-          const hasDone = exData.some(ex => ex.sets.some(s => s.done));
-          if (hasDone) {
-            if (!window.confirm("¿Salir del entrenamiento? Perderás el progreso no guardado.")) return;
-          }
-          onClose();
-        }} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 12, display:"flex", alignItems:"center", gap:4, fontWeight: 600 }}>← Salir</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>⚡ {routine.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series completadas</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 800, color: "var(--accent)" }}>{fmt(elapsed)}</div>
-          <button onClick={() => setRunning(r => !r)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 11, cursor: "pointer" }}>{running ? "⏸" : "▶"}</button>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ height: 4, background: "var(--border)", flexShrink: 0 }}>
-        <div style={{ height: "100%", background: "var(--accent)", width: `${totalSets > 0 ? (doneSets/totalSets)*100 : 0}%`, transition: "width 0.4s" }} />
-      </div>
-
-      {/* Exercise tabs */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", overflowX: "auto", flexShrink: 0 }}>
-        {exData.map((e, i) => {
-          const done = e.sets.every(s => s.done) && e.sets.length > 0;
-          return (
-            <button key={i} onClick={() => setCurrentEx(i)} style={{
-              background: currentEx === i ? "var(--accent)" : done ? "rgba(232,255,0,0.08)" : "var(--card)",
-              border: `1px solid ${currentEx === i ? "var(--accent)" : done ? "rgba(232,255,0,0.3)" : "var(--border)"}`,
-              color: currentEx === i ? "#0a0a0a" : done ? "var(--accent)" : "var(--text-muted)",
-              borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1, textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif"
-            }}>
-              {done ? "✓ " : ""}{e.name}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Main content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 16px" }}>
-        {ex && (
-          <div style={{ maxWidth: 600, margin: "0 auto" }}>
-
-            {/* GIF + nombre */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ background: "var(--card)", borderRadius: 8, padding: 4, border: "1px solid var(--border)" }}>
-                <ExerciseGif exName={ex.name} size={112} style={{ display:"block", borderRadius:6 }} />
-              </div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 900, marginTop: 10, textAlign: "center", color: "var(--text)", letterSpacing: 1, textTransform: "uppercase" }}>{ex.name}</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{doneSets}/{totalSets} series · {ex.sets.filter(s=>s.done).length}/{ex.sets.length} de este ejercicio</div>
-              {ex.comment && (
-                <div style={{ fontSize: 13, fontStyle: "italic", marginTop: 8, padding: "6px 12px", background: "rgba(232,255,0,0.07)", borderRadius: 8, border: "1px solid rgba(232,255,0,0.2)", textAlign: "center" }}>
-                  💬 <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Nota del coach:</span> <span style={{ color: "var(--accent)" }}>{ex.comment}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Tabla series */}
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", marginBottom: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 0, padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>#</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>PESO (KG)</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800, letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>REPS</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", fontWeight: 800 }}>✓</div>
-              </div>
-              {ex.sets.map((s, j) => (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 52px", gap: 8, padding: "8px 12px", alignItems: "center", background: s.done ? "rgba(232,255,0,0.05)" : "transparent", borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: s.done ? "var(--accent)" : "var(--text-muted)" }}>S{j+1}</div>
-                  <input value={s.weight} onChange={e => updateSet(currentEx, j, "weight", numWeight(e.target.value))} inputMode="decimal"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
-                  <input value={s.reps} onChange={e => updateSet(currentEx, j, "reps", numReps(e.target.value))} inputMode="decimal"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "8px 4px", color: "var(--text)", fontSize: 16, fontWeight: 700, textAlign: "center", outline: "none", width: "100%" }} placeholder="0" />
-                  <button onClick={() => toggleSet(currentEx, j)} style={{ width: 44, height: 40, background: s.done ? "var(--accent)" : "var(--input-bg)", border: `2px solid ${s.done ? "var(--accent)" : "var(--border)"}`, borderRadius: 4, cursor: "pointer", fontSize: 18, margin: "0 auto", color: s.done ? "#0a0a0a" : "var(--text-muted)" }}>
-                    {s.done ? "✓" : "○"}
-                  </button>
-                </div>
-              ))}
-              <div style={{ display: "flex", gap: 0 }}>
-                <button onClick={() => addSet(currentEx)} style={{ flex: 1, background: "none", border: "none", borderTop: "1px dashed var(--border)", color: "var(--text-muted)", padding: 10, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ Añadir serie</button>
-                <button onClick={() => removeSet(currentEx)} style={{ background: "none", border: "none", borderTop: "1px dashed var(--border)", borderLeft: "1px solid var(--border)", color: "#ef4444", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>− Quitar</button>
-              </div>
-            </div>
-
-            {/* Timer de descanso */}
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: "14px 16px", marginBottom: 16 }}>
-              {restTimer ? (
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 4, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>DESCANSANDO</div>
-                  <div style={{ height: 6, background: "var(--border)", borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
-                    <div style={{ height: "100%", background: "var(--accent)", borderRadius: 10, width: `${(restTimer.left / restTimer.total) * 100}%`, transition: "width 1s linear" }} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <button onClick={() => setRestTimer(t => ({ ...t, left: Math.max(0, t.left - 15), total: Math.max(15, t.total - 15) }))}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>−15s</button>
-                    <div style={{ flex: 1, textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 36, fontWeight: 800, color: "var(--accent)" }}>
-                      {restTimer.left === 0 ? "¡Listo!" : fmt(restTimer.left)}
-                    </div>
-                    <button onClick={() => setRestTimer(t => ({ ...t, left: t.left + 15, total: t.total + 15 }))}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+15s</button>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    {REST_OPTS.map(o => (
-                      <button key={o.label} onClick={() => startRest(o.secs)}
-                        style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#0a0a0a" : "var(--text-muted)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
-                        {o.label}
-                      </button>
-                    ))}
-                    <button onClick={() => setRestTimer(null)}
-                      style={{ marginLeft: "auto", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
-                      ✕ Quitar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, fontWeight: 800, letterSpacing: 4, fontFamily: "Barlow Condensed, sans-serif", textTransform:"uppercase" }}>DESCANSO</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {REST_OPTS.map(o => (
-                      <button key={o.label} onClick={() => startRest(o.secs)} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 3, padding: "5px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, letterSpacing: 0.5 }}>{o.label}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Nav ejercicios */}
-            <div style={{ display: "flex", gap: 10 }}>
-              {currentEx > 0 && <button onClick={() => setCurrentEx(i => i-1)} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 4, padding: 12, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>← Anterior</button>}
-              {currentEx < exData.length - 1 && <button onClick={() => setCurrentEx(i => i+1)} style={{ flex: 1, background: "var(--accent)", border: "none", color: "#0a0a0a", borderRadius: 4, padding: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", boxShadow: "0 0 20px rgba(232,255,0,0.25)" }}>SIGUIENTE →</button>}
-              {currentEx === exData.length - 1 && <button onClick={() => { setRunning(false); try { localStorage.removeItem(LIVE_DRAFT_KEY); } catch {} fireConfetti(); onSave(exData, elapsed); }} style={{ flex: 1, background: "var(--accent)", border: "none", color: "#0a0a0a", borderRadius: 4, padding: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", boxShadow: "0 0 24px rgba(232,255,0,0.2)" }}>FINALIZAR →</button>}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── AthleteCoachPanel ────────────────────────────────────────────────────────
-function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, sessions = [] }) {
+function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, sessions = [], onSessionSaved }) {
+  const { confirm: askConfirm, modal: confirmModal } = useConfirm();
   const [tab, setTab] = useState("routines");
   const [coaches, setCoaches] = useState([]);
   const [assignedRoutines, setAssignedRoutines] = useState([]);
@@ -482,21 +188,24 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
   );
 
   if (activeWorkout) {
+    const coachComments = Object.fromEntries(
+      (activeWorkout.exercises || [])
+        .filter(ex => ex.comment)
+        .map(ex => [ex.name, ex.comment])
+    );
     return (
-      <AthleteWorkoutRunner
-        routine={activeWorkout}
-        onClose={() => setActiveWorkout(null)}
+      <LiveTrainMode
+        exercises={activeWorkout.exercises || []}
+        workout={activeWorkout.name}
+        date={todayStr()}
+        notes=""
+        unit="kg"
+        sessions={sessions}
         ExerciseGif={ExerciseGif}
-        onSave={async (exercises, elapsed) => {
-          const snap = await getDoc(doc(db, "sessions", user.uid));
-          const existing = snap.exists() ? (snap.data().list || []) : [];
-          const alreadyToday = existing.some(s => s.date === todayStr() && s.workout === activeWorkout.name);
-          if (alreadyToday) {
-            if (!window.confirm(`Ya entrenaste "${activeWorkout.name}" hoy. ¿Quieres guardarlo de todas formas?`)) return;
-          }
-
-          setWorkoutSummary({ exercises, elapsed, routineName: activeWorkout.name });
-
+        coachMode={true}
+        coachComments={coachComments}
+        onBack={() => setActiveWorkout(null)}
+        onSaveSession={async (exercises, elapsed) => {
           const newSession = {
             id: uid(),
             date: todayStr(),
@@ -504,21 +213,29 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
             notes: "",
             exercises,
             unit: "kg",
+            durationSecs: elapsed,
             coachRoutineDocId: activeWorkout._docId || null,
           };
 
           try {
+            const snap = await getDoc(doc(db, "sessions", user.uid));
+            const existing = snap.exists() ? (snap.data().list || []) : [];
             await setDoc(doc(db, "sessions", user.uid), {
               list: [newSession, ...existing],
               updatedAt: serverTimestamp()
             });
+            console.log("✅ Sesión coach guardada OK:", newSession.date, "total:", existing.length + 1);
+            if (onSessionSaved) onSessionSaved(newSession);
           } catch(e) {
-            console.error("❌ Error guardando sesión:", e);
+            console.error("❌ Error guardando sesión:", e.code, e.message);
+            alert(`❌ No se pudo guardar la sesión.\nError: ${e.code || e.message}`);
+            return;
           }
 
           await markRoutineCompleted(user.uid, activeWorkout._docId || activeWorkout.routineId || activeWorkout.id);
           const updated = await getAthleteRoutines(user.uid);
           setAssignedRoutines(updated);
+          setWorkoutSummary({ exercises, elapsed, routineName: activeWorkout.name });
           setActiveWorkout(null);
         }}
       />
@@ -583,7 +300,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
         <div className="modal-header">
           <h3 className="modal-title">🎽 Mi Coach</h3>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={loadData} title="Actualizar" style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>↻</button>
+            <button onClick={async () => { await resetAthleteRoutinesCompleted(user.uid); loadData(); }} title="Actualizar — resetea rutinas completadas" style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>↻</button>
             <button className="close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -649,8 +366,8 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
               const dayLabel = r.dayOfWeek >= 0 ? DAYS_ES[r.dayOfWeek] : null;
               const todayDateStr = new Date().toISOString().slice(0,10);
               const routineName = r.name || r.routineName || "";
-              const doneToday = (sessions||[]).some(s => s.date === todayDateStr &&
-                (s.coachRoutineDocId ? s.coachRoutineDocId === r._docId : s.workout === routineName && r.dayOfWeek === todayDow));
+              // doneToday: solo por _docId exacto (evita falsos positivos con rutinas del mismo nombre en distintos días)
+              const doneToday = (sessions||[]).some(s => s.date === todayDateStr && s.coachRoutineDocId === r._docId);
               const isCompleted = assigned?.completed || doneToday;
 
               // Estilos según estado
@@ -697,7 +414,8 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                         onClick={() => {
                           if (!isToday && r.dayOfWeek >= 0) {
                             const hoy = DAYS_ES[todayDow];
-                            if (!window.confirm(`Esta rutina es para el ${dayLabel}. Hoy es ${hoy}.\n¿Iniciar igual?`)) return;
+                            askConfirm(`Esta rutina es para el ${dayLabel}. Hoy es ${hoy}. ¿Iniciar igual?`, () => setActiveWorkout(r));
+                            return;
                           }
                           setActiveWorkout(r);
                         }}>▶ Iniciar</button>
@@ -727,17 +445,17 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                 onMouseEnter={e => e.currentTarget.style.borderColor="var(--accent)"}
                 onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}>
                 {c.photoURL ? (
-                  <img src={c.photoURL} alt="coach" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:"1px solid var(--accent)" }} />
+                  <img src={c.photoURL} alt="coach" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:"1px solid var(--accent)", flexShrink:0 }} />
                 ) : (
-                  <div style={{ width:40, height:40, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"white" }}>
+                  <div style={{ width:40, height:40, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#0a0a0a", flexShrink:0 }}>
                     {c.coachName?.[0]?.toUpperCase()||"?"}
                   </div>
                 )}
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700 }}>{c.coachName}</div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.coachEmail}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.coachName}</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.coachEmail}</div>
                 </div>
-                <div style={{ fontSize:12, color:"var(--text-muted)" }}>Ver perfil →</div>
+                <div style={{ fontSize:12, color:"var(--text-muted)", flexShrink:0, whiteSpace:"nowrap" }}>Ver perfil →</div>
               </div>
             ))}
           </div>
@@ -766,6 +484,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
           </div>
         )}
       </div>
+      {confirmModal}
     </div>
   );
 }

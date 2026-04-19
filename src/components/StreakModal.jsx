@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
 import { getStreak, calcBestStreak } from "./utils";
+import { getStreakStatus, getShields, useShield, wasShieldUsedThisWeek } from "../utils/gymCalcs";
 
-function StreakModal({ sessions, user, onClose }) {
+function StreakModal({ sessions, user, weeklyTarget = 3, onClose, onStartSession }) {
   const [teamStreaks, setTeamStreaks] = useState([]);
   const [loadingTeam, setLoadingTeam] = useState(true);
+  const [shieldUsed, setShieldUsed] = useState(false);
+  const [shields, setShields] = useState(getShields());
 
-  const streak = getStreak(sessions);
+  const streak = getStreak(sessions, weeklyTarget);
+  const streakStatus = getStreakStatus(sessions, weeklyTarget);
+  const alreadyUsedThisWeek = wasShieldUsedThisWeek();
   const color = streak >= 90 ? "#f97316" : streak >= 30 ? "#a855f7" : streak >= 14 ? "#3b82f6" : streak >= 7 ? "#22c55e" : "#f59e0b";
   const milestones = [3, 7, 14, 30, 90, 180, 365];
   const nextMilestone = milestones.find(m => m > streak) || null;
@@ -88,6 +93,92 @@ function StreakModal({ sessions, user, onClose }) {
         <div className="modal-header">
           <h3 className="modal-title">🔥 Mi Racha</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* ── Alerta racha en riesgo / perdida ── */}
+        {(streakStatus.status === "at_risk" || streakStatus.status === "lost") && !shieldUsed && (
+          <div style={{
+            background: streakStatus.status === "lost" ? "rgba(239,68,68,0.08)" : "rgba(249,115,22,0.08)",
+            border: `1px solid ${streakStatus.status === "lost" ? "rgba(239,68,68,0.35)" : "rgba(249,115,22,0.35)"}`,
+            borderRadius: 14, padding: "14px 16px", marginBottom: 18,
+          }}>
+            <div style={{ fontWeight: 800, fontSize: 14, color: streakStatus.status === "lost" ? "#ef4444" : "#f97316", marginBottom: 6 }}>
+              {streakStatus.status === "lost" ? "💔 ¡Racha perdida esta semana!" : "⚠️ ¡Tu racha está en riesgo!"}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, lineHeight: 1.5 }}>
+              {streakStatus.status === "lost"
+                ? `No llegaste a tu meta de ${weeklyTarget} sesiones la semana pasada.`
+                : `Te faltan ${streakStatus.sessionsNeeded} sesión${streakStatus.sessionsNeeded > 1 ? "es" : ""} para cumplir tu meta de ${weeklyTarget} esta semana.`}
+            </div>
+
+            {/* Opciones */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn-primary" style={{ fontSize: 13, padding: "8px 16px", flex: 1 }}
+                onClick={() => { onClose(); onStartSession?.(); }}>
+                ⚡ Entrenar ahora
+              </button>
+
+              {shields > 0 && !alreadyUsedThisWeek && (
+                <button
+                  className="btn-ghost small"
+                  style={{ fontSize: 13, padding: "8px 16px", flex: 1, borderColor: "#f59e0b", color: "#f59e0b" }}
+                  onClick={() => {
+                    if (useShield()) {
+                      setShields(getShields());
+                      setShieldUsed(true);
+                    }
+                  }}>
+                  🛡️ Usar escudo ({shields})
+                </button>
+              )}
+            </div>
+
+            {shields === 0 && !alreadyUsedThisWeek && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10 }}>
+                💡 Gana escudos completando el reto semanal o manteniendo 4 semanas seguidas
+              </div>
+            )}
+            {alreadyUsedThisWeek && (
+              <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 10 }}>
+                🛡️ Ya usaste un escudo esta semana
+              </div>
+            )}
+          </div>
+        )}
+
+        {shieldUsed && (
+          <div style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 14, padding: "14px 16px", marginBottom: 18, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 6 }}>🛡️</div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "#f59e0b", marginBottom: 4 }}>¡Racha protegida!</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Tu escudo absorbió la semana. Te quedan {shields} escudo{shields !== 1 ? "s" : ""}.</div>
+          </div>
+        )}
+
+        {/* ── Panel de escudos ── */}
+        <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: "12px 16px", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 20 }}>🛡️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 13 }}>Escudos de protección</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Protegen tu racha si fallas una semana</div>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[0, 1].map(i => (
+                <div key={i} style={{
+                  width: 28, height: 28, borderRadius: 8, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: i < shields ? "rgba(245,158,11,0.15)" : "var(--border)",
+                  border: `1px solid ${i < shields ? "rgba(245,158,11,0.5)" : "var(--border)"}`,
+                  filter: i < shields ? "none" : "grayscale(1)",
+                  opacity: i < shields ? 1 : 0.4,
+                }}>🛡️</div>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            <span style={{ color: "#22c55e", fontWeight: 700 }}>+1</span> completando el reto semanal &nbsp;·&nbsp;
+            <span style={{ color: "#22c55e", fontWeight: 700 }}>+1</span> con 4 semanas seguidas &nbsp;·&nbsp;
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>Máx. 2</span>
+          </div>
         </div>
 
         {/* Hero streak */}
