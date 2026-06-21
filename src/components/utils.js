@@ -1,10 +1,17 @@
 // ─── Shared utility functions ─────────────────────────────────────────────────
-// NOTA: estas funciones están duplicadas con src/utils/gymCalcs.js (deuda de
-// Etapa 4: unificar en una sola fuente). Mantener AMBAS sincronizadas hasta
-// entonces — las correcciones de cálculo de Etapa 1 están aplicadas en las dos.
+// Unificación (Etapa 4): las funciones de cálculo idénticas viven en una sola
+// fuente — src/utils/gymCalcs.js — y se reexportan aquí para no duplicar lógica.
+// Esto elimina la causa por la que un bug corregido reaparecía (Etapa 1).
+//
+// Se conservan AQUÍ solo getStreak y calcBestStreak, que tienen un comportamiento
+// de racha propio distinto al getStreak de gymCalcs (el de gymCalcs no rompe la
+// racha si la semana en curso aún no está completa; estos componentes —StreakModal,
+// AdminExercisesModal— esperan la versión simple). Unificar también la racha
+// requiere validar el número mostrado en la UI; se deja para esa revisión.
 
-// Parsea una fecha de sesión de forma robusta. Devuelve null si es inválida en
-// vez de un Invalid Date que rompería los cálculos de racha.
+export { calc1RM, calcSessionVolume, detectNewPRs, getPRs } from "../utils/gymCalcs";
+
+// Parsea una fecha de sesión de forma robusta. null si es inválida.
 function parseDate(s) {
   if (!s) return null;
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -25,66 +32,6 @@ function getMonday(d) {
   const day = date.getDay();
   date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
   return date.toISOString().slice(0, 10);
-}
-
-export function calc1RM(weight, reps) {
-  if (!weight || !reps || reps <= 0) return 0;
-  const w = parseFloat(weight), r = parseFloat(reps);
-  if (r === 1) return w;
-  return Math.round(w * (1 + r / 30));
-}
-
-export function calcSessionVolume(session) {
-  // Volumen = peso × reps. Sin reps el aporte es 0 (no se inventa 1 rep).
-  return (session.exercises || []).reduce((acc, ex) => {
-    if (ex.sets?.length > 0) {
-      return acc + ex.sets.reduce((s, st) => s + (parseFloat(st.weight)||0) * (parseFloat(st.reps)||0), 0);
-    }
-    return acc + (parseFloat(ex.weight)||0) * (parseFloat(ex.reps)||0);
-  }, 0);
-}
-
-export function detectNewPRs(newSession, existingSessions) {
-  const newPRs = [];
-  (newSession.exercises || []).forEach(ex => {
-    const doneSets = (ex.sets || []).filter(s => s.done !== false);
-    if (doneSets.length === 0 && !ex.weight) return;
-
-    // Mejor 1RM por serie (no cruzar peso máximo con reps máximas de series distintas).
-    const candidates = doneSets.length > 0 ? doneSets : [{ weight: ex.weight, reps: ex.reps }];
-    let best = { rm: 0, weight: 0, reps: 0 };
-    for (const st of candidates) {
-      const w = parseFloat(st.weight) || 0;
-      const r = parseFloat(st.reps) || 0;
-      const rm = calc1RM(w, r);
-      if (rm > best.rm) best = { rm, weight: w, reps: r };
-    }
-    if (best.weight <= 0) return;
-
-    const prevBest1RM = existingSessions
-      .flatMap(s => (s.exercises || []).filter(e => e.name === ex.name))
-      .reduce((acc, e) => {
-        const sets = e.sets?.length > 0 ? e.sets : [{ weight: e.weight, reps: e.reps }];
-        const best1rm = Math.max(0, ...sets.map(st => calc1RM(parseFloat(st.weight) || 0, parseFloat(st.reps) || 0)));
-        return Math.max(acc, best1rm);
-      }, 0);
-
-    if (best.rm > prevBest1RM && best.rm > 0) {
-      newPRs.push({ name: ex.name, rm: best.rm, weight: best.weight, reps: best.reps });
-    }
-  });
-  return newPRs;
-}
-
-export function getPRs(sessions) {
-  const prs = {};
-  sessions.forEach(s => (s.exercises||[]).forEach(ex => {
-    // Mejor 1RM real entre las series (no max-peso × max-reps cruzados).
-    const sets = ex.sets?.length > 0 ? ex.sets : [{ weight: ex.weight, reps: ex.reps }];
-    const rm = Math.max(0, ...sets.map(st => calc1RM(parseFloat(st.weight)||0, parseFloat(st.reps)||0)));
-    if (rm > 0 && (!prs[ex.name] || rm > prs[ex.name].rm)) prs[ex.name] = { rm, date: s.date };
-  }));
-  return prs;
 }
 
 export function calcBestStreak(sessions, weeklyTarget = 3) {
