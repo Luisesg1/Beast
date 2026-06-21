@@ -29,3 +29,9 @@ dist-ssr
 # Variables de entorno locales
 .env
 .env.local
+
+# Firebase emulator debug logs
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+*.local
