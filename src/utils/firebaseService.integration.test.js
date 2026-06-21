@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { signInAnonymously } from "firebase/auth";
-import { getDocs, getDoc, doc, collection } from "firebase/firestore";
+import { signInAnonymously, signOut } from "firebase/auth";
+import { getDocs, getDoc, setDoc, doc, collection } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { saveSessions, loadSessions } from "./firebaseService";
+import { saveSessions, loadSessions, backfillLegacySessions } from "./firebaseService";
 
 // Integración real contra los emuladores: ejercita la escritura/lectura dual de
 // sesiones (documento legacy + subcolección users/{uid}/sessions) con Auth y las
@@ -58,5 +58,38 @@ describe("saveSessions / loadSessions — escritura y lectura dual (emulador)", 
     await saveSessions(uid, [mk("b"), mk("c")]);
     const ids = (await loadSessions(uid)).map(s => s.id).sort();
     expect(ids).toEqual(["b", "c"]); // sin repetidos aunque estén en ambos modelos
+  });
+});
+
+describe("backfill — usuario existente con historial solo en legacy", () => {
+  let legacyUid;
+
+  beforeAll(async () => {
+    // signInAnonymously reutiliza el usuario anónimo actual; cerramos sesión para
+    // obtener un uid nuevo y limpio (sin subcolección de los tests anteriores).
+    await signOut(auth);
+    const cred = await signInAnonymously(auth);
+    legacyUid = cred.user.uid;
+    // Simular un usuario previo a la migración: historial SOLO en el documento legacy.
+    await setDoc(doc(db, "sessions", legacyUid), {
+      list: [mk("h1"), mk("h2"), mk("h3")],
+      _archiveChunks: 0,
+    });
+  });
+
+  it("backfillLegacySessions copia el historial faltante a la subcolección", async () => {
+    const before = await getDocs(collection(db, "users", legacyUid, "sessions"));
+    expect(before.size).toBe(0); // sub vacía al inicio
+
+    const { migrated } = await backfillLegacySessions(legacyUid);
+    expect(migrated).toBe(3);
+
+    const after = await getDocs(collection(db, "users", legacyUid, "sessions"));
+    expect(after.docs.map(d => d.id).sort()).toEqual(["h1", "h2", "h3"]);
+  });
+
+  it("es idempotente: un segundo backfill no copia nada", async () => {
+    const { migrated } = await backfillLegacySessions(legacyUid);
+    expect(migrated).toBe(0);
   });
 });

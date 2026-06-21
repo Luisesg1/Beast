@@ -286,6 +286,46 @@ async function syncSessionsSubcollection(uid, sessions) {
   sessionSnapshots.set(uid, buildSnapshot(sessions));
 }
 
+// Escribe un conjunto de sesiones (set por id) en la subcolección, en lotes de 450.
+async function writeSessionsBatch(uid, sessions) {
+  const col = collection(db, "users", uid, "sessions");
+  for (let i = 0; i < sessions.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const s of sessions.slice(i, i + 450)) {
+      if (s && s.id != null) batch.set(doc(col, String(s.id)), s);
+    }
+    await batch.commit();
+  }
+}
+
+// Backfill perezoso (Etapa 4-A, fase 2): copia a la subcolección las sesiones que
+// existen en el modelo legacy (documento + archivo) pero aún no en la subcolección.
+// Idempotente: solo escribe lo que falta. Awaitable (lo usan los tests); en la app
+// lo dispara loadSessions en segundo plano la primera vez que un usuario carga.
+export async function backfillLegacySessions(uid) {
+  const subIds = new Set();
+  try {
+    const subSnap = await getDocs(collection(db, "users", uid, "sessions"));
+    subSnap.forEach(d => subIds.add(d.id));
+  } catch (_) { return { migrated: 0 }; }
+
+  const mainSnap = await getDoc(doc(db, "sessions", uid));
+  const main = mainSnap.exists() ? (mainSnap.data().list || []) : [];
+  let archived = [];
+  try {
+    const archSnap = await getDocs(collection(db, "sessions", uid, "archive"));
+    archSnap.forEach(d => { archived = archived.concat(d.data().list || []); });
+  } catch (_) { /* sin archivo — ignorar */ }
+
+  const missing = new Map();
+  [...main, ...archived].forEach(s => {
+    if (s && s.id != null && !subIds.has(String(s.id))) missing.set(String(s.id), s);
+  });
+  const list = [...missing.values()];
+  if (list.length > 0) await writeSessionsBatch(uid, list);
+  return { migrated: list.length };
+}
+
 // Escritura legacy (documento + archivo de overflow). Es la red de seguridad.
 async function saveSessionsLegacy(uid, sorted) {
   const fullSize = JSON.stringify({ list: sorted }).length;
@@ -310,9 +350,10 @@ export async function loadSessions(uid) {
   try {
     // 1) Subcolección nueva (vacía para usuarios aún no migrados).
     const subSessions = [];
+    const subIds = new Set();
     try {
       const subSnap = await getDocs(collection(db, "users", uid, "sessions"));
-      subSnap.forEach(d => subSessions.push({ id: d.id, ...d.data() }));
+      subSnap.forEach(d => { subSessions.push({ id: d.id, ...d.data() }); subIds.add(d.id); });
     } catch (_) { /* sin permisos o vacía — ignorar */ }
 
     // 2) Documento legacy + su archivo de overflow.
@@ -335,6 +376,17 @@ export async function loadSessions(uid) {
 
     const combined = [...byId.values(), ...noId].sort(byDateDesc);
     sessionSnapshots.set(uid, buildSnapshot(combined)); // base para diffs de escritura
+
+    // Backfill perezoso: sesiones que están solo en legacy se copian a la
+    // subcolección en segundo plano (sin bloquear la carga ni la UI).
+    const legacyOnly = new Map();
+    [...main, ...archived].forEach(s => {
+      if (s && s.id != null && !subIds.has(String(s.id))) legacyOnly.set(String(s.id), s);
+    });
+    if (legacyOnly.size > 0) {
+      writeSessionsBatch(uid, [...legacyOnly.values()]).catch(e => trackError(e, "backfillLazy"));
+    }
+
     return combined;
   } catch (e) {
     trackError(e, "loadSessions");
