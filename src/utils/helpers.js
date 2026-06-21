@@ -11,6 +11,16 @@ export const fmtDate = (d) => {
   return `${day}/${m}/${y}`;
 };
 
+// Fecha larga en español: "Miércoles, 17 de junio de 2026".
+export const fmtDateLong = (dateStr) => {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dias = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  return `${dias[dt.getDay()]}, ${d} de ${meses[m-1]} de ${y}`;
+};
+
 export const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;

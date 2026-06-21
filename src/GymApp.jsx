@@ -47,7 +47,8 @@ import { Share } from '@capacitor/share';
 import { doc, getDoc, setDoc, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { EXERCISE_DB, MUSCLES, registerCustomExercise } from "./exerciseDb";
-import { uid, fmtDate, todayStr, lettersOnly, workoutInput, numDot, numWeight, numReps, numBodyW, numHeight, numAge, store, load, firebaseErrMsg } from "./utils/helpers";
+import { uid, fmtDate, fmtDateLong, todayStr, lettersOnly, workoutInput, numDot, numWeight, numReps, numBodyW, numHeight, numAge, store, load, firebaseErrMsg } from "./utils/helpers";
+import { getSupersetColor } from "./utils/supersets";
 import { compressImage } from "./utils/imageUtils";
 import { joinCoachByCode, getMyCoaches, getFullRoutine, unassignRoutineFromAthlete, markRoutineCompleted, saveBodyStatsToDB, saveMeasuresToDB, loadMeasuresFromDB, saveCustomExercise, loadCustomExercises, updateCustomExerciseGif, updateCustomExerciseMeta, deleteCustomExercise, teamsGet, teamsSet, loadSessions, saveSessions } from "./utils/firebaseService";
 import Dashboard from "./components/Dashboard";
@@ -58,35 +59,7 @@ const AdminExercisesModal = lazy(() => import("./components/AdminExercisesModal"
 const StreakModal         = lazy(() => import("./components/StreakModal"));
 const MuscleMapModal      = lazy(() => import("./components/MuscleMapModal"));
 
-const fmtDateLong = (dateStr) => {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  const dias = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  const meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-  return `${dias[dt.getDay()]}, ${d} de ${meses[m-1]} de ${y}`;
-};
-
 const LIVE_DRAFT_KEY = "gym_live_draft";
-
-const SS_COLORS = ["#a78bfa", "#38bdf8", "#fb923c", "#34d399", "#f472b6"];
-
-function getSupersetGroups(exercises) {
-  const groups = {};
-  exercises.forEach((ex, i) => {
-    if (ex.supersetGroup) {
-      if (!groups[ex.supersetGroup]) groups[ex.supersetGroup] = [];
-      groups[ex.supersetGroup].push(i);
-    }
-  });
-  return Object.entries(groups).map(([groupId, indices]) => ({ groupId, indices }));
-}
-
-function getSupersetColor(groupId, exercises) {
-  const groups = getSupersetGroups(exercises);
-  const idx = groups.findIndex(g => g.groupId === groupId);
-  return idx >= 0 ? SS_COLORS[idx % SS_COLORS.length] : SS_COLORS[0];
-}
 
 function BruxAvatar({ size = 32 }) {
   return (
