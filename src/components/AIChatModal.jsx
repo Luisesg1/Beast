@@ -5,6 +5,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../firebase";
 import { showCoachIARewardedAd } from "../useAdMob";
 import { calc1RM } from "../utils/gymCalcs";
+import { track } from "../utils/analytics";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -385,6 +386,7 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
     }
 
     setInput("");
+    track("ai_chat", { length: msg.length });
     askOpenAI(msg);
   }
 

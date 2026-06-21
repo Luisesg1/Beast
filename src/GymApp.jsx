@@ -15,6 +15,7 @@ import AIChatModal, { DraggableAIButton } from "./components/AIChatModal";
 import ExerciseGif, { CustomGifCtx, useCustomGifs } from "./components/ExerciseGif";
 import TemplatesModal from "./components/TemplatesModal";
 import { calc1RM, calcSessionVolume, detectNewPRs, getStreak, getPRs, getWeeklyChallenge, addShield } from "./utils/gymCalcs";
+import { track } from "./utils/analytics";
 import fireConfetti from "./utils/fireConfetti";
 import { GuestWall, EmailVerifyWall } from "./components/AuthWalls";
 import WeeklyGoalModal from "./components/WeeklyGoalModal";
@@ -824,7 +825,9 @@ useEffect(() => {
       const updatedSessions = [newSession, ...sessions];
       setSessions(prev => [newSession, ...prev]);
       fireConfetti();
+      track("session_saved", { exercises: currentExercises.length, mode: "register" });
       if (newPRs.length > 0) {
+        track("pr_detected", { count: newPRs.length });
         setPrConfetti({ prs: newPRs });
       } else {
         showToast("✅ Sesión guardada");
@@ -1350,7 +1353,8 @@ useEffect(() => {
           const updatedSessionsLive = [newSession, ...sessions];
           setSessions(prev => [newSession, ...prev]);
           fireConfetti();
-          if (newPRs.length > 0) setPrConfetti({ prs: newPRs });
+          track("session_saved", { exercises: finalExercises.length, mode: "live" });
+          if (newPRs.length > 0) { track("pr_detected", { count: newPRs.length }); setPrConfetti({ prs: newPRs }); }
           else showToast("✅ Sesión guardada");
           // 🛡️ Escudo por hito de 4 semanas seguidas
           const newStreakLive = getStreak(updatedSessionsLive, weeklyGoal?.target || 3);

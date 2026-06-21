@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import { useBilling } from "../useBilling";
 import { Purchases } from "@revenuecat/purchases-capacitor";
 import { Capacitor } from "@capacitor/core";
+import { track } from "../utils/analytics";
 
 const PLANS = {
   pro: {
@@ -312,6 +313,9 @@ export default function PaywallModal({ onClose, defaultPlan = "pro" }) {
   const [prices, setPrices] = useState({});
 
   const isGuest = !user || user.isGuest || user.email === "__guest__";
+
+  // Registrar visualización del paywall (clave para medir conversión).
+  useEffect(() => { track("paywall_seen", { defaultPlan }); }, [defaultPlan]);
 
   // Obtener precios reales desde RevenueCat al abrir el modal
   useEffect(() => {

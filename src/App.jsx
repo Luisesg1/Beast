@@ -11,6 +11,7 @@ import { configureRevenueCat, checkProStatusStandalone, registerAppResumeListene
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase";
 import { store, load, firebaseErrMsg } from "./utils/helpers";
+import { track, setAnalyticsUser } from "./utils/analytics";
 import GymApp from "./GymApp";
 
 const ThemeCtx = createContext();
@@ -214,7 +215,9 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (unsubUserRef.current) { unsubUserRef.current(); unsubUserRef.current = null; }
       if (firebaseUser) {
-        setCurrentUser(await createOrLoadProfile(firebaseUser));
+        const profile = await createOrLoadProfile(firebaseUser);
+        setCurrentUser(profile);
+        setAnalyticsUser(firebaseUser.uid, profile?.plan);
         const rcUpdateUser = (patch) => {
           setCurrentUser(prev => {
             if (!prev) return prev;
@@ -293,6 +296,7 @@ export default function App() {
       await updateProfile(cred.user, { displayName: name });
       await sendEmailVerification(cred.user);
       await setDoc(doc(db, "users", cred.user.uid), { uid: cred.user.uid, name, email, plan: "free" }, { merge: true });
+      track("signup", { method: "email" });
       return { ok: true };
     } catch (e) { return { ok: false, msg: firebaseErrMsg(e.code) }; }
   }
