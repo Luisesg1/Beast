@@ -55,6 +55,12 @@ service cloud.firestore {
         && request.resource.data.get('plan', 'free') == resource.data.get('plan', 'free')
         && request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false);
       allow delete: if false;
+
+      // Sesiones (nuevo modelo, Etapa 4-A). Dueño escribe; coach vinculado lee.
+      match /sessions/{sessionId} {
+        allow read: if isOwner(userId) || isCoachOf(userId) || isAdmin();
+        allow write: if isOwner(userId);
+      }
     }
 
     // ── sessions (+ archivo de overflow) ─────────────────────────────────────

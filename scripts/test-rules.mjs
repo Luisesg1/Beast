@@ -92,6 +92,20 @@ async function main() {
   await check("coach NO escribe sesiones del atleta",
     assertFails(setDoc(doc(db(COACH), "sessions", ATHLETE), { list: [] })));
 
+  console.log("\nSESIONES — subcolección nueva users/{uid}/sessions (Etapa 4-A)");
+  await check("dueño escribe una sesión en la subcolección",
+    assertSucceeds(setDoc(doc(db(ATHLETE), "users", ATHLETE, "sessions", "s1"), { id: "s1", workout: "Push" })));
+  await check("dueño lee su subcolección de sesiones",
+    assertSucceeds(getDoc(doc(db(ATHLETE), "users", ATHLETE, "sessions", "s1"))));
+  await check("coach vinculado lee las sesiones del atleta",
+    assertSucceeds(getDoc(doc(db(COACH), "users", ATHLETE, "sessions", "s1"))));
+  await check("extraño NO lee sesiones ajenas (subcolección)",
+    assertFails(getDoc(doc(db(OTHER), "users", ATHLETE, "sessions", "s1"))));
+  await check("extraño NO escribe sesiones ajenas (subcolección)",
+    assertFails(setDoc(doc(db(OTHER), "users", ATHLETE, "sessions", "s2"), { id: "s2" })));
+  await check("coach NO escribe sesiones del atleta (subcolección)",
+    assertFails(setDoc(doc(db(COACH), "users", ATHLETE, "sessions", "s3"), { id: "s3" })));
+
   console.log("\nAI_USAGE (anti-bypass de límite)");
   await check("dueño lee su contador IA",
     assertSucceeds(getDoc(doc(db(ATHLETE), "ai_usage", ATHLETE))));

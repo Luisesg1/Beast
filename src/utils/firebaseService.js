@@ -3,6 +3,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../firebase";
 import { todayStr } from "./helpers";
 import { trackError } from "./analytics";
+import { hashSession, buildSnapshot, diffSessions } from "./sessionDiff";
 
 // ── Coach / Athlete ───────────────────────────────────────────────────────────
 
@@ -240,28 +241,101 @@ async function syncArchive(uid, chunks) {
   await batch.commit();
 }
 
+// ── Migración a subcolección users/{uid}/sessions/{id} (Etapa 4-A, fase Expand) ──
+//
+// Escritura DUAL: el documento legacy `sessions/{uid}` se sigue escribiendo como
+// red de seguridad (fuente de verdad durante la transición); además, cada sesión
+// se replica de forma incremental en `users/{uid}/sessions/{id}`. La lectura
+// combina ambos modelos deduplicando por id. Tras el backfill y la validación, la
+// fase Contract dejará de escribir/leer el legacy.
+
+// Snapshot en memoria por uid (id → hash) para escribir solo las sesiones que
+// cambiaron, sin reescribir toda la subcolección en cada guardado.
+// La lógica de diff vive en sessionDiff.js (pura y testeada).
+const sessionSnapshots = new Map();
+
+// Escribe en la subcolección solo los cambios respecto al último snapshot conocido.
+// Lotes de 450 (límite de 500 por batch en Firestore).
+async function syncSessionsSubcollection(uid, sessions) {
+  const col = collection(db, "users", uid, "sessions");
+
+  let prev = sessionSnapshots.get(uid);
+  if (!prev) {
+    // Sin snapshot (primer guardado tras recargar): leer lo que ya existe.
+    prev = new Map();
+    const snap = await getDocs(col);
+    snap.forEach(d => prev.set(d.id, hashSession({ id: d.id, ...d.data() })));
+  }
+
+  const { sets, deletes } = diffSessions(prev, sessions);
+  const ops = [
+    ...sets.map(s => ({ type: "set", id: String(s.id), data: s })),
+    ...deletes.map(id => ({ type: "delete", id })),
+  ];
+
+  for (let i = 0; i < ops.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const op of ops.slice(i, i + 450)) {
+      const ref = doc(col, op.id);
+      if (op.type === "set") batch.set(ref, op.data);
+      else batch.delete(ref);
+    }
+    await batch.commit();
+  }
+
+  sessionSnapshots.set(uid, buildSnapshot(sessions));
+}
+
+// Escritura legacy (documento + archivo de overflow). Es la red de seguridad.
+async function saveSessionsLegacy(uid, sorted) {
+  const fullSize = JSON.stringify({ list: sorted }).length;
+
+  if (fullSize <= SESSION_DOC_MAX_BYTES) {
+    if (fullSize > SESSION_DOC_WARN_BYTES) {
+      console.warn(`[saveSessions] Documento al ${Math.round(fullSize/1000)}KB de ~1000KB.`);
+    }
+    await setDoc(doc(db, "sessions", uid), { list: sorted, updatedAt: serverTimestamp(), _archiveChunks: 0 });
+    await syncArchive(uid, []);
+    return;
+  }
+
+  const main = chunkByBytes(sorted, SESSION_DOC_MAX_BYTES)[0];
+  const overflow = sorted.slice(main.length);
+  const archiveChunks = chunkByBytes(overflow, SESSION_DOC_MAX_BYTES);
+  await syncArchive(uid, archiveChunks); // archivo primero: nunca pierde antiguas
+  await setDoc(doc(db, "sessions", uid), { list: main, updatedAt: serverTimestamp(), _archiveChunks: archiveChunks.length });
+}
+
 export async function loadSessions(uid) {
   try {
+    // 1) Subcolección nueva (vacía para usuarios aún no migrados).
+    const subSessions = [];
+    try {
+      const subSnap = await getDocs(collection(db, "users", uid, "sessions"));
+      subSnap.forEach(d => subSessions.push({ id: d.id, ...d.data() }));
+    } catch (_) { /* sin permisos o vacía — ignorar */ }
+
+    // 2) Documento legacy + su archivo de overflow.
     const mainSnap = await getDoc(doc(db, "sessions", uid));
     const main = mainSnap.exists() ? (mainSnap.data().list || []) : [];
-
-    // Leer chunks de archivo (si los hay). Vacío para la inmensa mayoría de usuarios.
     let archived = [];
     try {
       const archSnap = await getDocs(collection(db, "sessions", uid, "archive"));
       archSnap.forEach(d => { archived = archived.concat(d.data().list || []); });
-    } catch (_) { /* sin archivo o sin permisos — ignorar */ }
+    } catch (_) { /* sin archivo — ignorar */ }
 
-    if (archived.length === 0) return main;
-
-    // Combinar deduplicando por id (una sesión movida al archivo no debe duplicarse).
+    // Combinar: legacy primero, la subcolección (más reciente) sobrescribe por id.
     const byId = new Map();
     const noId = [];
     [...main, ...archived].forEach(s => {
-      if (s && s.id != null) byId.set(s.id, s);
+      if (s && s.id != null) byId.set(String(s.id), s);
       else if (s) noId.push(s);
     });
-    return [...byId.values(), ...noId].sort(byDateDesc);
+    subSessions.forEach(s => { if (s && s.id != null) byId.set(String(s.id), s); });
+
+    const combined = [...byId.values(), ...noId].sort(byDateDesc);
+    sessionSnapshots.set(uid, buildSnapshot(combined)); // base para diffs de escritura
+    return combined;
   } catch (e) {
     trackError(e, "loadSessions");
     return [];
@@ -269,48 +343,24 @@ export async function loadSessions(uid) {
 }
 
 export async function saveSessions(uid, sessions) {
+  const sorted = [...(sessions || [])].sort(byDateDesc);
+
+  // 1) Legacy PRIMERO: es la fuente de verdad durante la transición. Si esto falla,
+  //    el guardado falla (el usuario debe saberlo) y no se pierde nada.
   try {
-    const sorted = [...(sessions || [])].sort(byDateDesc);
-    const fullSize = JSON.stringify({ list: sorted }).length;
-
-    // Caso normal: todo cabe en el documento principal.
-    if (fullSize <= SESSION_DOC_MAX_BYTES) {
-      if (fullSize > SESSION_DOC_WARN_BYTES) {
-        console.warn(`[saveSessions] Documento al ${Math.round(fullSize/1000)}KB de ~1000KB.`);
-      }
-      await setDoc(doc(db, "sessions", uid), {
-        list: sorted,
-        updatedAt: serverTimestamp(),
-        _archiveChunks: 0,
-      });
-      // Limpiar archivo si en un guardado anterior hubo overflow y ahora ya no.
-      await syncArchive(uid, []);
-      return true;
-    }
-
-    // Overflow: separar las más recientes (principal) del resto (archivo).
-    const main = chunkByBytes(sorted, SESSION_DOC_MAX_BYTES)[0];
-    const overflow = sorted.slice(main.length);
-    const archiveChunks = chunkByBytes(overflow, SESSION_DOC_MAX_BYTES);
-
-    // 1) Guardar el archivo PRIMERO. Si falla, no tocamos el principal (que aún
-    //    contiene TODAS las sesiones) → no se pierde nada.
-    await syncArchive(uid, archiveChunks);
-
-    // 2) Recién entonces reescribir el principal solo con las recientes.
-    await setDoc(doc(db, "sessions", uid), {
-      list: main,
-      updatedAt: serverTimestamp(),
-      _archiveChunks: archiveChunks.length,
-    });
-
-    console.warn(
-      `[saveSessions] Historial grande: ${main.length} recientes en principal, ` +
-      `${overflow.length} archivadas en ${archiveChunks.length} chunk(s). Sin pérdida.`
-    );
-    return true;
-  } catch(e) {
-    trackError(e, "saveSessions");
+    await saveSessionsLegacy(uid, sorted);
+  } catch (e) {
+    trackError(e, "saveSessions:legacy");
     return false;
   }
+
+  // 2) Subcolección DESPUÉS: best-effort. Si falla, el dato ya está a salvo en
+  //    legacy; se corregirá en el próximo guardado o en el backfill.
+  try {
+    await syncSessionsSubcollection(uid, sorted);
+  } catch (e) {
+    trackError(e, "saveSessions:sub");
+  }
+
+  return true;
 }
