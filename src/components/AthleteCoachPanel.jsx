@@ -231,7 +231,11 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
             return;
           }
 
-          await markRoutineCompleted(user.uid, activeWorkout._docId || activeWorkout.routineId || activeWorkout.id);
+          const marked = await markRoutineCompleted(user.uid, activeWorkout._docId || activeWorkout.routineId || activeWorkout.id);
+          if (!marked) {
+            // La sesión ya se guardó arriba; solo falló marcar la rutina como completada.
+            alert("⚠️ Tu entrenamiento se guardó, pero no pudimos marcar la rutina como completada. Verifica tu conexión y usa ↻ para reintentar.");
+          }
           const updated = await getAthleteRoutines(user.uid);
           setAssignedRoutines(updated);
           setActiveWorkout(null);

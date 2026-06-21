@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromS
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../firebase";
 import { todayStr } from "./helpers";
+import { trackError } from "./analytics";
 
 // ── Coach / Athlete ───────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ export async function getMyCoaches(athleteUid) {
   try {
     const snap = await getDocsFromServer(collection(db, "athlete_coaches", athleteUid, "coaches"));
     return snap.docs.map(d => d.data());
-  } catch(e) { return []; }
+  } catch(e) { trackError(e, "getMyCoaches"); return []; }
 }
 
 export async function getFullRoutine(coachUid, routineId) {
@@ -46,7 +47,7 @@ export async function unassignRoutineFromAthlete(athleteUid, routineId) {
   try {
     await deleteDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId));
     return { ok: true };
-  } catch(e) { return { ok: false }; }
+  } catch(e) { trackError(e, "unassignRoutineFromAthlete"); return { ok: false }; }
 }
 
 export async function markRoutineCompleted(athleteUid, routineId) {
@@ -55,7 +56,7 @@ export async function markRoutineCompleted(athleteUid, routineId) {
     await setDoc(doc(db, "athlete_routines", athleteUid, "routines", routineId),
       { completed: true, completedAt: todayStr() }, { merge: true });
     return true;
-  } catch(e) { return false; }
+  } catch(e) { trackError(e, "markRoutineCompleted"); return false; }
 }
 
 // ── Body Stats / Medidas ──────────────────────────────────────────────────────
@@ -64,21 +65,21 @@ export async function saveBodyStatsToDB(uid, stats) {
   try {
     await setDoc(doc(db, "body_stats", uid), stats);
     return true;
-  } catch(e) { return false; }
+  } catch(e) { trackError(e, "saveBodyStatsToDB"); return false; }
 }
 
 export async function saveMeasuresToDB(uid, entries) {
   try {
     await setDoc(doc(db, "measures", uid), { entries, updatedAt: serverTimestamp() });
     return true;
-  } catch(e) { return false; }
+  } catch(e) { trackError(e, "saveMeasuresToDB"); return false; }
 }
 
 export async function loadMeasuresFromDB(uid) {
   try {
     const snap = await getDoc(doc(db, "measures", uid));
     return snap.exists() ? (snap.data().entries || []) : null;
-  } catch(e) { return null; }
+  } catch(e) { trackError(e, "loadMeasuresFromDB"); return null; }
 }
 
 // ── Ejercicios Personalizados ─────────────────────────────────────────────────
@@ -98,7 +99,7 @@ export async function saveCustomExercise(name, muscle, coachUid, createdByUid) {
       ...(createdByUid ? { createdByUid } : {}),
     }, { merge: true });
   } catch(e) {
-    console.error("[saveCustomExercise] ERROR:", e.code, e.message);
+    trackError(e, "saveCustomExercise");
   }
 }
 
@@ -138,7 +139,7 @@ export async function updateCustomExerciseGif(coachUid, id, gifUrl) {
     await setDoc(ref, { gifUrl }, { merge: true });
     return true;
   } catch(e) {
-    console.error("[updateCustomExerciseGif] ERROR:", e);
+    trackError(e, "updateCustomExerciseGif");
     return false;
   }
 }
@@ -150,7 +151,7 @@ export async function updateCustomExerciseMeta(coachUid, id, name, muscle) {
       : doc(db, "custom_exercises", id);
     await setDoc(ref, { name, muscle }, { merge: true });
     return true;
-  } catch(e) { return false; }
+  } catch(e) { trackError(e, "updateCustomExerciseMeta"); return false; }
 }
 
 export async function deleteCustomExercise(coachUid, id) {
@@ -160,7 +161,7 @@ export async function deleteCustomExercise(coachUid, id) {
       : doc(db, "custom_exercises", id);
     await deleteDoc(ref);
     return true;
-  } catch(e) { return false; }
+  } catch(e) { trackError(e, "deleteCustomExercise"); return false; }
 }
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
@@ -169,14 +170,14 @@ export async function teamsGet(code) {
   try {
     const snap = await getDoc(doc(db, "teams", code));
     return snap.exists() ? snap.data() : null;
-  } catch(e) { console.error("teamsGet:", e); return null; }
+  } catch(e) { trackError(e, "teamsGet"); return null; }
 }
 
 export async function teamsSet(code, val) {
   try {
     await setDoc(doc(db, "teams", code), val);
     return true;
-  } catch(e) { console.error("teamsSet:", e); return false; }
+  } catch(e) { trackError(e, "teamsSet"); return false; }
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -262,7 +263,7 @@ export async function loadSessions(uid) {
     });
     return [...byId.values(), ...noId].sort(byDateDesc);
   } catch (e) {
-    console.error("[loadSessions] Error:", e);
+    trackError(e, "loadSessions");
     return [];
   }
 }
@@ -309,7 +310,7 @@ export async function saveSessions(uid, sessions) {
     );
     return true;
   } catch(e) {
-    console.error("[saveSessions] Error:", e);
+    trackError(e, "saveSessions");
     return false;
   }
 }

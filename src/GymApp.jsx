@@ -504,6 +504,8 @@ useEffect(() => {
     if (user.isGuest) return;
     clearTimeout(saveBodyStatsTimerRef.current);
     saveBodyStatsTimerRef.current = setTimeout(() => {
+      // Autosave en background; el dato ya está en localStorage (store arriba), así
+      // que un fallo de red no pierde datos. El error se registra en saveBodyStatsToDB.
       saveBodyStatsToDB(user.uid, bodyStats);
     }, 2000);
     return () => clearTimeout(saveBodyStatsTimerRef.current);
