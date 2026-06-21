@@ -9,6 +9,13 @@ import {
   getPRs,
   getStreak,
 } from "../src/utils/gymCalcs.js";
+// Copia duplicada usada por InsightsModal/AdminExercisesModal/StreakModal.
+// Debe quedar sincronizada hasta unificar en Etapa 4.
+import {
+  getPRs as getPRsDup,
+  calcSessionVolume as calcVolDup,
+  getStreak as getStreakDup,
+} from "../src/components/utils.js";
 
 let passed = 0;
 function test(name, fn) {
@@ -66,6 +73,20 @@ test("ignora fechas inválidas sin lanzar", () => {
     { date: null },
   ];
   assert.doesNotThrow(() => getStreak(sessions, 3));
+});
+
+console.log("\ncomponents/utils.js (copia duplicada — mismos bugs corregidos)");
+test("getPRs duplicado: mejor 1RM real entre series", () => {
+  const sessions = [{ date: "2026-06-01", exercises: [{ name: "Sentadilla", sets: [
+    { weight: 140, reps: 4 }, { weight: 100, reps: 10 },
+  ] }] }];
+  assert.equal(getPRsDup(sessions)["Sentadilla"].rm, 159);
+});
+test("calcSessionVolume duplicado: serie sin reps aporta 0", () => {
+  assert.equal(calcVolDup({ exercises: [{ sets: [{ weight: 100, reps: 5 }, { weight: 50, reps: "" }] }] }), 500);
+});
+test("getStreak duplicado: fecha inválida no rompe", () => {
+  assert.doesNotThrow(() => getStreakDup([{ date: "no-es-fecha" }, { date: null }], 3));
 });
 
 console.log(`\nTotal: ${passed} pruebas pasaron.`);

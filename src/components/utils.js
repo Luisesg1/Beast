@@ -1,11 +1,30 @@
 // ─── Shared utility functions ─────────────────────────────────────────────────
+// NOTA: estas funciones están duplicadas con src/utils/gymCalcs.js (deuda de
+// Etapa 4: unificar en una sola fuente). Mantener AMBAS sincronizadas hasta
+// entonces — las correcciones de cálculo de Etapa 1 están aplicadas en las dos.
 
-// Internal helper — not exported (usado por calcBestStreak y getStreak)
+// Parsea una fecha de sesión de forma robusta. Devuelve null si es inválida en
+// vez de un Invalid Date que rompería los cálculos de racha.
+function parseDate(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Lunes de la semana de `d` como clave 'YYYY-MM-DD'. null si la fecha es inválida.
 function getMonday(d) {
-  const date = new Date(d); date.setHours(0,0,0,0);
+  const date = parseDate(d instanceof Date ? d.toISOString() : d);
+  if (!date) return null;
   const day = date.getDay();
   date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-  return date.toISOString().slice(0,10);
+  return date.toISOString().slice(0, 10);
 }
 
 export function calc1RM(weight, reps) {
@@ -16,11 +35,12 @@ export function calc1RM(weight, reps) {
 }
 
 export function calcSessionVolume(session) {
+  // Volumen = peso × reps. Sin reps el aporte es 0 (no se inventa 1 rep).
   return (session.exercises || []).reduce((acc, ex) => {
     if (ex.sets?.length > 0) {
-      return acc + ex.sets.reduce((s, st) => s + (parseFloat(st.weight)||0) * (parseFloat(st.reps)||1), 0);
+      return acc + ex.sets.reduce((s, st) => s + (parseFloat(st.weight)||0) * (parseFloat(st.reps)||0), 0);
     }
-    return acc + (parseFloat(ex.weight)||0) * (parseFloat(ex.reps)||1);
+    return acc + (parseFloat(ex.weight)||0) * (parseFloat(ex.reps)||0);
   }, 0);
 }
 
@@ -29,23 +49,28 @@ export function detectNewPRs(newSession, existingSessions) {
   (newSession.exercises || []).forEach(ex => {
     const doneSets = (ex.sets || []).filter(s => s.done !== false);
     if (doneSets.length === 0 && !ex.weight) return;
-    const newW = doneSets.length > 0
-      ? Math.max(...doneSets.map(st => parseFloat(st.weight) || 0))
-      : parseFloat(ex.weight) || 0;
-    const newR = doneSets.length > 0
-      ? Math.max(...doneSets.map(st => parseFloat(st.reps) || 0))
-      : parseFloat(ex.reps) || 0;
-    if (newW <= 0) return;
-    const new1RM = calc1RM(newW, newR);
+
+    // Mejor 1RM por serie (no cruzar peso máximo con reps máximas de series distintas).
+    const candidates = doneSets.length > 0 ? doneSets : [{ weight: ex.weight, reps: ex.reps }];
+    let best = { rm: 0, weight: 0, reps: 0 };
+    for (const st of candidates) {
+      const w = parseFloat(st.weight) || 0;
+      const r = parseFloat(st.reps) || 0;
+      const rm = calc1RM(w, r);
+      if (rm > best.rm) best = { rm, weight: w, reps: r };
+    }
+    if (best.weight <= 0) return;
+
     const prevBest1RM = existingSessions
       .flatMap(s => (s.exercises || []).filter(e => e.name === ex.name))
-      .reduce((best, e) => {
+      .reduce((acc, e) => {
         const sets = e.sets?.length > 0 ? e.sets : [{ weight: e.weight, reps: e.reps }];
-        const best1rm = Math.max(...sets.map(st => calc1RM(parseFloat(st.weight) || 0, parseFloat(st.reps) || 0)));
-        return Math.max(best, best1rm);
+        const best1rm = Math.max(0, ...sets.map(st => calc1RM(parseFloat(st.weight) || 0, parseFloat(st.reps) || 0)));
+        return Math.max(acc, best1rm);
       }, 0);
-    if (new1RM > prevBest1RM && new1RM > 0) {
-      newPRs.push({ name: ex.name, rm: new1RM, weight: newW, reps: newR });
+
+    if (best.rm > prevBest1RM && best.rm > 0) {
+      newPRs.push({ name: ex.name, rm: best.rm, weight: best.weight, reps: best.reps });
     }
   });
   return newPRs;
@@ -54,17 +79,17 @@ export function detectNewPRs(newSession, existingSessions) {
 export function getPRs(sessions) {
   const prs = {};
   sessions.forEach(s => (s.exercises||[]).forEach(ex => {
-    const w = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
-    const r = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.reps)||0)) : parseFloat(ex.reps)||0;
-    const rm = calc1RM(w, r);
-    if (!prs[ex.name] || rm > prs[ex.name].rm) prs[ex.name] = { rm, date: s.date };
+    // Mejor 1RM real entre las series (no max-peso × max-reps cruzados).
+    const sets = ex.sets?.length > 0 ? ex.sets : [{ weight: ex.weight, reps: ex.reps }];
+    const rm = Math.max(0, ...sets.map(st => calc1RM(parseFloat(st.weight)||0, parseFloat(st.reps)||0)));
+    if (rm > 0 && (!prs[ex.name] || rm > prs[ex.name].rm)) prs[ex.name] = { rm, date: s.date };
   }));
   return prs;
 }
 
 export function calcBestStreak(sessions, weeklyTarget = 3) {
   const weekMap = {};
-  sessions.forEach(s => { const mon = getMonday(s.date+"T00:00:00"); weekMap[mon]=(weekMap[mon]||0)+1; });
+  sessions.forEach(s => { const mon = getMonday(s.date); if (!mon) return; weekMap[mon]=(weekMap[mon]||0)+1; });
   const weekKeys = Object.keys(weekMap).sort();
   let best = 0, cur = 0;
   for (let i = 0; i < weekKeys.length; i++) {
@@ -83,7 +108,7 @@ export function calcBestStreak(sessions, weeklyTarget = 3) {
 
 export function getStreak(sessions, weeklyTarget = 3) {
   const weekMap = {};
-  sessions.forEach(s => { const w = getMonday(s.date + "T00:00:00"); weekMap[w] = (weekMap[w]||0) + 1; });
+  sessions.forEach(s => { const w = getMonday(s.date); if (!w) return; weekMap[w] = (weekMap[w]||0) + 1; });
   const weeks = Object.keys(weekMap).sort((a,b) => b.localeCompare(a));
   let streak = 0;
   const todayMonday = getMonday(new Date());
