@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromServer, deleteDoc, query, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, getDocsFromServer, deleteDoc, writeBatch, query, where } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../firebase";
 import { todayStr } from "./helpers";
@@ -180,56 +180,133 @@ export async function teamsSet(code, val) {
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
+//
+// Arquitectura de guardado tolerante al límite de 1MB de Firestore SIN pérdida de
+// datos. El documento principal `sessions/{uid}` guarda las sesiones más recientes
+// que quepan; el excedente (las más antiguas) se reparte en chunks dentro de la
+// subcolección `sessions/{uid}/archive/{chunk_n}`. Al cargar, se combinan ambos.
+//
+// Esto es un PUENTE hacia la migración definitiva a `users/{uid}/sessions/{id}`
+// (Etapa 4). A diferencia de la versión anterior, NUNCA sobrescribe destructivamente:
+// el archivo se escribe ANTES que el principal, así un fallo intermedio jamás borra
+// sesiones antiguas.
+
+const SESSION_DOC_WARN_BYTES = 700_000;  // avisar al 70% del límite
+const SESSION_DOC_MAX_BYTES  = 950_000;  // límite efectivo por documento (1MB real)
+
+// Orden recientes→antiguas, tolerante a sesiones sin `date`.
+function byDateDesc(a, b) {
+  const da = (a && a.date) || "";
+  const dbd = (b && b.date) || "";
+  return dbd.localeCompare(da);
+}
+
+// Agrupa items en chunks cuyo JSON {list:[...]} no supere maxBytes.
+// Una sola sesión que por sí sola exceda el límite igual va en su propio chunk
+// (no se puede partir más sin romper la arquitectura de Etapa 4).
+function chunkByBytes(items, maxBytes) {
+  const chunks = [];
+  let current = [];
+  for (const it of items) {
+    current.push(it);
+    if (JSON.stringify({ list: current }).length > maxBytes && current.length > 1) {
+      current.pop();
+      chunks.push(current);
+      current = [it];
+    }
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
+// Sincroniza la subcolección de archivo con los chunks dados: escribe/actualiza los
+// nuevos y borra los chunks sobrantes de un guardado anterior. Atómico (writeBatch).
+// Si `chunks` está vacío, deja la subcolección vacía.
+async function syncArchive(uid, chunks) {
+  const archiveCol = collection(db, "sessions", uid, "archive");
+  const existing = await getDocs(archiveCol);
+  const batch = writeBatch(db);
+
+  chunks.forEach((c, i) => {
+    batch.set(doc(archiveCol, `chunk_${i}`), { list: c, updatedAt: serverTimestamp() });
+  });
+
+  existing.forEach(d => {
+    const idx = parseInt(String(d.id).replace("chunk_", ""), 10);
+    if (Number.isNaN(idx) || idx >= chunks.length) batch.delete(d.ref);
+  });
+
+  await batch.commit();
+}
 
 export async function loadSessions(uid) {
   try {
-    const snap = await getDoc(doc(db, "sessions", uid));
-    return snap.exists() ? (snap.data().list || []) : [];
-  } catch(e) { return []; }
-}
+    const mainSnap = await getDoc(doc(db, "sessions", uid));
+    const main = mainSnap.exists() ? (mainSnap.data().list || []) : [];
 
-const SESSION_DOC_WARN_BYTES = 700_000;  // avisar al 70% del límite
-const SESSION_DOC_MAX_BYTES  = 950_000;  // no guardar si supera esto (límite Firestore = 1MB)
+    // Leer chunks de archivo (si los hay). Vacío para la inmensa mayoría de usuarios.
+    let archived = [];
+    try {
+      const archSnap = await getDocs(collection(db, "sessions", uid, "archive"));
+      archSnap.forEach(d => { archived = archived.concat(d.data().list || []); });
+    } catch (_) { /* sin archivo o sin permisos — ignorar */ }
+
+    if (archived.length === 0) return main;
+
+    // Combinar deduplicando por id (una sesión movida al archivo no debe duplicarse).
+    const byId = new Map();
+    const noId = [];
+    [...main, ...archived].forEach(s => {
+      if (s && s.id != null) byId.set(s.id, s);
+      else if (s) noId.push(s);
+    });
+    return [...byId.values(), ...noId].sort(byDateDesc);
+  } catch (e) {
+    console.error("[loadSessions] Error:", e);
+    return [];
+  }
+}
 
 export async function saveSessions(uid, sessions) {
   try {
-    const payloadSize = JSON.stringify({ list: sessions }).length;
+    const sorted = [...(sessions || [])].sort(byDateDesc);
+    const fullSize = JSON.stringify({ list: sorted }).length;
 
-    if (payloadSize > SESSION_DOC_MAX_BYTES) {
-      // Guardar solo las sesiones más recientes que quepan.
-      // Las antiguas ya están en Firestore del guardado anterior — no se pierden hasta
-      // que el usuario tenga conexión y se pueda migrar la arquitectura.
-      const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
-      let trimmed = sorted;
-      while (
-        JSON.stringify({ list: trimmed }).length > SESSION_DOC_MAX_BYTES &&
-        trimmed.length > 1
-      ) {
-        trimmed = trimmed.slice(0, Math.floor(trimmed.length * 0.9));
+    // Caso normal: todo cabe en el documento principal.
+    if (fullSize <= SESSION_DOC_MAX_BYTES) {
+      if (fullSize > SESSION_DOC_WARN_BYTES) {
+        console.warn(`[saveSessions] Documento al ${Math.round(fullSize/1000)}KB de ~1000KB.`);
       }
-      console.warn(
-        `[saveSessions] Documento demasiado grande (${payloadSize} bytes). ` +
-        `Guardando ${trimmed.length}/${sessions.length} sesiones más recientes.`
-      );
       await setDoc(doc(db, "sessions", uid), {
-        list: trimmed,
+        list: sorted,
         updatedAt: serverTimestamp(),
-        _truncated: true,
+        _archiveChunks: 0,
       });
-      return "truncated";
+      // Limpiar archivo si en un guardado anterior hubo overflow y ahora ya no.
+      await syncArchive(uid, []);
+      return true;
     }
 
-    if (payloadSize > SESSION_DOC_WARN_BYTES) {
-      console.warn(
-        `[saveSessions] Documento cerca del límite: ` +
-        `${Math.round(payloadSize / 1000)}KB de ~1000KB máx.`
-      );
-    }
+    // Overflow: separar las más recientes (principal) del resto (archivo).
+    const main = chunkByBytes(sorted, SESSION_DOC_MAX_BYTES)[0];
+    const overflow = sorted.slice(main.length);
+    const archiveChunks = chunkByBytes(overflow, SESSION_DOC_MAX_BYTES);
 
+    // 1) Guardar el archivo PRIMERO. Si falla, no tocamos el principal (que aún
+    //    contiene TODAS las sesiones) → no se pierde nada.
+    await syncArchive(uid, archiveChunks);
+
+    // 2) Recién entonces reescribir el principal solo con las recientes.
     await setDoc(doc(db, "sessions", uid), {
-      list: sessions,
+      list: main,
       updatedAt: serverTimestamp(),
+      _archiveChunks: archiveChunks.length,
     });
+
+    console.warn(
+      `[saveSessions] Historial grande: ${main.length} recientes en principal, ` +
+      `${overflow.length} archivadas en ${archiveChunks.length} chunk(s). Sin pérdida.`
+    );
     return true;
   } catch(e) {
     console.error("[saveSessions] Error:", e);

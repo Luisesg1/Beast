@@ -1,0 +1,143 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de seguridad de Firestore — BEAST GymTracker
+//
+// Principios:
+//  - Los datos personales (sesiones, peso, fotos, objetivos) son del dueño; un
+//    coach vinculado puede LEERLOS, nunca escribirlos.
+//  - El cliente NUNCA puede auto-asignarse un `plan` de pago ni `isAdmin`. Esos
+//    campos solo los escribe el backend (Cloud Functions con Admin SDK, que
+//    ignora estas reglas).
+//  - `ai_usage` (contador de IA = costo real) es de solo escritura para el
+//    backend; el cliente solo lo lee.
+//  - Todo lo no declarado queda denegado por defecto.
+//
+// Deuda conocida (endurecer en etapas posteriores, ver plan de saneamiento):
+//  - `users` es legible por cualquier usuario autenticado porque el flujo de
+//    coach busca atletas por email (query). Restringir tras refactor.
+//  - `teams` y `custom_exercises` son escribibles por cualquier autenticado
+//    (modelo abierto por código / sugerencias). Mover validación al backend.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
+    }
+
+    // ¿El solicitante es coach vinculado del atleta `athleteUid`?
+    function isCoachOf(athleteUid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/athlete_coaches/$(athleteUid)/coaches/$(request.auth.uid));
+    }
+
+    // ── users ──────────────────────────────────────────────────────────────
+    // El cliente puede crear/editar su propio perfil, pero `plan` y `isAdmin`
+    // son inmutables desde el cliente (solo el backend los cambia).
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if isOwner(userId)
+        && request.resource.data.get('plan', 'free') == 'free'
+        && request.resource.data.get('isAdmin', false) == false;
+      allow update: if isOwner(userId)
+        && request.resource.data.get('plan', 'free') == resource.data.get('plan', 'free')
+        && request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false);
+      allow delete: if false;
+    }
+
+    // ── sessions (+ archivo de overflow) ─────────────────────────────────────
+    match /sessions/{userId} {
+      allow read: if isOwner(userId) || isCoachOf(userId) || isAdmin();
+      allow write: if isOwner(userId);
+
+      match /archive/{chunkId} {
+        allow read: if isOwner(userId) || isCoachOf(userId) || isAdmin();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // ── body_stats (coach puede leer para seguimiento) ──────────────────────
+    match /body_stats/{userId} {
+      allow read: if isOwner(userId) || isCoachOf(userId) || isAdmin();
+      allow write: if isOwner(userId);
+    }
+
+    // ── datos personales solo del dueño ─────────────────────────────────────
+    match /measures/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /photoProgress/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /user_goals/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── ai_usage: contador de IA. Solo el backend escribe. ──────────────────
+    match /ai_usage/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false;
+    }
+
+    // ── custom_exercises (biblioteca global + sugerencias de usuarios) ───────
+    match /custom_exercises/{exId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    // ── teams (modelo abierto por código de invitación) ─────────────────────
+    match /teams/{code} {
+      allow read, write: if signedIn();
+    }
+
+    // ── coaches: perfil propio + rutinas/ejercicios del coach ───────────────
+    // Lo leen el propio coach, sus atletas vinculados y los admins.
+    match /coaches/{coachId} {
+      allow read: if isOwner(coachId) || isAdmin()
+        || exists(/databases/$(database)/documents/athlete_coaches/$(request.auth.uid)/coaches/$(coachId));
+      allow write: if isOwner(coachId);
+
+      match /routines/{routineId} {
+        allow read: if isOwner(coachId) || isAdmin()
+          || exists(/databases/$(database)/documents/athlete_coaches/$(request.auth.uid)/coaches/$(coachId));
+        allow write: if isOwner(coachId);
+      }
+
+      match /custom_exercises/{exId} {
+        allow read: if isOwner(coachId) || isAdmin();
+        allow write: if isOwner(coachId);
+      }
+    }
+
+    // ── athlete_coaches: vínculo atleta↔coach ───────────────────────────────
+    // El coach se vincula (coachId == auth.uid); el atleta puede leer/desvincular.
+    match /athlete_coaches/{athleteId}/coaches/{coachId} {
+      allow read: if isOwner(athleteId) || isOwner(coachId) || isAdmin();
+      allow write: if isOwner(coachId) || isOwner(athleteId);
+    }
+
+    // ── athlete_routines: rutinas asignadas ─────────────────────────────────
+    // El atleta dueño y su coach vinculado pueden gestionarlas.
+    match /athlete_routines/{athleteId}/routines/{routineId} {
+      allow read: if isOwner(athleteId) || isCoachOf(athleteId) || isAdmin();
+      allow write: if isOwner(athleteId) || isCoachOf(athleteId) || isAdmin();
+    }
+
+    // Todo lo demás: denegado por defecto.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

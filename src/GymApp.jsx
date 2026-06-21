@@ -491,8 +491,6 @@ useEffect(() => {
       saveSessions(user.uid, sessions).then(result => {
         if (!result) {
           showToast("⚠️ Error al guardar — verifica tu conexión");
-        } else if (result === "truncated") {
-          showToast("⚠️ Historial muy grande — contacta soporte para migrar tus datos");
         }
       });
     }, 2000);
