@@ -25,3 +25,7 @@ dist-ssr
 
 # Firebase deploy cache
 .firebase/
+
+# Variables de entorno locales
+.env
+.env.local
