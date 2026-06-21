@@ -15,6 +15,22 @@ function toKey(d) {
   return d.toISOString().slice(0, 10);
 }
 
+// Parsea una fecha de sesión de forma robusta a una Date local a medianoche.
+// Acepta 'YYYY-MM-DD' (formato esperado) e ISO con hora; devuelve null si es
+// inválida en vez de un `Invalid Date` que rompería los cálculos de racha.
+function parseDate(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 // ─── 1RM Calculator ───────────────────────────────────────────────────────────
 export function calc1RM(weight, reps) {
   if (!weight || !reps || reps <= 0) return 0;
@@ -25,11 +41,13 @@ export function calc1RM(weight, reps) {
 
 // ─── Session Volume ───────────────────────────────────────────────────────────
 export function calcSessionVolume(session) {
+  // Volumen = peso × reps. Si faltan reps, el aporte es 0 (no se inventa 1 rep,
+  // que inflaba el volumen de series a medio registrar).
   return (session.exercises || []).reduce((acc, ex) => {
     if (ex.sets?.length > 0) {
-      return acc + ex.sets.reduce((s, st) => s + (parseFloat(st.weight)||0) * (parseFloat(st.reps)||1), 0);
+      return acc + ex.sets.reduce((s, st) => s + (parseFloat(st.weight)||0) * (parseFloat(st.reps)||0), 0);
     }
-    return acc + (parseFloat(ex.weight)||0) * (parseFloat(ex.reps)||1);
+    return acc + (parseFloat(ex.weight)||0) * (parseFloat(ex.reps)||0);
   }, 0);
 }
 
@@ -41,16 +59,26 @@ export function detectNewPRs(newSession, existingSessions) {
     const doneSets = (ex.sets || []).filter(s => s.done !== false);
     if (doneSets.length === 0 && !ex.weight) return;
 
-    const newW = doneSets.length > 0
-      ? Math.max(...doneSets.map(st => parseFloat(st.weight) || 0))
-      : parseFloat(ex.weight) || 0;
-    const newR = doneSets.length > 0
-      ? Math.max(...doneSets.map(st => parseFloat(st.reps) || 0))
-      : parseFloat(ex.reps) || 0;
+    // Calcular el 1RM de CADA serie y quedarse con la mejor. No se puede combinar
+    // el peso máximo de una serie con las reps máximas de otra: eso estima un 1RM
+    // de una serie que nunca ocurrió (ej. 100kg×5 + 60kg×12 daría 100kg×12).
+    const candidates = doneSets.length > 0
+      ? doneSets
+      : [{ weight: ex.weight, reps: ex.reps }];
 
-    if (newW <= 0) return;
+    let best = { rm: 0, weight: 0, reps: 0 };
+    for (const st of candidates) {
+      const w = parseFloat(st.weight) || 0;
+      const r = parseFloat(st.reps) || 0;
+      const rm = calc1RM(w, r);
+      if (rm > best.rm) best = { rm, weight: w, reps: r };
+    }
 
-    const new1RM = calc1RM(newW, newR);
+    if (best.weight <= 0) return;
+
+    const newW = best.weight;
+    const newR = best.reps;
+    const new1RM = best.rm;
 
     const prevBest1RM = existingSessions
       .flatMap(s => (s.exercises || []).filter(e => e.name === ex.name))
@@ -73,7 +101,9 @@ export function getStreak(sessions, weeklyTarget = 3) {
 
   const weekMap = {};
   sessions.forEach(s => {
-    const mon = toKey(getMonday(new Date(s.date + "T00:00:00")));
+    const pd = parseDate(s.date);
+    if (!pd) return; // ignorar sesiones con fecha inválida en vez de romper la racha
+    const mon = toKey(getMonday(pd));
     weekMap[mon] = (weekMap[mon] || 0) + 1;
   });
 
@@ -105,10 +135,10 @@ export function getStreak(sessions, weeklyTarget = 3) {
 export function getPRs(sessions) {
   const prs = {};
   sessions.forEach(s => (s.exercises||[]).forEach(ex => {
-    const w = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
-    const r = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.reps)||0)) : parseFloat(ex.reps)||0;
-    const rm = calc1RM(w, r);
-    if (!prs[ex.name] || rm > prs[ex.name].rm) prs[ex.name] = { rm, date: s.date };
+    // Mejor 1RM real entre las series (no max-peso × max-reps de series distintas).
+    const sets = ex.sets?.length > 0 ? ex.sets : [{ weight: ex.weight, reps: ex.reps }];
+    const rm = Math.max(0, ...sets.map(st => calc1RM(parseFloat(st.weight)||0, parseFloat(st.reps)||0)));
+    if (rm > 0 && (!prs[ex.name] || rm > prs[ex.name].rm)) prs[ex.name] = { rm, date: s.date };
   }));
   return prs;
 }
@@ -122,8 +152,8 @@ export function getStreakStatus(sessions, weeklyTarget = 3) {
 
   // Sesiones semana actual
   const sessionsThisWeek = sessions.filter(s => {
-    const mon = toKey(getMonday(new Date(s.date + "T00:00:00")));
-    return mon === currentWeekKey;
+    const pd = parseDate(s.date);
+    return pd && toKey(getMonday(pd)) === currentWeekKey;
   }).length;
 
   const isCurrentWeekDone = sessionsThisWeek >= weeklyTarget;
@@ -133,8 +163,8 @@ export function getStreakStatus(sessions, weeklyTarget = 3) {
   lastMonday.setDate(lastMonday.getDate() - 7);
   const lastWeekKey = toKey(lastMonday);
   const sessionsLastWeek = sessions.filter(s => {
-    const mon = toKey(getMonday(new Date(s.date + "T00:00:00")));
-    return mon === lastWeekKey;
+    const pd = parseDate(s.date);
+    return pd && toKey(getMonday(pd)) === lastWeekKey;
   }).length;
 
   // Día de la semana actual (0=Lun ... 6=Dom)
@@ -215,7 +245,10 @@ export function wasShieldUsedThisWeek() {
   try {
     const currentWeek = toKey(getMonday(new Date()));
     const log = JSON.parse(localStorage.getItem(SHIELDS_LOG_KEY) || "[]");
-    return log.some(l => l.reason === "used" && toKey(getMonday(new Date(l.date))) === currentWeek);
+    return log.some(l => {
+      const pd = parseDate(l.date);
+      return l.reason === "used" && pd && toKey(getMonday(pd)) === currentWeek;
+    });
   } catch { return false; }
 }
 

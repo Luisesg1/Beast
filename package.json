@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:calcs": "node scripts/test-gymcalcs.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project gymtracker-rules-test \"node scripts/test-rules.mjs\""
   },
   "dependencies": {
