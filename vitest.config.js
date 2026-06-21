@@ -6,5 +6,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.{test,spec}.{js,jsx}"],
+    exclude: ["**/node_modules/**", "**/*.integration.test.js"],
   },
 });

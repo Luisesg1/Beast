@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { initializeFirestore, getFirestore, persistentLocalCache } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from "firebase/auth";
+import { initializeFirestore, getFirestore, persistentLocalCache, connectFirestoreEmulator } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,6 +23,14 @@ try {
 }
 
 const googleProvider = new GoogleAuthProvider();
+
+// Solo para tests de integración: conecta a los emuladores locales si la variable
+// está definida. En producción nunca lo está, así que este bloque jamás se ejecuta.
+if (import.meta.env.VITE_FIRESTORE_EMULATOR) {
+  const [host, port] = import.meta.env.VITE_FIRESTORE_EMULATOR.split(":");
+  connectFirestoreEmulator(db, host, Number(port));
+  try { connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true }); } catch {}
+}
 
 export { firebaseApp, auth, db, googleProvider };
 

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:rules": "firebase emulators:exec --only firestore --project gymtracker-rules-test \"node scripts/test-rules.mjs\""
+    "test:rules": "firebase emulators:exec --only firestore --project gymtracker-rules-test \"node scripts/test-rules.mjs\"",
+    "test:integration": "firebase emulators:exec --only firestore,auth --project gymtracker-app-2c603 \"vitest run --config vitest.integration.config.js\""
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
