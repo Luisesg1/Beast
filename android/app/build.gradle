@@ -7,8 +7,8 @@
                 applicationId "com.beast.gymtracker"
                 minSdkVersion rootProject.ext.minSdkVersion
                 targetSdkVersion rootProject.ext.targetSdkVersion
-                versionCode 18
-                versionName "1.17"
+                versionCode 26
+                versionName "1.26"
                 archivesBaseName = "Beast"
                 testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
                 aaptOptions {

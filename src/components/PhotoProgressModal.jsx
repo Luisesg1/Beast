@@ -4,6 +4,14 @@ import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from "fir
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../firebase";
 import { showRewardedAd } from "../useAdMob";
+import { compressImage } from "../utils/imageUtils";
+
+// Convierte base64 (con o sin prefijo) a dataURL válido
+function toDataURL(b64) {
+  if (!b64) return "";
+  if (b64.startsWith("data:")) return b64;
+  return `data:image/jpeg;base64,${b64}`;
+}
 
 // Lee la fecha EXIF de una imagen (DateTimeOriginal).
 // Retorna "YYYY-MM-DD" o null si no hay metadatos.
@@ -38,30 +46,14 @@ function fmtMonth(dateStr) {
   return `${months[parseInt(m)-1]} ${y}`;
 }
 
-async function compressImage(file, maxW = 800) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const scale = Math.min(1, maxW / img.width);
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
 async function uploadToStorage(uid, photoId, base64) {
   const storage = getStorage();
   const storageRef = ref(storage, `photoProgress/${uid}/${photoId}.jpg`);
+  // Normalizar: quitar prefijo data:... si lo tiene (legacy)
+  const raw = base64?.startsWith("data:") ? base64.split(",")[1] : base64;
   // Timeout de 15s — Firebase Storage puede quedar colgado sin red en vez de fallar
   await Promise.race([
-    uploadString(storageRef, base64, "base64", { contentType: "image/jpeg" }),
+    uploadString(storageRef, raw, "base64", { contentType: "image/jpeg" }),
     new Promise((_, reject) => setTimeout(() => reject(new Error("upload_timeout")), 15000))
   ]);
   return await getDownloadURL(storageRef);
@@ -172,7 +164,7 @@ function PhotoDetail({ photo, onClose, onDelete }) {
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, position: "relative" }}>
         <img
-          src={photo.url || `data:image/jpeg;base64,${photo.base64}`}
+          src={photo.url || toDataURL(photo.base64)}
           alt={photo.date}
           style={{ width: "100%", borderRadius: 16, maxHeight: "70vh", objectFit: "contain", display: "block" }}
         />
@@ -373,7 +365,7 @@ export default function PhotoProgressModal({ uid, isPro, onClose, showRewardedVi
     setUploading(true);
     try {
       const [base64, detectedDate] = await Promise.all([
-        compressImage(file),
+        compressImage(file, 800, 0.75, "base64"),
         getExifDate(file),
       ]);
       setPendingBase64(base64);
@@ -470,7 +462,7 @@ export default function PhotoProgressModal({ uid, isPro, onClose, showRewardedVi
       ? `\nContexto del atleta:\n${contextLines.join("\n")}\n`
       : "";
 
-    const prompt = `Eres BRUX, coach de gimnasio directo y motivador. Analiza el progreso físico de este atleta comparando 2 fotos tomadas con ${timeDesc} de diferencia (foto 1: ${fmtDate(p1.date)} → foto 2: ${fmtDate(p2.date)}).
+    const prompt = `Eres un coach de gimnasio experto, directo y motivador. Analiza el progreso físico de este atleta comparando 2 fotos tomadas con ${timeDesc} de diferencia (foto 1: ${fmtDate(p1.date)} → foto 2: ${fmtDate(p2.date)}).
 ${contextBlock}
 Instrucciones:
 - ${name ? `Llama al atleta por su nombre (${name})` : "Habla en segunda persona (tú)"} de forma natural, no en cada oración.
@@ -485,8 +477,8 @@ Instrucciones:
       const functions = getFunctions();
       const analyzePhotosFn = httpsCallable(functions, "analyzePhotos");
       const photoUrls = [
-        p1.url || `data:image/jpeg;base64,${p1.base64}`,
-        p2.url || `data:image/jpeg;base64,${p2.base64}`,
+        p1.url || toDataURL(p1.base64),
+        p2.url || toDataURL(p2.base64),
       ];
       const result = await analyzePhotosFn({ photoUrls, prompt });
       const { analysis: analysisText } = result.data;
@@ -581,7 +573,7 @@ Instrucciones:
             )}
           </div>
           {pendingBase64 && (
-            <img src={`data:image/jpeg;base64,${pendingBase64}`} alt="preview"
+            <img src={toDataURL(pendingBase64)} alt="preview"
               style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 10, marginBottom: 10 }} />
           )}
           <input className="input" placeholder="Nota opcional (ej: Semana 4, volumen)" maxLength={60}
@@ -611,20 +603,40 @@ Instrucciones:
         </div>
       )}
 
-      {/* BRUX VISION header + actions */}
+      {/* Progreso Físico header + actions */}
       {!showNoteInput && (
         <>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontWeight: 900, fontSize: 18, letterSpacing: 2, color: "var(--text)", textTransform: "uppercase" }}>
-                BRUX VISION
-              </span>
-
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div>
+              <div style={{
+                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 900,
+                fontSize: 26, letterSpacing: 3, color: "var(--text)",
+                textTransform: "uppercase", lineHeight: 1,
+              }}>
+                Progreso
+              </div>
+              <div style={{
+                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 500,
+                fontSize: 13, letterSpacing: 4, color: "var(--accent)",
+                textTransform: "uppercase", marginTop: 2, opacity: 0.85,
+              }}>
+                FÍSICO
+              </div>
             </div>
             {photos.length > 0 && (
-              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>
-                {photos.length}/{MAX_PHOTOS} fotos
-              </span>
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
+              }}>
+                <span style={{
+                  fontFamily: "Barlow Condensed, sans-serif", fontWeight: 800,
+                  fontSize: 20, color: "var(--accent)", lineHeight: 1,
+                }}>
+                  {photos.length}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: 1, textTransform: "uppercase" }}>
+                  / {MAX_PHOTOS} fotos
+                </span>
+              </div>
             )}
           </div>
 
@@ -655,7 +667,7 @@ Instrucciones:
                   transition: "all 0.2s",
                 }}
               >
-                {compareMode ? "✕ CANCELAR" : "⚡ BRUX ANÁLISIS"}
+                {compareMode ? "✕ CANCELAR" : "⚡ Analizar con IA"}
               </button>
             )}
           </div>
@@ -708,7 +720,7 @@ Instrucciones:
                   cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
                   fontWeight: 900, fontSize: 15, letterSpacing: 2,
                 }}>
-                  ⚡ BRUX ANÁLISIS
+                  ⚡ Analizar con IA
                 </button>
               </>
             ) : (
@@ -718,7 +730,7 @@ Instrucciones:
                 padding: "12px 0", color: "var(--accent)", cursor: "pointer",
                 fontWeight: 700, fontSize: 13,
               }}>
-                {watchingAd ? "⏳ Cargando video..." : "▶ Ver video para desbloquear BRUX ANÁLISIS"}
+                {watchingAd ? "⏳ Cargando video..." : "▶ Ver video para desbloquear Analizar con IA"}
               </button>
             )
           )}
@@ -738,26 +750,31 @@ Instrucciones:
 
           {analyzing && (
             <div style={{ textAlign: "center", padding: "12px 0", color: "var(--text-muted)", fontSize: 13 }}>
-              <div style={{ fontSize: 22, marginBottom: 6 }}>🤖</div>
+              <div style={{ fontSize: 22, marginBottom: 6 }}>⚡</div>
               {firstName(userName)
-                ? `BRUX está analizando tu progreso, ${firstName(userName)}...`
-                : "BRUX está analizando tu progreso..."}
+                ? `Analizando tu progreso, ${firstName(userName)}...`
+                : "Analizando tu progreso..."}
             </div>
           )}
 
           {analysis && (
             <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 10, padding: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 900, color: "#22c55e", letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>BRUX VISION</span>
+                <span style={{ fontSize: 11, fontWeight: 900, color: "#22c55e", letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>Progreso Físico</span>
                 <span style={{ background: "rgba(34,197,94,0.2)", color: "#22c55e", fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4, letterSpacing: 1 }}>ANÁLISIS IA</span>
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)" }}>{analysis}</div>
               <button onClick={() => { setAnalysis(null); setSelected([]); }} style={{
-                marginTop: 10, background: "none", border: "1px solid var(--border)",
-                borderRadius: 8, padding: "6px 14px", color: "var(--text-muted)",
-                cursor: "pointer", fontSize: 12, fontWeight: 600,
+                marginTop: 14, width: "100%",
+                background: "rgba(232,255,0,0.08)",
+                border: "1px solid rgba(232,255,0,0.3)",
+                borderRadius: 10, padding: "11px 0",
+                color: "var(--accent)",
+                cursor: "pointer", fontSize: 14, fontWeight: 800,
+                fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1,
+                transition: "all 0.2s",
               }}>
-                Nueva comparación
+                ⚡ Nuevo análisis
               </button>
             </div>
           )}
@@ -774,10 +791,10 @@ Instrucciones:
           <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 260, margin: "0 auto 12px" }}>
             {userStats?.totalSessions
               ? `Llevas ${userStats.totalSessions} sesiones entrenadas — ya es hora de capturar cómo se ve ese trabajo`
-              : "Agrega tu primera foto y deja que BRUX VISION trackee tu evolución"}
+              : "Agrega tu primera foto y deja que Progreso Físico trackee tu evolución"}
           </div>
           <span style={{ background: "rgba(232,255,0,0.08)", border: "1px solid rgba(232,255,0,0.25)", color: "var(--accent)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>
-            BRUX VISION · ANÁLISIS IA
+            Progreso Físico · ANÁLISIS IA
           </span>
         </div>
       ) : (
@@ -813,7 +830,7 @@ Instrucciones:
                     }}
                   >
                     <img
-                      src={photo.url || `data:image/jpeg;base64,${photo.base64}`}
+                      src={photo.url || toDataURL(photo.base64)}
                       alt={photo.date}
                       style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", display: "block" }}
                     />

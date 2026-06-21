@@ -1,6 +1,8 @@
 import { useState, useRef, useMemo } from "react";
+import { useConfirm } from "./ConfirmModal";
 import { calcSessionVolume } from "../utils/gymCalcs";
 import { uid, numWeight, numReps } from "../utils/helpers";
+import { EXERCISE_DB } from "../exerciseDb";
 import { StreakChip } from "./StreakWidgets";
 
 // ─── Superset helpers (copiados de App.jsx) ───────────────────────────────────
@@ -24,6 +26,7 @@ function getSupersetColor(groupId, exercises) {
 }
 
 export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, onProgress, onShare, getProgressData, expanded, onToggle, allSessions, onUpdate, onRenameAll, prWeightMap }) {
+  const { confirm: askConfirm, modal: confirmModal } = useConfirm();
   const u = unit;
   const sessionUnit = s.unit || "kg"; // sesiones viejas sin unit se asumen kg
   // Convierte el peso guardado en la sesión a la unidad global actual
@@ -39,6 +42,8 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
   const [expandedNotes, setExpandedNotes] = useState({});
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(s.workout || "");
+  const [showAddEx, setShowAddEx] = useState(false);
+  const [addExSearch, setAddExSearch] = useState("");
   const nameInputRef = useRef(null);
 
   function saveName() {
@@ -90,11 +95,26 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
     onUpdate(updated);
   }
   function removeSetFromEx(exId, setId) {
-    const updated = { ...s, exercises: s.exercises.map(e => e.id !== exId ? e : { ...e, sets: e.sets.filter(st => st.id !== setId) }) };
+    const updated = { ...s, exercises: s.exercises.filter(e => e.id !== exId).length === 0 ? s.exercises : s.exercises.map(e => e.id !== exId ? e : { ...e, sets: e.sets.filter(st => st.id !== setId) }) };
     onUpdate(updated);
+  }
+  function removeExercise(exId, exName) {
+    askConfirm(`¿Eliminar "${exName}" de esta sesión?`, () => {
+      const updated = { ...s, exercises: s.exercises.filter(e => e.id !== exId) };
+      onUpdate(updated);
+    });
+  }
+  function addExerciseInline(name) {
+    const newEx = { id: uid(), name, weight: "", reps: "", sets: [{ id: uid(), weight: "", reps: "" }] };
+    const updated = { ...s, exercises: [...(s.exercises || []), newEx] };
+    onUpdate(updated);
+    setShowAddEx(false);
+    setAddExSearch("");
+    setEditingExId(newEx.id);
   }
 
   return (
+    <>
     <div className="card session-card">
       <div className="session-header" onClick={onToggle} style={prs.size > 0 ? { borderLeft: "3px solid #f59e0b", paddingLeft: 10 } : {}}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -186,6 +206,7 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
               <button className="btn-ghost small" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => setEditingExId(isEditing ? null : ex.id)}>
                   {isEditing ? "✓ Listo" : "✏️ Editar"}
                 </button>
+              <button onClick={() => removeExercise(ex.id, ex.name)} title="Quitar ejercicio" style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", fontSize:16, padding:"0 2px", lineHeight:1 }}>×</button>
               </div>
 
               {/* View mode: just show summary */}
@@ -258,13 +279,17 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
           {(() => {
             const totalSets = (s.exercises||[]).reduce((a, ex) => a + (ex.sets?.length || 1), 0);
             const totalVol  = Math.round(calcSessionVolume(s));
-            const durMins   = s.durationSecs ? Math.round(s.durationSecs / 60) : null;
+            const durMins   = s.durationSecs > 0
+              ? s.durationSecs < 60
+                ? `${s.durationSecs}s`
+                : `${Math.round(s.durationSecs / 60)} min`
+              : null;
             const topEx     = (s.exercises||[]).reduce((best, ex) => {
               const w = ex.sets?.length > 0 ? Math.max(...ex.sets.map(st => parseFloat(st.weight)||0)) : parseFloat(ex.weight)||0;
               return w > (best?.w||0) ? { name: ex.name, w } : best;
             }, null);
             const stats = [
-              { icon: "⏱", label: "Duración",  value: durMins ? `${durMins} min` : "—" },
+              { icon: "⏱", label: "Duración",  value: durMins ?? "—" },
               totalVol  && { icon: "🏋️", label: "Volumen",   value: totalVol >= 1000 ? `${(totalVol/1000).toFixed(1)}t` : `${totalVol}kg` },
               { icon: "🔁", label: "Series",    value: `${totalSets} series` },
               { icon: "💪", label: "Ejercicios", value: `${(s.exercises||[]).length}` },
@@ -296,14 +321,55 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
               </div>
             );
           })()}
+          {/* ── Agregar ejercicio inline ── */}
+          <div style={{ marginBottom: 10 }}>
+            {!showAddEx ? (
+              <button className="btn-ghost" style={{ width:"100%", justifyContent:"center" }} onClick={() => setShowAddEx(true)}>
+                + Agregar ejercicio
+              </button>
+            ) : (
+              <div style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:12 }}>
+                <input
+                  autoFocus
+                  placeholder="Buscar ejercicio..."
+                  value={addExSearch}
+                  onChange={e => setAddExSearch(e.target.value)}
+                  style={{ width:"100%", background:"var(--card)", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px", color:"var(--text)", fontSize:13, outline:"none", boxSizing:"border-box" }}
+                />
+                <div style={{ maxHeight:180, overflowY:"auto", marginTop:8 }}>
+                  {EXERCISE_DB
+                    .filter(e => !addExSearch || e.name.toLowerCase().includes(addExSearch.toLowerCase()))
+                    .slice(0, 20)
+                    .map(e => (
+                      <div key={e.name}
+                        onClick={() => addExerciseInline(e.name)}
+                        style={{ padding:"8px 10px", cursor:"pointer", borderRadius:6, fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center" }}
+                        onMouseEnter={ev => ev.currentTarget.style.background="var(--card)"}
+                        onMouseLeave={ev => ev.currentTarget.style.background="transparent"}
+                      >
+                        <span>{e.name}</span>
+                        <span style={{ fontSize:10, color:"var(--text-muted)" }}>{e.muscle}</span>
+                      </div>
+                    ))
+                  }
+                  {EXERCISE_DB.filter(e => !addExSearch || e.name.toLowerCase().includes(addExSearch.toLowerCase())).length === 0 && (
+                    <div style={{ padding:"8px 10px", fontSize:12, color:"var(--text-muted)" }}>Sin resultados</div>
+                  )}
+                </div>
+                <button className="btn-ghost" style={{ marginTop:8, width:"100%", justifyContent:"center" }} onClick={() => { setShowAddEx(false); setAddExSearch(""); }}>
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
           <div className="session-actions">
-            <button className="btn-ghost" onClick={() => onEdit(s)}>✏️ Editar sesión</button>
-            <button className="btn-ghost" onClick={() => onDuplicate(s)}>📋 Duplicar</button>
             <button className="btn-ghost" onClick={() => onShare(s)}>📤 Compartir</button>
             <button className="btn-ghost danger" onClick={() => onDelete(s.id)}>🗑️ Eliminar</button>
           </div>
         </div>
       )}
     </div>
+    {confirmModal}
+    </>
   );
 }

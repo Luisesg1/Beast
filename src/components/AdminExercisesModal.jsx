@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useConfirm } from "./ConfirmModal";
-import { doc, getDoc, collection, getDocsFromServer, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocsFromServer, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { EXERCISE_DB, MUSCLES } from "../exerciseDb";
+import GIF_MAP from "../assets/gif/gifMap.js";
 import { calc1RM, getPRs, getStreak } from "./utils";
 import { loadCustomExercises, updateCustomExerciseGif, updateCustomExerciseMeta, deleteCustomExercise } from "../utils/firebaseService";
 
@@ -31,6 +32,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
   const [saving, setSaving] = useState({});
   const [gifErrors, setGifErrors] = useState({});
   const [filter, setFilter] = useState("");
+  const [muscleFilter, setMuscleFilter] = useState("Todos");
   const [uploadMode, setUploadMode] = useState({});
   const [uploadPreviews, setUploadPreviews] = useState({});
   const fileInputRefs = useRef({});
@@ -39,6 +41,104 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
   const [adminTab, setAdminTab] = useState("exercises");
   const [diagRunning, setDiagRunning] = useState(false);
   const [diagResults, setDiagResults] = useState(null);
+  const [catalogFilter, setCatalogFilter] = useState("");
+  const [catalogMuscleFilter, setCatalogMuscleFilter] = useState("Todos");
+  const [catalogEditing, setCatalogEditing] = useState({});
+  const [catalogSaving, setCatalogSaving] = useState({});
+  const [catalogGifInputs, setCatalogGifInputs] = useState({});
+  const EQUIPMENT_OPTIONS = ["Barra", "Mancuernas", "Polea", "Máquina", "Cuerpo", "Accesorio", "Personalizado"];
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newEx, setNewEx] = useState({ name: "", muscle: MUSCLES[0] || "", equipment: "Barra", machine: false, gifUrl: "" });
+  const [savingNew, setSavingNew] = useState(false);
+  const [newExError, setNewExError] = useState("");
+
+  async function createExercise() {
+    if (!newEx.name.trim()) { setNewExError("El nombre es obligatorio."); return; }
+    if (exercises.some(e => e.name.toLowerCase() === newEx.name.trim().toLowerCase())) {
+      setNewExError("Ya existe un ejercicio con ese nombre."); return;
+    }
+    setSavingNew(true); setNewExError("");
+    const id = newEx.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
+    const data = {
+      name: newEx.name.trim(),
+      muscle: newEx.muscle,
+      equipment: newEx.equipment,
+      machine: newEx.machine,
+      gifUrl: newEx.gifUrl.trim(),
+      status: "approved",
+      createdByAdmin: true,
+      createdAt: todayStr(),
+    };
+    try {
+      await setDoc(doc(db, "custom_exercises", id), data);
+      const created = { id, _coachUid: null, _coachName: null, ...data };
+      setExercises(prev => [created, ...prev]);
+      setGifInputs(p => ({ ...p, [id]: data.gifUrl }));
+      if (data.gifUrl) setGif(data.name, data.gifUrl);
+      setNewEx({ name: "", muscle: MUSCLES[0] || "", equipment: "Barra", machine: false, gifUrl: "" });
+      setShowNewForm(false);
+    } catch(e) {
+      setNewExError("Error al guardar: " + e.message);
+    }
+    setSavingNew(false);
+  }
+
+  async function saveCatalogEdit(ex) {
+    const edits = catalogEditing[ex.name];
+    if (!edits) return;
+    setCatalogSaving(s => ({ ...s, [ex.name]: true }));
+    const id = "override_" + ex.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const data = {
+      name: edits.name?.trim() || ex.name,
+      muscle: edits.muscle || ex.muscle,
+      equipment: edits.equipment || ex.equipment,
+      machine: edits.machine ?? ex.machine,
+      gifUrl: edits.gifUrl?.trim() || "",
+      status: "override",
+      originalName: ex.name,
+      updatedAt: todayStr(),
+      createdByAdmin: true,
+    };
+    try {
+      await setDoc(doc(db, "custom_exercises", id), data, { merge: true });
+      const idx = EXERCISE_DB.findIndex(e => e.name === ex.name);
+      if (idx !== -1) EXERCISE_DB[idx] = { ...EXERCISE_DB[idx], name: data.name, muscle: data.muscle, equipment: data.equipment, machine: data.machine };
+      setCatalogEditing(p => { const n = { ...p }; delete n[ex.name]; return n; });
+      setCatalogGifInputs(p => ({ ...p, [data.name]: data.gifUrl, [ex.name]: data.gifUrl }));
+      setExercises(prev => {
+        const filtered = prev.filter(e => !(e.status === "override" && e.originalName === ex.name));
+        return [...filtered, { ...data, id, _coachUid: null, _coachName: null }];
+      });
+    } catch(e) {
+      console.error("saveCatalogEdit error:", e);
+    }
+    setCatalogSaving(s => ({ ...s, [ex.name]: false }));
+  }
+
+  function deleteCatalogExercise(ex) {
+    askConfirm(`¿Eliminar "${ex.name}" del catálogo? Se ocultará para todos los usuarios.`, async () => {
+      const id = "override_" + ex.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const deletedDoc = { id, name: ex.name, status: "deleted", originalName: ex.name, _coachUid: null, _coachName: null, updatedAt: todayStr(), createdByAdmin: true };
+      try {
+        await setDoc(doc(db, "custom_exercises", id), deletedDoc);
+        setExercises(prev => [...prev.filter(e => e.id !== id && e.originalName !== ex.name), deletedDoc]);
+        const idx = EXERCISE_DB.findIndex(e => e.name === ex.name);
+        if (idx !== -1) EXERCISE_DB.splice(idx, 1);
+      } catch(e) { console.error("deleteCatalogExercise error:", e); }
+    });
+  }
+
+  function startCatalogEdit(ex) {
+    // Pre-fill with any existing override from custom_exercises
+    const override = exercises.find(e => e.status === "override" && e.originalName === ex.name);
+    setCatalogEditing(p => ({ ...p, [ex.name]: {
+      name: override?.name || ex.name,
+      muscle: override?.muscle || ex.muscle,
+      equipment: override?.equipment || ex.equipment,
+      machine: override?.machine ?? ex.machine,
+      gifUrl: override?.gifUrl || catalogGifInputs[ex.name] || "",
+    }}));
+  }
 
   async function runDiagnostics() {
     setDiagRunning(true);
@@ -146,17 +246,17 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
   function setMode(id, mode) { setUploadMode(p => ({ ...p, [id]: mode })); }
 
   function startEdit(ex) {
-    setEditing(p => ({ ...p, [ex.id]: { name: ex.name, muscle: ex.muscle } }));
+    setEditing(p => ({ ...p, [ex.id]: { name: ex.name, muscle: ex.muscle, equipment: ex.equipment || "Personalizado", machine: !!ex.machine } }));
   }
   function cancelEdit(id) {
     setEditing(p => { const n = { ...p }; delete n[id]; return n; });
   }
   async function saveEdit(ex) {
-    const { name, muscle } = editing[ex.id];
+    const { name, muscle, equipment, machine } = editing[ex.id];
     if (!name.trim()) return;
     setSavingMeta(s => ({ ...s, [ex.id]: true }));
-    await updateCustomExerciseMeta(ex._coachUid || null, ex.id, name.trim(), muscle.trim());
-    setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, name: name.trim(), muscle: muscle.trim() } : e));
+    await updateCustomExerciseMeta(ex._coachUid || null, ex.id, name.trim(), muscle.trim(), { equipment, machine });
+    setExercises(prev => prev.map(e => e.id === ex.id ? { ...e, name: name.trim(), muscle: muscle.trim(), equipment, machine } : e));
     setSavingMeta(s => ({ ...s, [ex.id]: false }));
     cancelEdit(ex.id);
   }
@@ -207,10 +307,11 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
     setExercises(prev => prev.filter(e => e.id !== ex.id));
   }
 
-  const filtered = exercises.filter(e =>
-    e.name?.toLowerCase().includes(filter.toLowerCase()) ||
-    e.muscle?.toLowerCase().includes(filter.toLowerCase())
-  );
+  const filtered = exercises.filter(e => {
+    const matchText = e.name?.toLowerCase().includes(filter.toLowerCase()) || e.muscle?.toLowerCase().includes(filter.toLowerCase());
+    const matchMuscle = muscleFilter === "Todos" || e.muscle === muscleFilter;
+    return matchText && matchMuscle;
+  });
 
   return (
     <>
@@ -223,7 +324,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid var(--border)", paddingBottom: 12 }}>
-          {[["exercises","🏋️ Ejercicios"], ["diag","🔍 Diagnóstico"]].map(([key, label]) => (
+          {[["exercises","🏋️ Ejercicios"], ["catalog","📋 Catálogo"], ["diag","🔍 Diagnóstico"]].map(([key, label]) => (
             <button key={key} onClick={() => setAdminTab(key)}
               style={{ padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
                 fontFamily: "Barlow, sans-serif", fontWeight: 700, fontSize: 13,
@@ -237,11 +338,78 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
 
         {/* ── TAB: Ejercicios ── */}
         {adminTab === "exercises" && (<>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 14 }}>
-          Ejercicios creados por usuarios. Sube un GIF local o pega una URL para que aparezca en la app.
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Ejercicios del catálogo global. El admin puede crear, editar y asignar GIFs.</div>
+          <button
+            onClick={() => { setShowNewForm(p => !p); setNewExError(""); }}
+            style={{ background: showNewForm ? "rgba(239,68,68,0.15)" : "var(--accent)", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 800, fontSize: 12, color: showNewForm ? "#ef4444" : "#000", fontFamily: "Barlow, sans-serif", flexShrink: 0 }}>
+            {showNewForm ? "✕ Cancelar" : "➕ Nuevo ejercicio"}
+          </button>
         </div>
-        <input className="input" placeholder="🔍 Filtrar por nombre o músculo..."
-          value={filter} onChange={e => setFilter(e.target.value)} style={{ marginBottom: 14 }} />
+
+        {showNewForm && (
+          <div style={{ background: "rgba(232,255,0,0.05)", border: "1px solid rgba(232,255,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "var(--accent)", marginBottom: 12, letterSpacing: 1, textTransform: "uppercase" }}>➕ Nuevo ejercicio</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Nombre *</label>
+                <input className="input" placeholder="Ej: Press Banca Agarre Cerrado"
+                  value={newEx.name}
+                  onChange={e => setNewEx(p => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Músculo</label>
+                  <select className="input" value={newEx.muscle}
+                    onChange={e => setNewEx(p => ({ ...p, muscle: e.target.value }))}>
+                    {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Equipamiento</label>
+                  <select className="input" value={newEx.equipment}
+                    onChange={e => setNewEx(p => ({ ...p, equipment: e.target.value }))}>
+                    {EQUIPMENT_OPTIONS.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                  <input type="checkbox" checked={newEx.machine}
+                    onChange={e => setNewEx(p => ({ ...p, machine: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
+                  <span style={{ color: "var(--text-muted)" }}>Es máquina</span>
+                </label>
+              </div>
+              <div>
+                <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 4 }}>URL del GIF (opcional)</label>
+                <input className="input" placeholder="https://media.giphy.com/..."
+                  value={newEx.gifUrl}
+                  onChange={e => setNewEx(p => ({ ...p, gifUrl: e.target.value }))} />
+              </div>
+              {newExError && <div style={{ fontSize: 12, color: "#ef4444" }}>{newExError}</div>}
+              <button onClick={createExercise} disabled={savingNew}
+                style={{ background: "var(--accent)", border: "none", borderRadius: 10, padding: "12px", cursor: savingNew ? "not-allowed" : "pointer", fontWeight: 900, fontSize: 14, color: "#000", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase", opacity: savingNew ? 0.6 : 1 }}>
+                {savingNew ? "⏳ Guardando..." : "💾 Crear ejercicio"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <input className="input" placeholder="🔍 Filtrar por nombre..."
+          value={filter} onChange={e => setFilter(e.target.value)} style={{ marginBottom: 10 }} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+          {["Todos", ...MUSCLES].map(m => (
+            <button key={m} onClick={() => setMuscleFilter(m)}
+              style={{ padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "Barlow, sans-serif",
+                background: muscleFilter === m ? "var(--accent)" : "var(--input-bg)",
+                color: muscleFilter === m ? "#000" : "var(--text-muted)",
+                border: `1px solid ${muscleFilter === m ? "var(--accent)" : "var(--border)"}`,
+                transition: "all 0.15s" }}>
+              {m}
+            </button>
+          ))}
+        </div>
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>⏳ Cargando...</div>
         ) : filtered.length === 0 ? (
@@ -264,11 +432,24 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                         placeholder="Nombre del ejercicio"
                         value={editing[ex.id].name}
                         onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], name: e.target.value } }))} />
-                      <select className="input" style={{ fontSize: 12, padding: "5px 10px" }}
-                        value={editing[ex.id].muscle}
-                        onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], muscle: e.target.value } }))}>
-                        {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                        <select className="input" style={{ fontSize: 12, padding: "5px 10px" }}
+                          value={editing[ex.id].muscle}
+                          onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], muscle: e.target.value } }))}>
+                          {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <select className="input" style={{ fontSize: 12, padding: "5px 10px" }}
+                          value={editing[ex.id].equipment || "Personalizado"}
+                          onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], equipment: e.target.value } }))}>
+                          {EQUIPMENT_OPTIONS.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                        </select>
+                      </div>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
+                        <input type="checkbox" checked={!!editing[ex.id].machine}
+                          onChange={e => setEditing(p => ({ ...p, [ex.id]: { ...p[ex.id], machine: e.target.checked } }))}
+                          style={{ width: 14, height: 14, accentColor: "var(--accent)" }} />
+                        <span style={{ color: "var(--text-muted)" }}>Es máquina</span>
+                      </label>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button onClick={() => saveEdit(ex)} disabled={savingMeta[ex.id]}
                           className="btn-primary" style={{ fontSize: 11, padding: "5px 12px" }}>
@@ -385,6 +566,123 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
           💡 GIFs gratis en <a href="https://giphy.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>giphy.com</a> o <a href="https://tenor.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>tenor.com</a> — o sube directamente desde tu dispositivo
         </div>
         </>)}
+
+        {/* ── TAB: Catálogo ── */}
+        {adminTab === "catalog" && (() => {
+          const deletedNames = new Set(exercises.filter(e => e.status === "deleted").map(e => e.originalName));
+          const uniqueCatalog = EXERCISE_DB.filter((ex, idx, arr) =>
+            arr.findIndex(e => e.name.toLowerCase() === ex.name.toLowerCase()) === idx &&
+            !deletedNames.has(ex.name)
+          );
+          const filteredCatalog = uniqueCatalog.filter(ex => {
+            const matchText = ex.name.toLowerCase().includes(catalogFilter.toLowerCase()) || ex.muscle.toLowerCase().includes(catalogFilter.toLowerCase());
+            const matchMuscle = catalogMuscleFilter === "Todos" || ex.muscle === catalogMuscleFilter;
+            return matchText && matchMuscle;
+          });
+          const groupedCatalog = MUSCLES.reduce((acc, m) => {
+            const exs = filteredCatalog.filter(e => e.muscle === m);
+            if (exs.length > 0) acc[m] = exs;
+            return acc;
+          }, {});
+
+          return (
+            <>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 14 }}>
+                Ejercicios del <strong style={{ color: "var(--text)" }}>exerciseDb.js</strong>. Al editar se guarda un override en Firestore que sobreescribe el original para todos los usuarios.
+              </div>
+              <input className="input" placeholder="🔍 Filtrar por nombre..."
+                value={catalogFilter} onChange={e => setCatalogFilter(e.target.value)} style={{ marginBottom: 10 }} />
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                {["Todos", ...MUSCLES].map(m => (
+                  <button key={m} onClick={() => setCatalogMuscleFilter(m)}
+                    style={{ padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "Barlow, sans-serif",
+                      background: catalogMuscleFilter === m ? "var(--accent)" : "var(--input-bg)",
+                      color: catalogMuscleFilter === m ? "#000" : "var(--text-muted)",
+                      border: `1px solid ${catalogMuscleFilter === m ? "var(--accent)" : "var(--border)"}`,
+                      transition: "all 0.15s" }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {Object.entries(groupedCatalog).map(([muscle, exs]) => (
+                <div key={muscle} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "var(--accent)", textTransform: "uppercase", marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid var(--border)" }}>{muscle}</div>
+                  {exs.map(ex => {
+                    const isEditing = !!catalogEditing[ex.name];
+                    const edits = catalogEditing[ex.name] || {};
+                    const hasOverride = exercises.some(e => e.status === "override" && e.originalName === ex.name);
+                    const gifUrl = catalogGifInputs[ex.name] || exercises.find(e => e.status === "override" && e.originalName === ex.name)?.gifUrl || GIF_MAP[ex.name] || "";
+                    return (
+                      <div key={ex.name} style={{ background: "var(--input-bg)", border: `1px solid ${hasOverride ? "rgba(232,255,0,0.3)" : "var(--border)"}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                        {!isEditing ? (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 14 }}>{ex.name}</div>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                💪 {ex.muscle} · {ex.equipment}
+                                {hasOverride && <span style={{ marginLeft: 8, color: "var(--accent)", fontSize: 10, fontWeight: 700 }}>✏️ EDITADO</span>}
+                              </div>
+                              {gifUrl && <div style={{ fontSize: 10, color: "#22c55e", marginTop: 2 }}>✅ GIF asignado</div>}
+                            </div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              {gifUrl && <img src={gifUrl} alt={ex.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", border: "1px solid var(--accent)" }} onError={e => { e.target.style.display = "none"; }} />}
+                              <button onClick={() => startCatalogEdit(ex)}
+                                style={{ background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+                                ✏️ Editar
+                              </button>
+                              <button onClick={() => deleteCatalogExercise(ex)}
+                                style={{ background: "none", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+                                🗑
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <input className="input" style={{ fontSize: 13, fontWeight: 700, padding: "6px 10px" }}
+                              placeholder="Nombre" value={edits.name}
+                              onChange={e => setCatalogEditing(p => ({ ...p, [ex.name]: { ...p[ex.name], name: e.target.value } }))} />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                              <select className="input" style={{ fontSize: 12, padding: "6px 10px" }}
+                                value={edits.muscle}
+                                onChange={e => setCatalogEditing(p => ({ ...p, [ex.name]: { ...p[ex.name], muscle: e.target.value } }))}>
+                                {MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              <select className="input" style={{ fontSize: 12, padding: "6px 10px" }}
+                                value={edits.equipment}
+                                onChange={e => setCatalogEditing(p => ({ ...p, [ex.name]: { ...p[ex.name], equipment: e.target.value } }))}>
+                                {EQUIPMENT_OPTIONS.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                              </select>
+                            </div>
+                            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
+                              <input type="checkbox" checked={!!edits.machine}
+                                onChange={e => setCatalogEditing(p => ({ ...p, [ex.name]: { ...p[ex.name], machine: e.target.checked } }))}
+                                style={{ width: 14, height: 14, accentColor: "var(--accent)" }} />
+                              <span style={{ color: "var(--text-muted)" }}>Es máquina</span>
+                            </label>
+                            <input className="input" style={{ fontSize: 12, padding: "6px 10px" }}
+                              placeholder="URL del GIF (opcional)"
+                              value={edits.gifUrl}
+                              onChange={e => setCatalogEditing(p => ({ ...p, [ex.name]: { ...p[ex.name], gifUrl: e.target.value } }))} />
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button onClick={() => saveCatalogEdit(ex)} disabled={catalogSaving[ex.name]}
+                                className="btn-primary" style={{ flex: 1, fontSize: 12, padding: "8px" }}>
+                                {catalogSaving[ex.name] ? "⏳ Guardando..." : "✅ Guardar override"}
+                              </button>
+                              <button onClick={() => setCatalogEditing(p => { const n = { ...p }; delete n[ex.name]; return n; })}
+                                style={{ fontSize: 12, padding: "8px 14px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif" }}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </>
+          );
+        })()}
 
         {/* ── TAB: Diagnóstico ── */}
         {adminTab === "diag" && (

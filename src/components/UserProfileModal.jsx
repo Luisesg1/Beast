@@ -57,7 +57,7 @@ function AvatarEditor({ user, onPhotoUpdate }) {
   );
 }
 
-export default function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onClose, onPhotoUpdate }) {
+export default function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onOpenTutorial, onClose, onPhotoUpdate }) {
   const prs = getPRs(sessions);
   const streak = getStreak(sessions);
   const [selectedBadge, setSelectedBadge] = useState(null);
@@ -152,6 +152,7 @@ export default function UserProfileModal({ user, sessions, bodyStats, onOpenBody
           )}
         </>}
         <button className="btn-ghost" style={{width:"100%",marginTop:16}} onClick={onOpenBodyStats}>⚖️ Actualizar Peso & Estatura IA</button>
+        <button className="btn-ghost" style={{width:"100%",marginTop:8}} onClick={onOpenTutorial}>💡 Ver tutorial</button>
       </div>
     </div>
   );

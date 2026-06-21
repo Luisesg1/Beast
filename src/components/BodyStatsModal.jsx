@@ -6,7 +6,7 @@ import { getStreak, getPRs, calc1RM } from "../utils/gymCalcs";
 import InfoPill from "./InfoPill";
 import PhotoProgressModal from "./PhotoProgressModal";
 
-export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, isPro, sessions = [], userName }) {
+export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, isPro, sessions = [], userName, initialTab = "stats" }) {
   const { confirm: askConfirm, modal: confirmModal } = useConfirm();
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState(stats.height || "170");
@@ -16,8 +16,8 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
   const [goal, setGoal] = useState(stats.goal || "maintain");
   const [goalWeight, setGoalWeight] = useState(stats.goalWeight || "");
   const [saved, setSaved] = useState(false);
-  const [photoTab, setPhotoTab] = useState(false);
-  const [activeTab, setActiveTab] = useState("stats");
+  const [photoTab, setPhotoTab] = useState(initialTab === "medidas");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [measureEntries, setMeasureEntries] = useState(() => {
     try { return JSON.parse(localStorage.getItem("gym_measure_entries") || "[]"); } catch { return []; }
   });
@@ -126,13 +126,13 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
     <div className="overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3 className="modal-title">⚖️ Peso & Estatura IA</h3>
+          <h3 className="modal-title">⚖️ Peso & Estatura</h3>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
         {/* Tabs */}
         <div style={{ display:"flex", gap:0, marginBottom:20, background:"var(--input-bg)", borderRadius:10, padding:3 }}>
-          {[["stats","📊 Stats"],["medidas","📐 Medidas"],["fotos","⚡ BRUX IA"]].map(([key,label]) => (
+          {[["stats","📊 Stats"],["medidas","📐 Medidas"]].map(([key,label]) => (
             <button key={key} onClick={() => { setActiveTab(key); setPhotoTab(key === "medidas"); }}
               style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: activeTab===key ? "var(--accent)" : "transparent", color: activeTab===key ? "#0a0a0a" : "var(--text-muted)", fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s" }}>
               {label}
@@ -571,17 +571,7 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
         </>)}
 
         {/* FOTOS TAB */}
-        {activeTab === "fotos" && (
-          <PhotoProgressModal
-            uid={uid} isPro={isPro} onClose={onClose}
-            userName={stats?.name}
-            userStats={{
-              totalSessions: sessions?.length || 0,
-              streak: getStreak(sessions),
-              topExercises: Object.entries(getPRs(sessions)).sort((a, b) => b[1].rm - a[1].rm).slice(0, 3).map(([name, data]) => ({ name, rm: data.rm })),
-            }}
-          />
-        )}
+
       </div>
       {confirmModal}
     </div>

@@ -8,7 +8,7 @@ import BeastMascot from "./BeastMascot";
 import { MuscleBalance } from "./ProgressWidgets";
 import WeekComparison from "./WeekComparison";
 
-export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak }) {
+export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak }) {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const weeklyTarget = weeklyGoal?.target || 3;
   const streak = getStreak(sessions, weeklyTarget);
@@ -65,6 +65,8 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
         weeklyTarget={weeklyTarget}
         onOpenStreak={onOpenStreak}
         onStartSession={() => onStartSession && onStartSession("Todos")}
+        onRegisterSession={onRegisterSession}
+        onGoHome={onGoHome}
       />
 
       {/* ══ 1. BRUX ═══════════════════════════════════════════════════════════ */}
@@ -149,29 +151,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
         </div>
       )}
 
-      {/* ══ 4. BOTÓN NUEVA SESIÓN ═════════════════════════════════════════════ */}
-      <button
-        onClick={() => onStartSession && onStartSession("Todos")}
-        style={{
-          width:"100%", background:"#e8ff00", border:"none", borderRadius:14,
-          padding:"20px 24px", cursor:"pointer", marginBottom:20,
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          boxShadow:"0 0 32px rgba(232,255,0,0.25)",
-          transition:"all 0.18s",
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 6px 40px rgba(232,255,0,0.4)"; }}
-        onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="0 0 32px rgba(232,255,0,0.25)"; }}
-      >
-        <div style={{ textAlign:"left" }}>
-          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:2, textTransform:"uppercase", lineHeight:1 }}>
-            ⚡ NUEVA SESIÓN
-          </div>
-          <div style={{ fontSize:12, color:"rgba(0,0,0,0.5)", marginTop:4 }}>
-            Timer · series · descanso · PRs automáticos
-          </div>
-        </div>
-        <div style={{ fontSize:36 }}>→</div>
-      </button>
+
 
       {/* ══ 5. INSIGHTS (máx. 2) ══════════════════════════════════════════════ */}
       {topInsights.length > 0 && (

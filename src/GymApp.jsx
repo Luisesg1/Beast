@@ -164,6 +164,7 @@ export default function GymApp({ showPaywallAfterExpiry, setShowPaywallAfterExpi
   const bodyKey = `gym_body_${user.email}`;
   const [bodyStats, setBodyStats] = useState(() => load(bodyKey, { height: null, entries: [] }));
   const [showBodyStats, setShowBodyStats] = useState(false);
+  const [showPhotoProgress, setShowPhotoProgress] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem("gym_onboarding_done"); } catch { return false; }
   });
@@ -323,8 +324,24 @@ const [showAthleteCoach, setShowAthleteCoach] = useState(false);
       customs.forEach(ex => {
         if (!ex.name || typeof ex.name !== "string") return;
         const muscle = (ex.muscle && typeof ex.muscle === "string") ? ex.muscle : "";
-        registerCustomExercise(ex.name, muscle);
+        // Aplicar overrides/deletes del admin sobre el EXERCISE_DB
+        if (ex.status === "deleted" && ex.originalName) {
+          // Eliminar del EXERCISE_DB si fue borrado por el admin
+          const idx = EXERCISE_DB.findIndex(e => e.name === ex.originalName || e.name === ex.name);
+          if (idx !== -1) EXERCISE_DB.splice(idx, 1);
+        } else if (ex.status === "override" && ex.originalName) {
+          const idx = EXERCISE_DB.findIndex(e => e.name === ex.originalName);
+          if (idx !== -1) {
+            EXERCISE_DB[idx] = { ...EXERCISE_DB[idx], name: ex.name, muscle: ex.muscle || EXERCISE_DB[idx].muscle, equipment: ex.equipment || EXERCISE_DB[idx].equipment, machine: ex.machine ?? EXERCISE_DB[idx].machine };
+          }
+        } else if (ex.status !== "deleted") {
+          registerCustomExercise(ex.name, muscle);
+        }
         if (ex.gifUrl) map[ex.name] = ex.gifUrl;
+        // Si el override cambia el nombre, mapear el GIF al nombre nuevo también
+        if (ex.status === "override" && ex.gifUrl && ex.originalName && ex.name !== ex.originalName) {
+          map[ex.originalName] = ex.gifUrl;
+        }
       });
       setCustomGifsMap(map);
     });
@@ -987,24 +1004,25 @@ useEffect(() => {
   ))}
 
   {[
-      { label: "— ORGANIZAR", items: [
+      { label: "RUTINAS", items: [
         { icon: "📅", label: "Planificador", action: () => openPlanner("plan") },
         { icon: "📄", label: "Plantillas", action: () => setShowTemplates(true) },
       ]},
-      { label: "— SOCIAL", items: [
+      { label: "COMUNIDAD", items: [
         { icon: "👥", label: "GymTeams", action: () => setShowTeams(true) },
         { icon: "🏁", label: "Reto semanal", action: () => setShowChallenge(true) },
-      ]},
-      { label: "— PERSONAL", items: [
-        { icon: "📈", label: "Progreso", action: () => setShowProgressPicker(true) },
-        { icon: "⚖️", label: "Peso & Estatura IA", action: () => setShowBodyStats(true) },
         { icon: "🤝", label: "Mi Coach", action: () => setShowAthleteCoach(true) },
         ...(user.isCoach ? [{ icon: "🌟", label: "Panel Coach", action: () => setShowCoach(true) }] : []),
+      ]},
+      { label: "PROGRESO", items: [
+        { icon: "📈", label: "Evolución", action: () => setShowProgressPicker(true) },
+        { icon: "⚖️", label: "Peso & Estatura", action: () => setShowBodyStats(true) },
+        ...(user.isAdmin ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => setShowAdminExercises(true) }] : []),
       ]},
     ].map(group => (
       <div key={group.label}>
         <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 4, padding: "16px 12px 4px", textTransform: "uppercase", opacity: 0.5 }}>
-          {group.label.replace(/^[^\w]+/, "")}
+          {group.label}
         </div>
         {group.items.map(item => (
           <button key={item.label} className="nav-item" onClick={item.action}>
@@ -1012,31 +1030,32 @@ useEffect(() => {
             <span className="nav-label">{item.label}</span>
           </button>
         ))}
-        {group.label === "— PERSONAL" && (
-          <button className="nav-item" onClick={() => openBadgesModal()} style={{ position:"relative" }}>
-            <span className="nav-icon">🏅</span>
-            <span className="nav-label">Logros</span>
-            {newBadgesCount > 0 && (
-              <span style={{
-                position:"absolute", top:6, left:28,
-                background:"#ef4444", color:"#fff",
-                borderRadius:"50%", width:16, height:16,
-                fontSize:10, fontWeight:900,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                boxShadow:"0 0 0 2px var(--bg)",
-                animation:"pulse 1.5s infinite",
-              }}>{newBadgesCount}</span>
-            )}
-          </button>
+        {group.label === "PROGRESO" && (
+          <>
+            <button className="nav-item" onClick={() => openBadgesModal()} style={{ position:"relative" }}>
+              <span className="nav-icon">🏅</span>
+              <span className="nav-label">Logros</span>
+              {newBadgesCount > 0 && (
+                <span style={{
+                  position:"absolute", top:6, left:28,
+                  background:"#ef4444", color:"#fff",
+                  borderRadius:"50%", width:16, height:16,
+                  fontSize:10, fontWeight:900,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  boxShadow:"0 0 0 2px var(--bg)",
+                  animation:"pulse 1.5s infinite",
+                }}>{newBadgesCount}</span>
+              )}
+            </button>
+            <button className="nav-item" onClick={() => setShowPhotoProgress(true)}>
+              <span className="nav-icon">📸</span>
+              <span className="nav-label">Análisis IA</span>
+            </button>
+          </>
         )}
       </div>
     ))}
-        {user.isAdmin && (
-          <button className="nav-item" onClick={() => setShowAdminExercises(true)}>
-            <span className="nav-icon">⚙️</span>
-            <span className="nav-label">Ejercicios custom</span>
-          </button>
-        )}
+
         </nav>
         <div className="sidebar-bottom" style={{ paddingBottom: 70 }}>
           {/* Offline indicator */}
@@ -1056,11 +1075,7 @@ useEffect(() => {
               <span className="nav-label">Instalar app</span>
             </button>
           )}
-          {/* Re-trigger tutorial */}
-          <button className="nav-item" style={{ marginBottom:2 }} onClick={() => setShowOnboarding(true)}>
-            <span className="nav-icon">💡</span>
-            <span className="nav-label">Ver tutorial</span>
-          </button>
+
 
           {/* Suscripción */}
           {!isPro ? (
@@ -1170,15 +1185,38 @@ useEffect(() => {
                   </button>
                 ))}
                 <div style={{ height: 1, background: "var(--border)", margin: "8px 12px" }} />
+
+                {/* RUTINAS */}
+                <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 4, padding: "12px 12px 4px", textTransform: "uppercase", opacity: 0.5 }}>Rutinas</div>
                 {[
-                  { icon: "📈", label: "Progreso", action: () => { setShowProgressPicker(true); setMobileNavOpen(false); } },
                   { icon: "📅", label: "Planificador", action: () => { openPlanner("plan"); setMobileNavOpen(false); } },
                   { icon: "📄", label: "Plantillas", action: () => { setShowTemplates(true); setMobileNavOpen(false); } },
-                  { icon: "⚖️", label: "Peso & Estatura IA", action: () => { setShowBodyStats(true); setMobileNavOpen(false); } },
+                ].map(({ icon, label, action }) => (
+                  <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
+                    <span className="nav-icon">{icon}</span>
+                    <span className="nav-label">{label}</span>
+                  </button>
+                ))}
+
+                {/* COMUNIDAD */}
+                <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 4, padding: "12px 12px 4px", textTransform: "uppercase", opacity: 0.5 }}>Comunidad</div>
+                {[
                   { icon: "👥", label: "GymTeams", action: () => { setShowTeams(true); setMobileNavOpen(false); } },
                   { icon: "🏁", label: "Reto semanal", action: () => { setShowChallenge(true); setMobileNavOpen(false); } },
-                  ...(user.isCoach ? [{ icon: "🌟", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
                   { icon: "🤝", label: "Mi Coach", action: () => { setShowAthleteCoach(true); setMobileNavOpen(false); } },
+                  ...(user.isCoach ? [{ icon: "🌟", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
+                ].map(({ icon, label, action }) => (
+                  <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
+                    <span className="nav-icon">{icon}</span>
+                    <span className="nav-label">{label}</span>
+                  </button>
+                ))}
+
+                {/* PROGRESO */}
+                <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 4, padding: "12px 12px 4px", textTransform: "uppercase", opacity: 0.5 }}>Progreso</div>
+                {[
+                  { icon: "📈", label: "Evolución", action: () => { setShowProgressPicker(true); setMobileNavOpen(false); } },
+                  { icon: "⚖️", label: "Peso & Estatura", action: () => { setShowBodyStats(true); setMobileNavOpen(false); } },
                   ...(user.isAdmin ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => { setShowAdminExercises(true); setMobileNavOpen(false); } }] : []),
                 ].map(({ icon, label, action }) => (
                   <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
@@ -1199,6 +1237,10 @@ useEffect(() => {
                       boxShadow:"0 0 0 2px var(--bg)",
                     }}>{newBadgesCount}</span>
                   )}
+                </button>
+                <button className="nav-item" style={{ marginBottom:2 }} onClick={() => { setShowPhotoProgress(true); setMobileNavOpen(false); }}>
+                  <span className="nav-icon">📸</span>
+                  <span className="nav-label">Análisis IA</span>
                 </button>
 
                 {/* Suscripción */}
@@ -1252,10 +1294,7 @@ useEffect(() => {
                     <span className="nav-label">Instalar app</span>
                   </button>
                 )}
-                <button className="nav-item" style={{ marginBottom:2 }} onClick={() => { setShowOnboarding(true); setMobileNavOpen(false); }}>
-                  <span className="nav-icon">💡</span>
-                  <span className="nav-label">Ver tutorial</span>
-                </button>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, cursor: "pointer" }} onClick={() => { setShowProfile(true); setMobileNavOpen(false); }}>
                   <div className="user-avatar" style={{ overflow:"hidden", padding:0 }}>
                     {user.photoURL
@@ -2034,6 +2073,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <div className="card-label">Info de la sesión</div>
             <div className="field">
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input"
+                max={new Date().toISOString().slice(0, 10)}
                 style={{ colorScheme:"dark" }} />
             </div>
             <div className="field">
@@ -2632,6 +2672,11 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
       }
     }}
     onMuscleMapClick={() => setShowMuscleMap(true)}
+    onRegisterSession={() => {
+      setActiveTab("new");
+      setSessionMode("log");
+    }}
+    onGoHome={() => setActiveTab("new")}
     />
 </div>
       </main>
@@ -2759,6 +2804,25 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           <BodyStatsModal stats={bodyStats} uid={user.uid} isGuest={false} isPro={isPro} onSave={s => setBodyStats(s)} onClose={() => setShowBodyStats(false)} sessions={sessions} userName={user.name} />
         )
       )}
+      {showPhotoProgress && (
+        <div className="overlay" onClick={() => setShowPhotoProgress(false)}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+            <div className="modal-header">
+              <h3 className="modal-title">📸 Análisis IA</h3>
+              <button className="close-btn" onClick={() => setShowPhotoProgress(false)}>✕</button>
+            </div>
+            <PhotoProgressModal
+              uid={user.uid} isPro={isPro} onClose={() => setShowPhotoProgress(false)}
+              userName={user.name}
+              userStats={{
+                totalSessions: sessions?.length || 0,
+                streak: getStreak(sessions),
+                topExercises: Object.entries(getPRs(sessions)).sort((a, b) => b[1].rm - a[1].rm).slice(0, 3).map(([name, data]) => ({ name, rm: data.rm })),
+              }}
+            />
+          </div>
+        </div>
+      )}
       {showAdminExercises && user.isAdmin && (
         <Suspense fallback={null}>
           <AdminExercisesModal
@@ -2862,6 +2926,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           sessions={sessions}
           bodyStats={bodyStats}
           onOpenBodyStats={() => { setShowProfile(false); setShowBodyStats(true); }}
+          onOpenTutorial={() => { setShowProfile(false); setShowOnboarding(true); }}
           onClose={() => setShowProfile(false)}
           onPhotoUpdate={(url) => updateUser({ photoURL: url })}
         />

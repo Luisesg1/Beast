@@ -2,6 +2,19 @@
 // Funciones utilitarias de cálculo. Sin UI, sin dependencias externas.
 // Importar donde se necesiten: import { calc1RM, getPRs, getStreak, ... } from "../utils/gymCalcs";
 
+// ─── Helpers internos de fecha (no exportados) ────────────────────────────────
+function getMonday(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  const day = date.getDay();
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+  return date;
+}
+
+function toKey(d) {
+  return d.toISOString().slice(0, 10);
+}
+
 // ─── 1RM Calculator ───────────────────────────────────────────────────────────
 export function calc1RM(weight, reps) {
   if (!weight || !reps || reps <= 0) return 0;
@@ -58,15 +71,6 @@ export function detectNewPRs(newSession, existingSessions) {
 export function getStreak(sessions, weeklyTarget = 3) {
   if (!sessions || sessions.length === 0) return 0;
 
-  const getMonday = (d) => {
-    const date = new Date(d); date.setHours(0,0,0,0);
-    const day = date.getDay();
-    const diff = (day === 0 ? -6 : 1 - day);
-    date.setDate(date.getDate() + diff);
-    return date;
-  };
-  const toKey = (d) => d.toISOString().slice(0, 10);
-
   const weekMap = {};
   sessions.forEach(s => {
     const mon = toKey(getMonday(new Date(s.date + "T00:00:00")));
@@ -112,14 +116,6 @@ export function getPRs(sessions) {
 // ─── Streak Status (en riesgo / perdida / ok) ────────────────────────────────
 // Retorna: { status: "ok" | "at_risk" | "lost", sessionsThisWeek, sessionsNeeded, isCurrentWeekDone }
 export function getStreakStatus(sessions, weeklyTarget = 3) {
-  const getMonday = (d) => {
-    const date = new Date(d); date.setHours(0,0,0,0);
-    const day = date.getDay();
-    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-    return date;
-  };
-  const toKey = (d) => d.toISOString().slice(0, 10);
-
   const today = new Date(); today.setHours(0,0,0,0);
   const currentMonday = getMonday(today);
   const currentWeekKey = toKey(currentMonday);
@@ -154,12 +150,12 @@ export function getStreakStatus(sessions, weeklyTarget = 3) {
 
   // Racha perdida: tenía racha (semana pasada cumplió meta) pero esta semana ya no puede llegar
   if (streak === 0 && sessionsLastWeek >= weeklyTarget && !isCurrentWeekDone) {
-    return { status: "lost", sessionsThisWeek, sessionsNeeded, isCurrentWeekDone, sessionsLastWeek };
+    return { status: "lost", sessionsThisWeek, sessionsNeeded, isCurrentWeekDone, sessionsLastWeek, daysLeftInWeek };
   }
 
   // Racha perdida legacy: semana pasada tuvo sesiones pero no llegó a la meta
   if (streak === 0 && sessionsLastWeek > 0 && sessionsLastWeek < weeklyTarget && !isCurrentWeekDone) {
-    return { status: "lost", sessionsThisWeek, sessionsNeeded, isCurrentWeekDone, sessionsLastWeek };
+    return { status: "lost", sessionsThisWeek, sessionsNeeded, isCurrentWeekDone, sessionsLastWeek, daysLeftInWeek };
   }
 
   // En riesgo: semana actual y quedan pocos días para cumplir la meta
@@ -217,15 +213,9 @@ export function useShield() {
 
 export function wasShieldUsedThisWeek() {
   try {
-    const getMonday = (d) => {
-      const date = new Date(d); date.setHours(0,0,0,0);
-      const day = date.getDay();
-      date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-      return date.toISOString().slice(0, 10);
-    };
-    const currentWeek = getMonday(new Date());
+    const currentWeek = toKey(getMonday(new Date()));
     const log = JSON.parse(localStorage.getItem(SHIELDS_LOG_KEY) || "[]");
-    return log.some(l => l.reason === "used" && getMonday(new Date(l.date)) === currentWeek);
+    return log.some(l => l.reason === "used" && toKey(getMonday(new Date(l.date))) === currentWeek);
   } catch { return false; }
 }
 

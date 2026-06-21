@@ -10,6 +10,7 @@ import {
   markRoutineCompleted,
 } from "../utils/firebaseService";
 import LiveTrainMode from "./LiveTrainMode";
+import { DAYS_ES } from "../utils/constants";
 
 function fireConfetti() {
   const canvas = document.createElement("canvas");
@@ -86,7 +87,6 @@ const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? J
 const numDot = (v, max = 9999) => { const s = v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"); const n = parseFloat(s); if (isNaN(n) || n < 0) return ""; return n > max ? String(max) : s; };
 const numWeight = (v) => numDot(v, 500);
 const numReps   = (v) => numDot(v, 100);
-const DAYS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const LIVE_DRAFT_KEY = "gym_live_draft";
 
 // ─── AthleteCoachPanel ────────────────────────────────────────────────────────
@@ -102,7 +102,6 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
   const [joining, setJoining] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState(null);
   const [pendingInitialDocId] = useState(initialRoutine?._docId || null);
-  const [workoutSummary, setWorkoutSummary] = useState(null);
   const [newRoutineCount, setNewRoutineCount] = useState(0);
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [coachProfileData, setCoachProfileData] = useState(null);
@@ -235,62 +234,9 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
           await markRoutineCompleted(user.uid, activeWorkout._docId || activeWorkout.routineId || activeWorkout.id);
           const updated = await getAthleteRoutines(user.uid);
           setAssignedRoutines(updated);
-          setWorkoutSummary({ exercises, elapsed, routineName: activeWorkout.name });
           setActiveWorkout(null);
         }}
       />
-    );
-  }
-
-  if (workoutSummary) {
-    const fmt = s => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
-    const totalVol = workoutSummary.exercises.reduce((acc, ex) =>
-      acc + (ex.sets||[]).reduce((a, s) => a + (parseFloat(s.weight)||0) * (parseFloat(s.reps)||1), 0), 0);
-    const totalSeries = workoutSummary.exercises.reduce((acc, ex) => acc + (ex.sets||[]).length, 0);
-
-    return (
-      <div style={{ position:"fixed", inset:0, background:"var(--bg)", zIndex:3000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24 }}>
-        <div style={{ fontSize:64, marginBottom:8 }}>🏆</div>
-        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900, letterSpacing:1, marginBottom:4 }}>
-          ¡Rutina completada!
-        </div>
-        <div style={{ fontSize:14, color:"var(--text-muted)", marginBottom:28 }}>{workoutSummary.routineName}</div>
-
-        <div style={{ display:"flex", gap:12, marginBottom:28, flexWrap:"wrap", justifyContent:"center" }}>
-          {[
-            { icon:"⏱️", label:"Tiempo", value: fmt(workoutSummary.elapsed) },
-            { icon:"🏋️", label:"Ejercicios", value: workoutSummary.exercises.length },
-            { icon:"🔢", label:"Series", value: totalSeries },
-            { icon:"📦", label:"Volumen", value: `${Math.round(totalVol)}kg` },
-          ].map(s => (
-            <div key={s.label} style={{ background:"var(--card)", border:"1px solid var(--border)", borderRadius:14, padding:"16px 20px", textAlign:"center", minWidth:90 }}>
-              <div style={{ fontSize:24 }}>{s.icon}</div>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800, color:"var(--accent)" }}>{s.value}</div>
-              <div style={{ fontSize:11, color:"var(--text-muted)" }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ width:"100%", maxWidth:480, maxHeight:260, overflowY:"auto", marginBottom:24 }}>
-          {workoutSummary.exercises.map((ex, i) => (
-            <div key={i} style={{ padding:"12px 16px", background:"var(--card)", border:"1px solid var(--border)", borderRadius:12, marginBottom:8 }}>
-              <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>✓ {ex.name}</div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {(ex.sets||[]).map((s, j) => (
-                  <span key={j} style={{ fontSize:12, padding:"3px 10px", background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:8, color:"#22c55e", fontWeight:600 }}>
-                    S{j+1}: {s.weight||"—"}kg × {s.reps||"—"}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button className="btn-primary" style={{ fontSize:18, padding:"14px 40px" }}
-          onClick={() => setWorkoutSummary(null)}>
-          Volver a mis rutinas
-        </button>
-      </div>
     );
   }
 

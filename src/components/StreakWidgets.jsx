@@ -1,39 +1,77 @@
 import { getStreak, getStreakStatus, getShields } from "../utils/gymCalcs";
 
-export function StreakRiskBanner({ sessions, weeklyTarget = 3, onOpenStreak, onStartSession }) {
+export function StreakRiskBanner({ sessions, weeklyTarget = 3, onOpenStreak, onStartSession, onRegisterSession, onGoHome }) {
   const { status, sessionsThisWeek, sessionsNeeded, daysLeftInWeek } = getStreakStatus(sessions, weeklyTarget);
   const shields = getShields();
 
+  // Banner "perdiste" solo se muestra lunes y martes (primeros 2 días tras perder)
+  const dayOfWeek = (new Date().getDay() + 6) % 7; // 0=Lun, 6=Dom
   if (status === "ok") return null;
+  if (status === "lost" && dayOfWeek > 1) return null;
 
   const isLost = status === "lost";
   const color = isLost ? "#ef4444" : "#f97316";
   const bg = isLost ? "rgba(239,68,68,0.08)" : "rgba(249,115,22,0.08)";
   const border = isLost ? "rgba(239,68,68,0.3)" : "rgba(249,115,22,0.3)";
 
+  // ¿Es posible aún cumplir la meta esta semana?
+  const daysAvailable = daysLeftInWeek != null ? daysLeftInWeek + 1 : 7;
+  const canStillRecover = isLost && sessionsNeeded <= daysAvailable;
+  const weeklyTarget2 = weeklyTarget; // alias para usar en JSX
+
   const title = isLost
-    ? "💔 Perdiste tu racha esta semana"
+    ? canStillRecover
+      ? "💔 Perdiste tu racha esta semana"
+      : "💔 Esta semana ya no se puede recuperar"
     : "🔥 ¡Tu racha está en riesgo!";
 
   const subtitle = isLost
-    ? shields > 0
-      ? `Tienes ${shields} 🛡️ escudo${shields > 1 ? "s" : ""} disponible${shields > 1 ? "s" : ""}`
-      : "Entrena hoy para empezar una nueva racha"
+    ? canStillRecover
+      ? shields > 0
+        ? `Tienes ${shields} 🛡️ escudo${shields > 1 ? "s" : ""}. Necesitas ${sessionsNeeded} sesión${sessionsNeeded > 1 ? "es" : ""} más esta semana`
+        : `Necesitas ${sessionsNeeded} sesión${sessionsNeeded > 1 ? "es" : ""} más en ${daysAvailable} día${daysAvailable > 1 ? "s" : ""} — ¡todavía puedes!`
+      : `La próxima semana empieza de cero. Meta: ${weeklyTarget2} sesiones`
     : `Necesitas ${sessionsNeeded} sesión${sessionsNeeded > 1 ? "es" : ""} más${daysLeftInWeek != null ? ` (quedan ${daysLeftInWeek + 1} días)` : ""}`;
 
   return (
-    <div onClick={onOpenStreak} style={{ cursor: "pointer", background: bg, border: `1px solid ${border}`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{ fontSize: 28, flexShrink: 0 }}>{isLost ? "💔" : "⚠️"}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 800, fontSize: 13, color, marginBottom: 2 }}>{title}</div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{subtitle}</div>
+    <div onClick={onOpenStreak} style={{ cursor: "pointer", background: bg, border: `1px solid ${border}`, borderRadius: 14, padding: "12px 16px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ fontSize: 28, flexShrink: 0 }}>{isLost ? (canStillRecover ? "💔" : "😔") : "⚠️"}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color, marginBottom: 2 }}>{title}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>{subtitle}</div>
+        </div>
       </div>
-      <button
-        className="btn-primary"
-        style={{ fontSize: 12, padding: "7px 12px", flexShrink: 0, background: color, borderColor: color }}
-        onClick={e => { e.stopPropagation(); onStartSession?.(); }}>
-        ⚡ Entrenar
-      </button>
+      {isLost && canStillRecover && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button
+            className="btn-primary"
+            style={{ flex: 1, fontSize: 12, padding: "9px 0", background: color, borderColor: color }}
+            onClick={e => { e.stopPropagation(); onGoHome?.(); }}>
+            💪 Recuperar racha
+          </button>
+        </div>
+      )}
+      {isLost && !canStillRecover && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            className="btn-primary"
+            style={{ width: "100%", fontSize: 12, padding: "9px 0", background: "#6366f1", borderColor: "#6366f1" }}
+            onClick={e => { e.stopPropagation(); onGoHome?.(); }}>
+            🚀 Preparar la próxima semana
+          </button>
+        </div>
+      )}
+      {!isLost && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            className="btn-primary"
+            style={{ width: "100%", fontSize: 12, padding: "9px 0", background: color, borderColor: color }}
+            onClick={e => { e.stopPropagation(); onGoHome?.(); }}>
+            ⚡ Entrenar
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core";
 const PLANS = {
   pro: {
     id: "pro",
-    name: "GYMTRACKER PRO",
+    name: "BEAST PRO",
     emoji: "⚡",
     color: "#e8ff00",
     monthly: { key: "monthly",  fallbackPrice: "Ver precio en Play Store",  yearly: false },
@@ -25,7 +25,7 @@ const PLANS = {
   },
   coach: {
     id: "coach",
-    name: "GYMTRACKER COACH",
+    name: "BEAST COACH",
     emoji: "🏅",
     color: "#60a5fa",
     monthly: { key: "coach_monthly", fallbackPrice: "Ver precio en Play Store",  yearly: false },
@@ -110,9 +110,10 @@ function GuestView({ onClose }) {
 // Vista de un plan (Pro o Coach)
 function PlanView({ plan, onClose, onSwitchPlan, otherPlanLabel, prices }) {
   const { user, updateUser } = useAuth();
-  const { purchasePro, restorePurchases, loading, error } = useBilling();
+  const { purchasePro, loading, error } = useBilling();
   const [tab, setTab] = useState("monthly");
-  const [restoreMsg, setRestoreMsg] = useState(null);
+  // Tiene otro plan de pago activo distinto a este
+  const hasDifferentPaidPlan = user?.plan && PAID_PLANS.includes(user.plan) && user.plan !== plan.id;
 
   const selectedOption = tab === "monthly" ? plan.monthly : plan.yearly;
 
@@ -129,17 +130,6 @@ function PlanView({ plan, onClose, onSwitchPlan, otherPlanLabel, prices }) {
         alert(result.msg);
       }
       onClose();
-    }
-  }
-
-  async function handleRestore() {
-    if (!user?.uid) return;
-    setRestoreMsg(null);
-    const result = await restorePurchases(user.uid, updateUser);
-    if (result.ok && PAID_PLANS.includes(result.plan)) {
-      onClose();
-    } else {
-      setRestoreMsg("No se encontraron compras anteriores.");
     }
   }
 
@@ -210,57 +200,91 @@ function PlanView({ plan, onClose, onSwitchPlan, otherPlanLabel, prices }) {
           {error}
         </div>
       )}
-      {restoreMsg && (
-        <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center", marginBottom: 12 }}>
-          {restoreMsg}
-        </div>
+      {/* Botón comprar o indicador de plan activo */}
+      {user?.plan === plan.id ? (
+        <>
+          <div style={{
+            background: "rgba(34,197,94,0.1)",
+            border: "1px solid rgba(34,197,94,0.3)",
+            borderRadius: 12, padding: "16px",
+            textAlign: "center", marginBottom: 8,
+          }}>
+            <div style={{ fontSize: 22, marginBottom: 6 }}>✅</div>
+            <div style={{ fontWeight: 800, color: "#22c55e", fontSize: 15 }}>
+              Ya tienes este plan activo
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+              Gestiona tu suscripción desde Google Play
+            </div>
+          </div>
+          {onSwitchPlan && (
+            <button
+              onClick={onSwitchPlan}
+              style={{
+                width: "100%", marginTop: 8, padding: "10px 0",
+                borderRadius: 12, background: "transparent",
+                color: plan.color,
+                border: `1px solid ${plan.color}44`,
+                cursor: "pointer", fontSize: 12, fontWeight: 700,
+              }}
+            >
+              Ver plan {otherPlanLabel} →
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Aviso si ya tiene otro plan de pago activo */}
+          {hasDifferentPaidPlan && (
+            <div style={{
+              background: "rgba(245,158,11,0.08)",
+              border: "1px solid rgba(245,158,11,0.3)",
+              borderRadius: 12, padding: "12px 14px", marginBottom: 10,
+              display: "flex", alignItems: "flex-start", gap: 10,
+            }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", marginBottom: 3 }}>
+                  Ya tienes el plan {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)} activo
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>
+                  Para cambiar de plan, cancela tu suscripción actual desde Google Play y luego compra este.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handlePurchase}
+            disabled={loading}
+            style={{
+              width: "100%", padding: "14px 0", borderRadius: 12,
+              background: loading ? `${plan.color}66` : plan.color,
+              color: "#000", fontWeight: 900, fontSize: 16, border: "none",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
+            }}
+          >
+            {loading ? "PROCESANDO..." : `HAZTE ${plan.id.toUpperCase()}`}
+          </button>
+
+          {/* Ver otro plan */}
+          {onSwitchPlan && (
+            <button
+              onClick={onSwitchPlan}
+              style={{
+                width: "100%", marginTop: 8, padding: "10px 0",
+                borderRadius: 12, background: "transparent",
+                color: plan.color,
+                border: `1px solid ${plan.color}44`,
+                cursor: "pointer", fontSize: 12, fontWeight: 700,
+              }}
+            >
+              Ver plan {otherPlanLabel} →
+            </button>
+          )}
+        </>
       )}
-
-      {/* Botón comprar */}
-      <button
-        onClick={handlePurchase}
-        disabled={loading}
-        style={{
-          width: "100%", padding: "14px 0", borderRadius: 12,
-          background: loading ? `${plan.color}66` : plan.color,
-          color: "#000", fontWeight: 900, fontSize: 16, border: "none",
-          cursor: loading ? "not-allowed" : "pointer",
-          fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
-        }}
-      >
-        {loading ? "PROCESANDO..." : `HAZTE ${plan.id.toUpperCase()}`}
-      </button>
-
-      {/* Cambiar de plan */}
-      {onSwitchPlan && (
-        <button
-          onClick={onSwitchPlan}
-          style={{
-            width: "100%", marginTop: 8, padding: "10px 0",
-            borderRadius: 12, background: "transparent",
-            color: plan.color,
-            border: `1px solid ${plan.color}44`,
-            cursor: "pointer", fontSize: 12, fontWeight: 700,
-          }}
-        >
-          Ver plan {otherPlanLabel} →
-        </button>
-      )}
-
-      {/* Restaurar */}
-      <button
-        onClick={handleRestore}
-        disabled={loading}
-        style={{
-          width: "100%", marginTop: 8, padding: "10px 0",
-          borderRadius: 12, background: "transparent",
-          color: "rgba(255,255,255,0.35)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          cursor: "pointer", fontSize: 12,
-        }}
-      >
-        Restaurar compras anteriores
-      </button>
 
       <button
         onClick={onClose}

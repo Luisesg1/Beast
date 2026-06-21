@@ -1,5 +1,6 @@
-export function compressImage(file, maxWidth = 300, quality = 0.7) {
-  return new Promise((resolve) => {
+// returnFormat: "dataURL" (con prefijo, default) | "base64" (sin prefijo)
+export function compressImage(file, maxWidth = 300, quality = 0.7, returnFormat = "dataURL") {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -9,9 +10,10 @@ export function compressImage(file, maxWidth = 300, quality = 0.7) {
       canvas.height = Math.round(img.height * scale);
       canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", quality));
+      const dataURL = canvas.toDataURL("image/jpeg", quality);
+      resolve(returnFormat === "base64" ? dataURL.split(",")[1] : dataURL);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
     img.src = url;
   });
 }

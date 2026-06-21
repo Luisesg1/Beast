@@ -17,6 +17,74 @@ function markBadgesSeen(ids) {
 }
 
 // ─── Badge definitions ────────────────────────────────────────────────────────
+const BADGE_DETAILS = {
+  first:        "Todo comienza con un primer paso. El día que entraste por primera vez y lo registraste, tomaste la decisión más importante: empezar. Muchos hablan de ponerse en forma, tú lo hiciste.",
+  sessions5:    "Cinco sesiones no suenan a mucho, pero ya eres parte del grupo que convierte las intenciones en acciones. La mayoría abandona antes de llegar aquí. Tú no.",
+  pr1:          "Superaste tu propio récord. No el de alguien más, el tuyo. Eso es lo que importa: competir contigo mismo y ganar. Cada PR es prueba de que el trabajo está dando frutos.",
+  variety10:    "Diez ejercicios distintos significa que estás explorando, aprendiendo y construyendo una base sólida. Un atleta completo no se hace en una sola máquina.",
+  streak3:      "Tres semanas consecutivas cumpliendo tu meta. Ya no es motivación, es hábito. Y los hábitos son los que construyen el físico que quieres tener.",
+  sunday:       "Entrenar un domingo dice mucho de ti. Mientras otros descansan del descanso, tú decidiste invertir en ti mismo. Ese extra marca la diferencia a largo plazo.",
+  holiday:      "Ni el calendario te detiene. Entrenar en días festivos es la definición de no tener excusas. Ese compromiso es el que separa a los que llegan de los que se quedan a mitad de camino.",
+  minimalist:   "Tres ejercicios, cero relleno. Cuando sabes lo que haces, no necesitas cantidad para conseguir calidad. La eficiencia también es una habilidad.",
+  ai_first:     "Le preguntaste al Coach IA por primera vez. El que busca respuestas ya lleva ventaja sobre el que entrena a ciegas. La curiosidad es el primer músculo que hay que entrenar.",
+  team_first:   "Te uniste a un equipo. El entrenamiento en solitario tiene su valor, pero la energía del grupo multiplica todo. Bienvenido a algo más grande que tú solo.",
+  coach_first:  "Completaste tu primera rutina asignada por un coach. Seguir un plan diseñado para ti es un nivel diferente de entrenamiento. Tu cuerpo ya lo está notando.",
+  photo_first:  "Subiste tu primera foto de progreso. Hace falta valentía para documentar el proceso desde el principio. Ese punto de partida que registraste hoy será tu mayor motivación en el futuro.",
+  sessions10:   "Diez sesiones completadas. Ya pasaste la fase en que la mayoría abandona. Tu cuerpo empieza a adaptarse, tu mente empieza a creer. Sigue.",
+  sessions25:   "Veinticinco sesiones. Ya no eres principiante, eres alguien que entrena. La diferencia está en la consistencia, y tú la tienes.",
+  sessions50:   "Cincuenta sesiones. Medio centenar de veces que elegiste el gimnasio sobre la comodidad. Los cambios en tu cuerpo no mienten: este nivel de dedicación tiene recompensa.",
+  pr5:          "Cinco récords personales en distintos ejercicios. No fue suerte ni un buen día: fue progresión real. Tu cuerpo es más fuerte de lo que era, y los números lo confirman.",
+  streak7:      "Siete semanas seguidas cumpliendo tu meta de entrenamiento. Eso son casi dos meses de constancia pura. Lo que empezó como esfuerzo se está convirtiendo en identidad.",
+  heavy:        "Más de 100kg en un ejercicio. Llegaste al territorio donde el peso ya respeta. Esa barra no se mueve sola, se mueve con meses de trabajo acumulado.",
+  streak14:     "Catorce semanas consecutivas. Tres meses y medio sin romper la racha. Eso es voluntad de acero. Muy pocos llegan a esto, y tú ya estás aquí.",
+  beast5in7:    "Cinco sesiones en siete días. Una semana de modo bestia absoluto. Tu recuperación, tu disciplina y tu motivación en su punto máximo. Así se construyen los físicos de élite.",
+  variety25:    "Veinticinco ejercicios distintos dominados. Tu repertorio técnico es el de alguien que entiende el entrenamiento de verdad. Esa variedad también protege tu cuerpo.",
+  volume_ses:   "Diez mil kilos movidos en una sola sesión. Eso no es entrenar, eso es devastar. El volumen de trabajo que puedes manejar en un día es impresionante.",
+  ai_5:         "Cinco consultas al Coach IA. Cada pregunta que haces es una decisión de no quedarte con la duda. Quien pregunta aprende, quien aprende progresa más rápido.",
+  team_reto:    "Participaste en tu primer reto de equipo. La competencia sana saca lo mejor de todos. Cuando hay algo en juego, cada rep cuenta el doble.",
+  coach_3:      "Tres rutinas de coach completadas. Ya tienes un ritmo, ya sabes cómo funciona el sistema. Ahora solo es cuestión de seguir apretando.",
+  photo_3:      "Tres fotos de progreso registradas. Estás construyendo un archivo visual de tu transformación. Dentro de un tiempo, comparar la primera con la última foto va a ser tu mayor motivación.",
+  sessions100:  "Cien sesiones. No es un número, es un estilo de vida. El gimnasio ya no es algo que haces: es parte de lo que eres. Muy pocos llegan a este punto, y tú lo cruzaste.",
+  pr10:         "Récords personales en diez ejercicios distintos. Tu fuerza no creció en un área, creció en toda la cancha. Eso es desarrollo atlético real, no solo volumen de brazo.",
+  streak30:     "Treinta semanas seguidas cumpliendo tu meta. Más de siete meses sin romper la racha. Eso no se logra con motivación: se logra con identidad. El gimnasio ya es parte de ti.",
+  leg20:        "Veinte sesiones de pierna. Muchos las evitan, tú las abrazaste. Las piernas son la base de todo, y la tuya es sólida. Respeto.",
+  chest20:      "Veinte sesiones de pecho. Le dedicaste tiempo real a este grupo muscular y los resultados están ahí. El press que hacías en tu primera sesión y el de hoy no tienen nada que ver.",
+  back20:       "Veinte sesiones de espalda. La espalda da el ancho, da la postura, da la autoridad. Invertir en ella es una de las decisiones más inteligentes que puedes tomar en el gimnasio.",
+  core15:       "Quince sesiones con trabajo de core. El núcleo es lo que conecta todo: fuerza, estabilidad, rendimiento. Tener un core fuerte hace que cada otro ejercicio sea mejor.",
+  balanced:     "Todos los grupos musculares en una semana. No hay descuido, no hay músculo olvidado. Un físico equilibrado es el que aguanta más, se lesiona menos y luce mejor.",
+  variety50:    "Cincuenta ejercicios distintos registrados. Eso es una educación completa en movimiento humano. Tu repertorio técnico es el de alguien que sabe lo que hace con su cuerpo.",
+  "90days":     "Noventa días de actividad. Tres meses en que el gimnasio estuvo presente en tu vida. A estas alturas, los cambios no solo son físicos: son mentales, son de actitud.",
+  vol_100k:     "Cien mil kilos acumulados en total. Una tonelada no, cien toneladas. Eso es el peso que has movido con tus propias manos. El cuerpo que tienes hoy lo construiste kilo a kilo.",
+  perfect_mo:   "Veinte o más días entrenando en un mismo mes. Eso es casi no parar. Cuando la intensidad y la constancia se juntan así, el progreso no es opcional.",
+  sessions200:  "Doscientas sesiones. Doscientas veces que dijiste sí cuando podías haber dicho no. Tu historial habla por ti mejor que cualquier foto: constancia real, duradera, sin trucos.",
+  streak90:     "Noventa semanas consecutivas cumpliendo tu meta. Más de dos años sin romper la racha. Eso no es disciplina, eso es carácter. Eres una inspiración para cualquiera que te rodea.",
+  "180days":    "Ciento ochenta días de actividad acumulada. Medio año en que el entrenamiento fue una constante. A estas alturas tu cuerpo tiene una memoria muscular que no desaparece fácilmente.",
+  leg100:       "Cien sesiones de pierna. Eres un especialista. Las piernas que tienes ahora son el resultado de cientos de sentadillas, prensas y zancadas que la mayoría ni intentó. Impresionante.",
+  sessions500:  "Quinientas sesiones. Medio millar de entrenamientos. Estás en el territorio donde los resultados se miden en años, no en semanas. Tu compromiso con este proceso es fuera de lo común.",
+  "6months":    "Seis meses consecutivos con 12 o más sesiones cada uno. Eso es regularidad de atleta profesional. No cualquiera mantiene ese ritmo; tú lo hiciste durante medio año.",
+  architect:    "Más de 50 sesiones de pecho, espalda y pierna cada uno. Construiste un físico de manera proporcional y consciente. Eso no pasa por accidente: es planificación y ejecución perfecta.",
+  reinvention:  "Volviste después de una pausa larga y completaste 30 sesiones. Eso requiere más fuerza mental que no haber parado nunca. Reinventarse es el logro más humano y más difícil de todos.",
+  year_iron:    "Doce meses distintos con sesiones registradas. Un año completo con el gimnasio presente. Sin importar el clima, el trabajo o la vida, encontraste la manera. Eso es dedicación real.",
+  pr20:         "Récords personales en veinte ejercicios distintos. Tu fuerza creció en todos los frentes. No hay músculo que no hayas desafiado y superado. Eso es un atleta completo.",
+  ai_50:        "Cincuenta consultas al Coach IA. Llevas meses usando la herramienta más potente del gimnasio: la información. Cada pregunta que hiciste fue una ventaja sobre quien entrena sin saber.",
+  team_alma:    "Más de diez sesiones siendo parte de un equipo. Eres el tipo de miembro que eleva al grupo. Tu presencia constante inspira a los demás a no fallar. Eres el motor.",
+  coach_15:     "Quince rutinas de coach completadas. Ya no sigues el plan, eres el plan. Tu coach diseñó las sesiones pensando en ti, y tú respondiste con trabajo real semana tras semana.",
+  photo_mes:    "Diez fotos de progreso subidas. Tienes un archivo visual de tu transformación que vale más que cualquier báscula. Tu evolución está documentada, y es real.",
+  sessions1000: "Mil sesiones. Esto no es atletismo, esto es filosofía de vida. Has elegido el gimnasio mil veces. Tu disciplina es de otro planeta. Eres, literalmente, una leyenda.",
+  streak365:    "365 semanas seguidas cumpliendo tu meta. Siete años de constancia sin romper la racha. No existe palabra que describa este nivel de compromiso. Eres único.",
+  year_full:    "Un año entero sin pausas mayores a dos semanas. Trescientos sesenta y cinco días en que el entrenamiento fue irrompible. Tu cuerpo y tu mente son el resultado de esa decisión diaria.",
+  "5years":     "Cinco años activo. No es una racha, es una vida. El gimnasio lleva cinco años siendo parte de quien eres. Los físicos que duran se construyen así: despacio, sin atajos, con convicción.",
+  "10years":    "Diez años de registro. Una década. En ese tiempo el mundo cambió, tú cambiaste, pero el compromiso con tu cuerpo nunca lo hizo. Eso es legado.",
+  icon10k:      "Diez mil sesiones. No existe nada más que decir. Eres un fenómeno.",
+  vol_1m:       "Un millón de kilos acumulados. Eso es lo que has movido con tus propias manos a lo largo de tu carrera. Ningún número refleja mejor lo que eres: una máquina.",
+  iron_gen:     "Tres años entrenando tres o más veces por semana sin parar. Eso no se improvisa, se construye. Tu cuerpo es el resultado de una disciplina sostenida que muy pocos en el mundo alcanzan.",
+  ai_legend:    "Cien consultas al Coach IA. Has convertido la tecnología en una ventaja real. El conocimiento que acumulaste a través de esas preguntas está en cada rep que haces.",
+  team_legend:  "Más de cincuenta sesiones siendo parte de un equipo. Eres la leyenda del squad. Cuando los demás piensan en consistencia, piensan en ti. Tu impacto va más allá de tus propios resultados.",
+  coach_50:     "Cincuenta rutinas de coach completadas. Medio centenar de sesiones diseñadas para ti y ejecutadas al cien por cien. Tu coach sabe que contigo no hay que preocuparse: siempre apareces.",
+  photo_legend: "Veinte fotos de progreso. Tienes la transformación más documentada de la app. Tu historia visual va a inspirar a otras personas a empezar. Eso es más que un logro: es un legado.",
+};
+
+
 export const BADGE_DEFS = [
   // ⭐ NIVEL 1 — Bronce
   { id: "first",       stars: 1, icon: "🏋️", name: "Primera sesión",      desc: "Completaste tu primera sesión",                    check: (s) => s.length >= 1 },
@@ -119,6 +187,7 @@ export const BADGE_DEFS = [
 export default function BadgesModal({ sessions, bodyStats, user, extras = {}, onClose }) {
   const prs = getPRs(sessions);
   const [filterLevel, setFilterLevel] = useState(0);
+  const [selectedBadge, setSelectedBadge] = useState(null);
   const [seenSnapshot] = useState(() => {
     const s = getSeenBadges();
     return s;
@@ -215,7 +284,7 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
                 const sc = starColors[b.stars];
                 const isNew = newBadges.includes(b.id);
                 return (
-                  <div key={b.id} style={{ position:"relative", background:sc.bg, border:`1px solid ${isNew ? "#e8ff00" : sc.border}`, borderRadius:14, padding:"14px 12px", textAlign:"center", boxShadow: isNew ? "0 0 16px rgba(232,255,0,0.2)" : "none" }}>
+                  <div key={b.id} onClick={() => setSelectedBadge(b)} style={{ position:"relative", background:sc.bg, border:`1px solid ${isNew ? "#e8ff00" : sc.border}`, borderRadius:14, padding:"14px 12px", textAlign:"center", boxShadow: isNew ? "0 0 16px rgba(232,255,0,0.2)" : "none", cursor:"pointer", transition:"transform 0.15s", }} onMouseEnter={e => e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
                     {isNew && (
                       <div style={{ position:"absolute", top:-8, right:-8, background:"#e8ff00", color:"#000", fontSize:9, fontWeight:900, padding:"2px 7px", borderRadius:20, letterSpacing:1, textTransform:"uppercase" }}>
                         NUEVO
@@ -241,7 +310,7 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
               {locked.map(b => {
                 const sc = starColors[b.stars];
                 return (
-                  <div key={b.id} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:14, padding:"14px 12px", textAlign:"center", opacity:0.5 }}>
+                  <div key={b.id} onClick={() => setSelectedBadge(b)} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:14, padding:"14px 12px", textAlign:"center", opacity:0.5, cursor:"pointer", transition:"transform 0.15s" }} onMouseEnter={e => e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
                     <div style={{ fontSize:32, marginBottom:5, filter:"grayscale(1)" }}>{b.icon}</div>
                     <div style={{ fontWeight:700, fontSize:13, marginBottom:3, lineHeight:1.3 }}>{b.name}</div>
                     <div style={{ fontSize:10, color:"var(--text-muted)", lineHeight:1.4, marginBottom:7 }}>{b.desc}</div>
@@ -254,6 +323,85 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
           </>
         )}
       </div>
+
+      {/* Badge detail overlay */}
+      {selectedBadge && (() => {
+        const b = selectedBadge;
+        const sc = starColors[b.stars];
+        const isEarned = earned.some(e => e.id === b.id);
+        const levelNames = { 1: "Bronce", 2: "Plata", 3: "Oro", 4: "Platino", 5: "Legendario" };
+        return (
+          <div onClick={() => setSelectedBadge(null)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
+            zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 24, backdropFilter: "blur(4px)",
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              width: "100%", maxWidth: 320,
+              background: "var(--card-bg, #111)",
+              border: `1px solid ${isEarned ? sc.border : "var(--border)"}`,
+              borderRadius: 20, padding: "28px 24px", textAlign: "center",
+              boxShadow: isEarned ? `0 0 40px ${sc.border}60` : "none",
+            }}>
+              <div style={{ fontSize: 64, marginBottom: 12, filter: isEarned ? "none" : "grayscale(1)" }}>
+                {b.icon}
+              </div>
+              <div style={{
+                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 900,
+                fontSize: 22, letterSpacing: 1, marginBottom: 6,
+                color: isEarned ? "var(--text)" : "var(--text-muted)",
+              }}>
+                {b.name}
+              </div>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: isEarned ? sc.bg : "rgba(255,255,255,0.04)",
+                border: `1px solid ${isEarned ? sc.border : "var(--border)"}`,
+                borderRadius: 20, padding: "4px 12px", marginBottom: 16,
+              }}>
+                <span style={{ fontSize: 12 }}>{"⭐".repeat(b.stars)}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: isEarned ? sc.color : "var(--text-muted)", letterSpacing: 1, textTransform: "uppercase" }}>
+                  {levelNames[b.stars] || ""}
+                </span>
+              </div>
+              <div style={{
+                fontSize: 13, color: isEarned ? "rgba(255,255,255,0.75)" : "var(--text-muted)",
+                lineHeight: 1.75, marginBottom: 20,
+              }}>
+                {BADGE_DETAILS[b.id] || b.desc}
+              </div>
+              {!isEarned && (
+                <div style={{
+                  background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)",
+                  borderRadius: 10, padding: "10px 14px", marginBottom: 16,
+                  fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  <span>🔒</span>
+                  <span>Aún no desbloqueado — ¡sigue entrenando!</span>
+                </div>
+              )}
+              {isEarned && (
+                <div style={{
+                  background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)",
+                  borderRadius: 10, padding: "8px 14px", marginBottom: 16,
+                  fontSize: 12, color: "#22c55e", display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  <span>✅</span>
+                  <span style={{ fontWeight: 700 }}>¡Logro desbloqueado!</span>
+                </div>
+              )}
+              <button onClick={() => setSelectedBadge(null)} style={{
+                width: "100%", padding: "11px 0", borderRadius: 10,
+                background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)",
+                color: "var(--text-muted)", cursor: "pointer", fontSize: 13, fontWeight: 700,
+                fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1,
+              }}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

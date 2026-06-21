@@ -1,6 +1,7 @@
 import "./styles.css";
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import LoginScreen from "./components/LoginScreen";
+import ResetPasswordScreen from "./components/ResetPasswordScreen";
 import { AuthCtx } from "./components/AuthContext";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithCredential } from "firebase/auth";
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
@@ -151,6 +152,15 @@ export default function App() {
   const [loginInitTab, setLoginInitTab] = useState("login");
   const [splashDone, setSplashDone] = useState(false);
   const [showPaywallAfterExpiry, setShowPaywallAfterExpiry] = useState(false);
+  // Detectar si venimos del link de reset de contraseña
+  const resetParams = (() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("mode") === "resetPassword" && p.get("oobCode")) {
+      return { oobCode: p.get("oobCode") };
+    }
+    return null;
+  })();
+
   const [splashPhrase] = useState(() => {
     const _p = [
   "NO PARES HASTA ESTAR ORGULLOSO",
@@ -310,7 +320,6 @@ export default function App() {
         const cred = await signInWithPopup(auth, googleProvider);
         firebaseUser = cred.user;
       }
-      setCurrentUser(await createOrLoadProfile(firebaseUser));
       return { ok: true };
     } catch(e) {
       console.error("Google login error:", e);
@@ -341,6 +350,11 @@ export default function App() {
     await signOut(auth);
     setCurrentUser(null);
     setLoginInitTab("login");
+  }
+
+  // Si venimos del link de reset, mostrar pantalla de reset antes que todo
+  if (resetParams) {
+    return <ResetPasswordScreen oobCode={resetParams.oobCode} />;
   }
 
   return (

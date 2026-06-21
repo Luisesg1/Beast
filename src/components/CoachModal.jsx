@@ -1,18 +1,18 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useConfirm } from "./ConfirmModal";
 import { doc, getDoc, setDoc, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
 
 
-import { EXERCISE_DB, MUSCLES, registerCustomExercise } from "../exerciseDb";
+import { EXERCISE_DB, MUSCLES, registerCustomExercise, deduplicateExerciseDB } from "../exerciseDb";
 import { calc1RM, getPRs } from "../utils/gymCalcs";
+import { DAYS_ES } from "../utils/constants";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
 const fmtDate = (d) => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const DAYS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const numDot = (v, max = 9999) => { const s = v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"); const n = parseFloat(s); if (isNaN(n) || n < 0) return ""; return n > max ? String(max) : s; };
 const numWeight = (v) => numDot(v, 500);
 const numReps   = (v) => numDot(v, 100);
@@ -361,6 +361,7 @@ function CoachModal({ user, sessions, onClose, embedded, ExerciseGif, onActivate
   const [codeCopied, setCodeCopied] = useState(false);
 const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   const [athleteQuickStats, setAthleteQuickStats] = useState({});
+  const [expandedRoutineDetail, setExpandedRoutineDetail] = useState(null); // "athleteUid:docId"
   const [editBio, setEditBio] = useState("");
   const [editSpecialty, setEditSpecialty] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -395,6 +396,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   const [pendingSsGroup, setPendingSsGroup] = useState(null);
   // Rutina preview en dashboard
   const [previewRoutine, setPreviewRoutine] = useState(null);
+  // Validación ejercicio
+  const [addExErr, setAddExErr] = useState(false);
+  // Edición inline de ejercicios en la rutina
+  const [editingExIdx, setEditingExIdx] = useState({}); // { [index]: boolean }
 
   useEffect(() => { loadCoach(); }, []);
 
@@ -410,7 +415,11 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
       const r = await getRoutinesByCoach(user.uid);
       setRoutines(r);
       const customSnap = await getDocsFromServer(collection(db, "coaches", user.uid, "custom_exercises")).catch(() => ({ docs: [] }));
-      setCustomExercises(customSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const customList = customSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCustomExercises(customList);
+      // Registrar ejercicios custom en el array global y deduplicar por si hay recargas
+      customList.forEach(e => { if (e.name && e.muscle) registerCustomExercise(e.name, e.muscle); });
+      deduplicateExerciseDB();
       const athletesList = Object.values(profile.athletes || {});
       const map = {};
       const quickStats = {};
@@ -443,7 +452,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
           .filter(ex => ex.notes && ex.notes.trim())
           .filter(ex => !((profile?.readNotes || {})[`${lastSession?.id}:${ex.name}`]))
           .map(ex => ({ exName: ex.name, note: ex.notes, sessionId: lastSession?.id }));
-        quickStats[a.uid] = { sessionsThisWeek, daysSinceLast, lastWeight, totalSessions: allSessions.length, lastWorkout: lastSession?.workout, lastNotes };
+        quickStats[a.uid] = { sessionsThisWeek, daysSinceLast, lastWeight, totalSessions: allSessions.length, lastWorkout: lastSession?.workout, lastNotes, sessions: allSessions };
       }));
       setAthleteRoutinesMap(map);
       setAthleteQuickStats(quickStats);
@@ -513,7 +522,11 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
 
   function addRExercise() {
     const finalName = rExName === "__custom__" ? rExCustom.trim() : rExName;
-    if (!finalName) return;
+    if (!finalName || !rExWeight || !rExReps) {
+      setAddExErr(true);
+      return;
+    }
+    setAddExErr(false);
     if (rExName === "__custom__" && rExCustomMuscle && !EXERCISE_DB.find(e => e.name === finalName)) {
       saveCustomExercise(finalName, rExCustomMuscle, user.uid);
       registerCustomExercise(finalName, rExCustomMuscle);
@@ -558,6 +571,34 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   async function handleAssign() {
     if (!assignRoutineId || !assignEmail) { setAssignMsg("Selecciona rutina e ingresa email"); return; }
     const routine = routines.find(r => r.id === assignRoutineId);
+    const targetAthlete = athletes.find(a => a.email?.toLowerCase() === assignEmail.trim().toLowerCase());
+
+    // Verificar si el atleta ya tiene esta misma rutina asignada
+    if (targetAthlete?.uid) {
+      const existingRoutines = athleteRoutinesMap[targetAthlete.uid] || [];
+      const alreadyAssigned = existingRoutines.some(r => r.routineId === assignRoutineId);
+      if (alreadyAssigned) {
+        askConfirm(
+          `⚠️ Este atleta ya tiene esta rutina asignada. ¿Quieres asignársela de nuevo?`,
+          async () => {
+            const result = await assignRoutineToAthlete(user.uid, assignEmail, assignRoutineId, routine?.name || "", assignDay);
+            const msg = result.ok ? "✅ Rutina asignada correctamente" : `❌ ${result.msg}`;
+            setAssignMsg(msg);
+            if (result.ok) {
+              setTimeout(() => setAssignMsg(""), 3000);
+              try {
+                const athlete = athletes.find(a => a.email?.toLowerCase() === assignEmail.trim().toLowerCase());
+                if (athlete?.uid) {
+                  sendPushToAthlete({ athleteUid: athlete.uid, type: "routine_assigned", routineName: routine?.name || "", coachName: user.name || "Tu coach" }).catch(() => {});
+                }
+              } catch(_) {}
+            }
+          }
+        );
+        return;
+      }
+    }
+
     const result = await assignRoutineToAthlete(user.uid, assignEmail, assignRoutineId, routine?.name || "", assignDay);
     const msg = result.ok ? "✅ Rutina asignada correctamente" : `❌ ${result.msg}`;
     setAssignMsg(msg);
@@ -585,9 +626,30 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     }
     const athletesList = coachProfile ? Object.values(coachProfile.athletes || {}) : [];
     if (athletesList.some(a=>a.email?.toLowerCase()===addAthleteEmail.trim().toLowerCase())){setAddAthleteMsg("⚠️ Este atleta ya está en tu lista");return;}
-    const result=await assignRoutineToAthlete(user.uid,addAthleteEmail.trim(),"","");
-    if (result.ok){setAddAthleteMsg("✅ Atleta agregado");setAddAthleteEmail("");const p=await getCoachProfile(user.uid);setCoachProfile(p);}
-    else setAddAthleteMsg(`❌ ${result.msg}`);
+    let result;
+    try {
+      result = await assignRoutineToAthlete(user.uid, addAthleteEmail.trim(), "", "");
+    } catch(e) {
+      const isPermission = e?.code === "permission-denied" || (e?.message || "").toLowerCase().includes("permission");
+      result = {
+        ok: false,
+        msg: isPermission
+          ? "Este atleta ya está vinculado a tu cuenta mediante el código de coach."
+          : "No se pudo agregar el atleta. Verifica que el email sea correcto y que el atleta tenga cuenta en Beast.",
+      };
+    }
+    if (result.ok) {
+      setAddAthleteMsg("✅ Atleta agregado");
+      setAddAthleteEmail("");
+      const p = await getCoachProfile(user.uid);
+      setCoachProfile(p);
+    } else {
+      const isPermission = (result.msg || "").toLowerCase().includes("permission") || (result.msg || "").toLowerCase().includes("permissions");
+      setAddAthleteMsg(`❌ ${isPermission
+        ? "Este atleta ya está vinculado a tu cuenta mediante el código de coach."
+        : result.msg || "No se pudo agregar el atleta. Verifica que el email sea correcto y que el atleta tenga cuenta en Beast."
+      }`);
+    }
   }
   async function removeAthlete(athleteUid) {
     askConfirm("¿Eliminar este atleta? Podrá volver a unirse con tu código.", async () => {
@@ -808,28 +870,62 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                         {qs?.lastWorkout && <span>Último: <strong style={{ color: "var(--text)" }}>{qs.lastWorkout}</strong></span>}
-                        {(athleteRoutinesMap[a.uid] || []).map(r => (
-                          <span key={r._docId || r.routineId} style={{ display:"inline-flex", alignItems:"center", gap:4, marginLeft: 8,
-                            background: r.completed ? "rgba(34,197,94,0.08)" : "var(--card)",
-                            border: r.completed ? "1px solid rgba(34,197,94,0.35)" : "1px solid var(--border)",
-                            borderRadius:6, padding:"2px 6px 2px 8px" }}>
-                            <span style={{ color: r.completed ? "#22c55e" : "var(--accent)", fontSize:11, fontWeight:700 }}>
-                              {r.completed ? "✅ " : ""}{r.routineName}{r.dayOfWeek >= 0 ? ` · ${DAYS_ES[r.dayOfWeek]}` : ""}
-                              {r.completed && r.completedAt ? <span style={{ color:"var(--text-muted)", fontWeight:400 }}> · {(() => { const [,m,d] = r.completedAt.split("-"); const meses=["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]; return `${parseInt(d)} ${meses[parseInt(m)]}`; })()}</span> : null}
+                        {(athleteRoutinesMap[a.uid] || []).map(r => {
+                          const detailKey = `${a.uid}:${r._docId || r.routineId}`;
+                          const isExpanded = expandedRoutineDetail === detailKey;
+                          // Buscar la sesión donde el atleta completó esta rutina
+                          const matchSession = r.completed && r.completedAt
+                            ? (qs?.sessions || []).find(s => s.coachRoutineDocId === (r._docId || r.routineId) && s.date === r.completedAt)
+                            : null;
+                          return (
+                            <span key={r._docId || r.routineId} style={{ display:"inline-flex", flexDirection:"column", gap:4, marginLeft: 8,
+                              background: r.completed ? "rgba(34,197,94,0.08)" : "var(--card)",
+                              border: r.completed ? "1px solid rgba(34,197,94,0.35)" : "1px solid var(--border)",
+                              borderRadius:6, padding:"4px 6px 4px 8px" }}>
+                              <div style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+                                <span
+                                  onClick={() => r.completed && matchSession && setExpandedRoutineDetail(isExpanded ? null : detailKey)}
+                                  style={{ color: r.completed ? "#22c55e" : "var(--accent)", fontSize:11, fontWeight:700, cursor: r.completed && matchSession ? "pointer" : "default" }}>
+                                  {r.completed ? "✅ " : ""}{r.routineName}{r.dayOfWeek >= 0 ? ` · ${DAYS_ES[r.dayOfWeek]}` : ""}
+                                  {r.completed && r.completedAt ? <span style={{ color:"var(--text-muted)", fontWeight:400 }}> · {(() => { const [,m,d] = r.completedAt.split("-"); const meses=["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]; return `${parseInt(d)} ${meses[parseInt(m)]}`; })()}</span> : null}
+                                  {r.completed && matchSession && <span style={{ color:"var(--text-muted)", marginLeft:4 }}>{isExpanded ? "▲" : "▼"}</span>}
+                                </span>
+                                <button onClick={() => {
+                                  askConfirm(`¿Quitar "${r.routineName}" de ${a.name}?`, async () => {
+                                  await unassignRoutineFromAthlete(a.uid, r._docId || r.routineId);
+                                  const updated = await Promise.all(athletes.map(async at => {
+                                    const rts = await getDocsFromServer(collection(db, "athlete_routines", at.uid, "routines"));
+                                    return [at.uid, rts.docs.map(d => ({...d.data(), _docId: d.id})).filter(x => x.coachUid === user.uid && x.routineId)];
+                                  }));
+                                  setAthleteRoutinesMap(Object.fromEntries(updated));
+                                  });
+                                }} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer",
+                                  fontSize:12, padding:"0 2px", lineHeight:1 }}>✕</button>
+                              </div>
+                              {isExpanded && matchSession && (
+                                <div style={{ marginTop:4, borderTop:"1px solid rgba(34,197,94,0.2)", paddingTop:6, minWidth:200 }}>
+                                  {(matchSession.exercises || []).map((ex, ei) => {
+                                    const doneSets = (ex.sets || []).filter(s => s.done !== false);
+                                    const avgRpe = doneSets.map(s => parseFloat(s.rpe)).filter(v => !isNaN(v) && v > 0);
+                                    const rpeStr = avgRpe.length > 0
+                                      ? `RPE ${(avgRpe.reduce((a,b)=>a+b,0)/avgRpe.length).toFixed(1)}`
+                                      : null;
+                                    return (
+                                      <div key={ei} style={{ marginBottom:5 }}>
+                                        <div style={{ fontSize:10, fontWeight:700, color:"var(--text)", marginBottom:2 }}>{ex.name} {rpeStr && <span style={{ color:"rgba(232,255,0,0.7)", fontWeight:400 }}>· {rpeStr}</span>}</div>
+                                        {doneSets.map((st, si) => (
+                                          <div key={si} style={{ fontSize:10, color:"var(--text-muted)", paddingLeft:8 }}>
+                                            S{si+1}: {st.weight||"—"}kg × {st.reps||"—"} reps{st.rpe ? <span style={{ color:"rgba(232,255,0,0.6)" }}> @{st.rpe}</span> : null}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </span>
-                            <button onClick={() => {
-                              askConfirm(`¿Quitar "${r.routineName}" de ${a.name}?`, async () => {
-                              await unassignRoutineFromAthlete(a.uid, r._docId || r.routineId);
-                              const updated = await Promise.all(athletes.map(async at => {
-                                const rts = await getDocsFromServer(collection(db, "athlete_routines", at.uid, "routines"));
-                                return [at.uid, rts.docs.map(d => ({...d.data(), _docId: d.id})).filter(x => x.coachUid === user.uid && x.routineId)];
-                              }));
-                              setAthleteRoutinesMap(Object.fromEntries(updated));
-                              });
-                            }} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer",
-                              fontSize:12, padding:"0 2px", lineHeight:1 }}>✕</button>
-                          </span>
-                        ))}
+                          );
+                        })}
                       </div>
                       {veryInactive && <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>🚨 Sin entrenar {qs.daysSinceLast} días</span>}
                       {inactive && !veryInactive && <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>⚠️ Inactivo esta semana</span>}
@@ -973,7 +1069,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                 </div>
                 <div className="field" style={{ marginBottom: 16 }}>
                   <label className="field-label">Notas / instrucciones generales</label>
-                  <textarea className="input textarea" placeholder="Indicaciones para el atleta..." value={routineNotes} onChange={e => setRoutineNotes(e.target.value)} />
+                  <textarea className="input textarea" placeholder="Indicaciones para el atleta..." value={routineNotes} onChange={e => setRoutineNotes(e.target.value)} maxLength={500} />
+                  <div style={{ fontSize: 11, textAlign: "right", marginTop: 4, color: routineNotes.length >= 500 ? "#ef4444" : routineNotes.length >= 420 ? "#f97316" : "rgba(255,255,255,0.3)" }}>
+                    {routineNotes.length}/500
+                  </div>
                 </div>
 
                 {/* Add exercise */}
@@ -986,7 +1085,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   </div>
                   <div className="form-row" style={{ marginBottom: 8 }}>
                     <div className="field" style={{ flex: 2 }}>
-                      <select className="input" style={{ fontSize: 13 }} value={rExName} onChange={e => setRExName(e.target.value)}>
+                      <select className="input" style={{ fontSize: 13 }} value={rExName} onChange={e => { setRExName(e.target.value); setAddExErr(false); }}>
                         <option value="">— Ejercicio —</option>
                         {(rExMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === rExMuscle)).map(ex => (
                           <option key={ex.name} value={ex.name}>{ex.name}</option>
@@ -1023,10 +1122,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
 
                   <div className="form-row" style={{ marginBottom: 8 }}>
                     <div className="field" style={{ flex: 1 }}>
-                      <input className="input" style={{ fontSize: 13 }} placeholder="Peso kg" value={rExWeight} onChange={e => setRExWeight(numWeight(e.target.value))} inputMode="decimal" />
+                      <input className="input" style={{ fontSize: 13 }} placeholder="Peso kg" value={rExWeight} onChange={e => { setRExWeight(numWeight(e.target.value)); setAddExErr(false); }} inputMode="decimal" />
                     </div>
                     <div className="field" style={{ flex: 1 }}>
-                      <input className="input" style={{ fontSize: 13 }} placeholder="Reps" value={rExReps} onChange={e => setRExReps(numReps(e.target.value))} inputMode="decimal" />
+                      <input className="input" style={{ fontSize: 13 }} placeholder="Reps" value={rExReps} onChange={e => { setRExReps(numReps(e.target.value)); setAddExErr(false); }} inputMode="decimal" />
                     </div>
                     <div className="field" style={{ flex: 1 }}>
                       <input className="input" style={{ fontSize: 13 }} placeholder="Series" value={rExNumSeries} onChange={e => setRExNumSeries(e.target.value.replace(/[^0-9]/g,""))} inputMode="numeric" />
@@ -1065,6 +1164,11 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   </div>
 
                   <button className="btn-add-ex" onClick={addRExercise}>+ Agregar ejercicio</button>
+                  {addExErr && (
+                    <div style={{ color: "#ef4444", fontSize: 13, marginTop: 8, textAlign: "center" }}>
+                      ⚠️ Completa el ejercicio, peso y repeticiones antes de agregar.
+                    </div>
+                  )}
                 </div>
 
                 {/* Exercise list */}
@@ -1122,6 +1226,18 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                   </div>
                                 </div>
                                 <div style={{ display: "flex", gap: 4 }}>
+                                  {/* Edit inline */}
+                                  <button
+                                    title="Editar ejercicio"
+                                    onClick={() => setEditingExIdx(p => ({ ...p, [i]: !p[i] }))}
+                                    style={{
+                                      background: editingExIdx[i] ? "rgba(232,255,0,0.15)" : "none",
+                                      border: `1px solid ${editingExIdx[i] ? "var(--accent)" : "var(--border)"}`,
+                                      color: editingExIdx[i] ? "var(--accent)" : "var(--text-muted)",
+                                      borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}
+                                  >✏️</button>
                                   {/* Toggle SS membership */}
                                   <button
                                     title={ex.supersetGroup ? "Quitar del superset" : "Añadir a superset"}
@@ -1150,6 +1266,79 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                   <button className="chip-del" style={{ fontSize: 16 }} onClick={() => setRoutineExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
                                 </div>
                               </div>
+                              {/* Inline edit form */}
+                              {editingExIdx[i] ? (
+                                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <input
+                                      className="input"
+                                      style={{ fontSize: 12, padding: "5px 8px", flex: 2 }}
+                                      placeholder="Nombre ejercicio"
+                                      value={ex.name}
+                                      onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : { ...x, name: e.target.value }))}
+                                    />
+                                    <input
+                                      className="input"
+                                      style={{ fontSize: 12, padding: "5px 8px", flex: 1 }}
+                                      placeholder="Peso kg"
+                                      value={ex.weight || ""}
+                                      onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : {
+                                        ...x,
+                                        weight: numWeight(e.target.value),
+                                        sets: (x.sets||[]).map(s => ({ ...s, weight: numWeight(e.target.value) })),
+                                      }))}
+                                      inputMode="decimal"
+                                    />
+                                    <input
+                                      className="input"
+                                      style={{ fontSize: 12, padding: "5px 8px", flex: 1 }}
+                                      placeholder="Reps"
+                                      value={ex.reps || ""}
+                                      onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : {
+                                        ...x,
+                                        reps: numReps(e.target.value),
+                                        sets: (x.sets||[]).map(s => ({ ...s, reps: numReps(e.target.value) })),
+                                      }))}
+                                      inputMode="decimal"
+                                    />
+                                    <input
+                                      className="input"
+                                      style={{ fontSize: 12, padding: "5px 8px", flex: 1 }}
+                                      placeholder="Series"
+                                      value={ex.sets?.length || ""}
+                                      onChange={e => {
+                                        const n = Math.max(1, Math.min(10, parseInt(e.target.value.replace(/[^0-9]/g,"")) || 1));
+                                        setRoutineExercises(p => p.map((x, j) => {
+                                          if (j !== i) return x;
+                                          const base = { weight: x.weight, reps: x.reps };
+                                          const cur = x.sets || [];
+                                          const next = n > cur.length
+                                            ? [...cur, ...Array.from({ length: n - cur.length }, () => ({ id: uid(), ...base }))]
+                                            : cur.slice(0, n);
+                                          return { ...x, sets: next };
+                                        }));
+                                      }}
+                                      inputMode="numeric"
+                                    />
+                                  </div>
+                                  <input
+                                    className="input"
+                                    style={{ fontSize: 12, padding: "5px 8px" }}
+                                    placeholder="💬 Comentario del coach..."
+                                    value={ex.comment || ""}
+                                    onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : { ...x, comment: e.target.value }))}
+                                  />
+                                  <button
+                                    onClick={() => setEditingExIdx(p => ({ ...p, [i]: false }))}
+                                    style={{
+                                      alignSelf: "flex-end", padding: "4px 14px", borderRadius: 7,
+                                      background: "var(--accent)", color: "#000", border: "none",
+                                      fontWeight: 800, fontSize: 12, cursor: "pointer",
+                                      fontFamily: "Barlow Condensed, sans-serif",
+                                    }}
+                                  >✓ Confirmar</button>
+                                </div>
+                              ) : (
                               <input
                                 className="input"
                                 style={{ fontSize: 12, padding: "5px 8px" }}
@@ -1157,6 +1346,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                 value={ex.comment || ""}
                                 onChange={e => setRoutineExercises(p => p.map((x, j) => j !== i ? x : { ...x, comment: e.target.value }))}
                               />
+                              )}
                             </div>
                           </div>
                         );
@@ -1203,15 +1393,15 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--accent)", textTransform: "uppercase", marginBottom: 10 }}>📨 Asignar rutina a atleta</div>
                     <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                      <select className="input" value={assignRoutineId} onChange={e => setAssignRoutineId(e.target.value)}>
+                      <select className="input" style={{ paddingRight: 36 }} value={assignRoutineId} onChange={e => setAssignRoutineId(e.target.value)}>
                         <option value="">— Elige una rutina —</option>
                         {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                       </select>
-                      <select className="input" value={assignEmail} onChange={e => setAssignEmail(e.target.value)}>
+                      <select className="input" style={{ paddingRight: 36 }} value={assignEmail} onChange={e => setAssignEmail(e.target.value)}>
                         <option value="">— Elige atleta —</option>
                         {athletes.map(a => <option key={a.uid} value={a.email}>{a.name}</option>)}
                       </select>
-                      <select className="input" value={assignDay} onChange={e => setAssignDay(parseInt(e.target.value))}>
+                      <select className="input" style={{ paddingRight: 36 }} value={assignDay} onChange={e => setAssignDay(parseInt(e.target.value))}>
                         <option value={-1}>— Sin día fijo (opcional) —</option>
                         {DAYS_ES.map((d, i) => <option key={i} value={i}>{d}</option>)}
                       </select>
@@ -1258,7 +1448,18 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
               <div>
                 <div style={{ display:"flex", gap:8, marginBottom:16 }}>
   <button className="btn-ghost small" onClick={() => setTab("dashboard")}>← Volver</button>
-  <button className="btn-ghost small" onClick={() => loadAthleteData(selectedAthlete)}>🔄 Recargar</button>
+  <button
+    onClick={() => loadAthleteData(selectedAthlete)}
+    style={{
+      background: "none",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      width: 32, height: 32,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      cursor: "pointer", color: "var(--text-muted)", fontSize: 16,
+    }}
+    title="Recargar"
+  >🔄</button>
 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                   <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: "white" }}>{selectedAthlete.name?.[0]?.toUpperCase()}</div>
@@ -1307,10 +1508,53 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                       {athleteData.sessions.slice(0,5).map(s => (
                         <div key={s.id} style={{ padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 6 }}>
                           <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ fontWeight: 700 }}>{s.workout}</span>
+                            <span style={{ fontWeight: 700 }}>{s.workout} {s.coachRoutineDocId && <span style={{ fontSize:10, background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)", borderRadius:4, padding:"1px 5px", color:"#22c55e", fontWeight:700 }}>📋 Rutina coach</span>}</span>
                             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.date)}</span>
                           </div>
-                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>{(s.exercises||[]).length} ejercicios</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display:"flex", gap:10 }}>
+                            <span>{(s.exercises||[]).length} ejercicios</span>
+                            {s.durationSecs > 0 && <span>⏱ {Math.floor(s.durationSecs/60)}:{String(s.durationSecs%60).padStart(2,"0")} min</span>}
+                          </div>
+                          {/* Detalle de ejercicios si es sesión de rutina coach */}
+                          {s.coachRoutineDocId && (
+                            <div style={{ marginTop:10, borderTop:"1px solid var(--border)", paddingTop:10 }}>
+                              {(s.exercises||[]).map((ex, ei) => {
+                                const doneSets = (ex.sets||[]).filter(st => st.done !== false);
+                                const rpeVals = doneSets.map(st => parseFloat(st.rpe)).filter(v => !isNaN(v) && v > 0);
+                                const avgRpe = rpeVals.length > 0
+                                  ? (rpeVals.reduce((a,b)=>a+b,0)/rpeVals.length).toFixed(1)
+                                  : null;
+                                return (
+                                  <div key={ei} style={{ marginBottom:10, background:"var(--card)", borderRadius:8, padding:"8px 10px", border:"1px solid var(--border)" }}>
+                                    {/* Nombre + RPE promedio */}
+                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                                      <span style={{ fontSize:12, fontWeight:700, color:"var(--text)" }}>{ex.name}</span>
+                                      {avgRpe && (
+                                        <span style={{ fontSize:11, background:"rgba(232,255,0,0.08)", border:"1px solid rgba(232,255,0,0.25)", borderRadius:5, padding:"2px 7px", color:"rgba(232,255,0,0.9)", fontWeight:700 }}>
+                                          RPE prom. {avgRpe}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Tabla de series */}
+                                    <div style={{ display:"grid", gridTemplateColumns:"28px 1fr 1fr 1fr", gap:"3px 6px", fontSize:10 }}>
+                                      <span style={{ color:"var(--text-muted)", fontWeight:700 }}>#</span>
+                                      <span style={{ color:"var(--text-muted)", fontWeight:700 }}>Peso</span>
+                                      <span style={{ color:"var(--text-muted)", fontWeight:700 }}>Reps</span>
+                                      <span style={{ color:"var(--text-muted)", fontWeight:700 }}>RPE</span>
+                                      {doneSets.map((st, si) => (
+                                        <React.Fragment key={`set-${ei}-${si}`}>
+                                          <span style={{ color:"var(--text-muted)" }}>S{si+1}</span>
+                                          <span style={{ color:"var(--text)", fontWeight:600 }}>{st.weight||"—"} kg</span>
+                                          <span style={{ color:"var(--text)", fontWeight:600 }}>{st.reps||"—"}</span>
+                                          <span style={{ color: st.rpe ? "rgba(232,255,0,0.85)" : "var(--text-muted)", fontWeight: st.rpe ? 700 : 400 }}>{st.rpe || "—"}</span>
+                                        </React.Fragment>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                           {(s.exercises||[]).filter(ex => ex.notes && ex.notes.trim()).map((ex, ni) => {
                             const noteKey = `${s.id}:${ex.name}`;
                             const isRead = readNotes[noteKey];
@@ -1350,7 +1594,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                     <span style={{ fontSize: 10, color: "var(--text-muted)" }}>✓ Leída</span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: 12, color: isRead ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.75)", lineHeight: 1.4 }}>
+                                <div style={{ fontSize: 12, color: isRead ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.75)", lineHeight: 1.4, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
                                   {ex.notes}
                                 </div>
                               </div>

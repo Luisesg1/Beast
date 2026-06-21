@@ -93,7 +93,25 @@ export let MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
  * Ambos archivos deben usar esta función en lugar de mutar EXERCISE_DB directamente.
  */
 export function registerCustomExercise(name, muscle) {
-  if (EXERCISE_DB.find(e => e.name === name)) return;
-  EXERCISE_DB.push({ name, muscle, machine: false, equipment: "Personalizado" });
-  if (!MUSCLES.includes(muscle)) MUSCLES = [...MUSCLES, muscle];
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  // Dedup estricto: ignorar si ya existe con ese nombre exacto (case-insensitive)
+  if (EXERCISE_DB.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) return;
+  EXERCISE_DB.push({ name: trimmed, muscle, machine: false, equipment: "Personalizado" });
+  if (!MUSCLES.includes(muscle) && muscle) MUSCLES = [...MUSCLES, muscle];
+}
+
+/**
+ * Elimina duplicados del array global. Llamar al inicio si se sospecha
+ * que el módulo fue reinicializado con ejercicios personalizados ya cargados.
+ */
+export function deduplicateExerciseDB() {
+  const seen = new Set();
+  EXERCISE_DB = EXERCISE_DB.filter(e => {
+    const key = e.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  MUSCLES = [...new Set(EXERCISE_DB.map(e => e.muscle))];
 }

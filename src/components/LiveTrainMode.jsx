@@ -3,6 +3,19 @@ import { useConfirm } from "./ConfirmModal";
 import { calc1RM } from "./utils";
 import { showInterstitial } from "../useAdMob";
 import { usePlan } from "./usePlan";
+import beastCelebrate from "../assets/beast_celebrate.png";
+import beastFire      from "../assets/beast_fire.png";
+import beastHype      from "../assets/beast_hype.png";
+import beastChill     from "../assets/beast_chill.png";
+import beastDefault   from "../assets/beast_boxing.png";
+
+const getBeastMood = (completionPct, sessionAvgRpe, newPRs) => {
+  if (newPRs)                                    return beastHype;
+  if (sessionAvgRpe !== null && sessionAvgRpe >= 8.5) return beastFire;
+  if (completionPct >= 90)                       return beastCelebrate;
+  if (completionPct < 60)                        return beastChill;
+  return beastDefault;
+};
 
 const LIVE_DRAFT_KEY = "gym_live_draft";
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -579,355 +592,294 @@ function LiveTrainMode({
 
   // ── PANTALLA RESUMEN ────────────────────────────────────────────────────────
   if (showSummary) {
-    const totalVol = exData.reduce((acc, ex) =>
-      acc + ex.sets.filter(s => s.done)
-        .reduce((a, s) => a + (parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 1), 0), 0);
-    const completedSets = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-    const completionPct = exData.length > 0 ? Math.round(completedSets / exData.reduce((a,e)=>a+e.sets.length,0) * 100) : 0;
+    const doneExData = exData.filter(ex => ex.sets.some(s => s.done));
+    const completedSets = exData.reduce((n, ex) => n + ex.sets.filter(s => s.done).length, 0);
+    const totalVol = exData.reduce((n, ex) => {
+      return n + ex.sets.filter(s => s.done).reduce((s2, s) => s2 + (parseFloat(s.weight)||0)*(parseFloat(s.reps)||1), 0);
+    }, 0);
+    const completionPct = exData.length > 0
+      ? Math.round((exData.filter(ex => ex.sets.some(s => s.done)).length / exData.length) * 100)
+      : 0;
+    const rpeAll = exData.flatMap(ex => ex.sets.filter(s=>s.done).map(s=>parseFloat(s.rpe)).filter(v=>!isNaN(v)&&v>0));
+    const sessionAvgRpe = rpeAll.length > 0 ? Math.round((rpeAll.reduce((a,b)=>a+b,0)/rpeAll.length)*10)/10 : null;
 
-    // RPE promedio global de la sesión (solo sets completados con RPE registrado)
-    const allRpeValues = exData.flatMap(ex =>
-      ex.sets.filter(s => s.done).map(s => parseFloat(s.rpe)).filter(v => !isNaN(v) && v > 0)
-    );
-    const sessionAvgRpe = allRpeValues.length > 0
-      ? Math.round((allRpeValues.reduce((a, b) => a + b, 0) / allRpeValues.length) * 10) / 10
+    // ── Insights: comparar con sesión anterior del mismo workout ──────────────
+    const prevSameSessions = (sessions||[])
+      .filter(s => s.workout === workout && s.date !== date)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    const prevSession = prevSameSessions[0];
+    const prevVol = prevSession
+      ? (prevSession.exercises||[]).reduce((n,ex) => {
+          if (ex.sets?.length > 0) return n + ex.sets.reduce((s2,s) => s2+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||1), 0);
+          return n + (parseFloat(ex.weight)||0)*(parseFloat(ex.reps)||1);
+        }, 0)
+      : null;
+    // Solo calcular volDiff si prevVol es significativo (>=50kg) para evitar -99% con sesiones sin peso real
+    const volDiff = prevVol && prevVol >= 50 && totalVol > 0 && Math.abs(((totalVol - prevVol) / prevVol) * 100) <= 80
+      ? Math.round(((totalVol - prevVol) / prevVol) * 100)
       : null;
 
-    // Pick celebration mood based on performance
-    const celebMood = completionPct >= 90 ? BRUX_MOODS.celebrate
-      : completionPct >= 60 ? BRUX_MOODS.proud
-      : BRUX_MOODS.happy;
+    // Best 1RM of session
+    const best1RMEx = exData.reduce((best, ex) => {
+      const doneS = ex.sets.filter(s=>s.done);
+      if (!doneS.length) return best;
+      const rm = Math.max(...doneS.map(s => calc1RM(parseFloat(s.weight)||0, parseFloat(s.reps)||0)));
+      return rm > (best?.rm||0) ? { name: ex.name, rm } : best;
+    }, null);
 
-    const celebMessages = completionPct >= 90
-      ? [
-          "¡Lo completaste todo! Eso es nivel élite 🔥",
-          "¡100%! Eres una bestia del gym 🏆",
-          "¡Brutal! Brux está sin palabras. Buenas, claro. 💪",
-          "Sesión perfecta. Así se construye un cuerpo de acero. 🔩",
-          "Todo completado. Cada rep contó. Brux lo vio todo.",
-          "¡Imparable! Eso no lo hace cualquiera. Bien hecho. 🎯",
-          "Nivel desbloqueado. Brux actualiza tu expediente. 📋",
-          "¿100%? Brux se quita el sombrero. Literalmente. 🎩",
-          "Completaste todo. El gym te debe una reverencia. 🙇",
-        ]
-      : completionPct >= 60
-      ? [
-          "¡Buen trabajo! Cada serie cuenta 👊",
-          "¡Sesión completada! Mañana más 💪",
-          "¡Así se hace! Consistencia es la clave 🗝️",
-          "Más de la mitad bien ejecutada. Eso se llama progreso real.",
-          "Sólido. No todos los días son perfectos y está bien. ✅",
-          "Trabajo hecho. Brux anota el esfuerzo, no solo el resultado.",
-          "Buen ritmo hoy. Con esto se construyen hábitos de hierro. 🏗️",
-          "Sesión cerrada. Tu yo del futuro te lo va a agradecer. ⏳",
-          "No fue el 100%, pero fue tuyo. Y eso vale mucho. 💛",
-        ]
-      : [
-          "Algo es algo. Lo importante es aparecer 💯",
-          "¡Viniste y eso ya es una victoria! 🌟",
-          "El primer paso siempre es el más difícil. ¡Seguí! 🚀",
-          "Días difíciles también cuentan. Brux lo respeta.",
-          "Hoy no fue tu mejor día y de todas formas entrenaste. Eso es carácter. 💪",
-          "Medio entrenamiento sigue siendo mejor que ninguno. Siempre.",
-          "El cuerpo no siempre coopera. Lo que importa es que volviste. 🔄",
-          "Brux sabe que no fue fácil hoy. Por eso vale más. 🙌",
-          "Apareciste. Eso ya te pone en el top. El resto viene solo. 📈",
-        ];
-    const celebMsg = celebMessages[Math.floor(Date.now()/86400000) % celebMessages.length];
+    // PR detection
+    const newPRs = best1RMEx ? (() => {
+      const prevBest = (sessions||[])
+        .filter(s => s.date !== date)
+        .flatMap(s => (s.exercises||[]).filter(e=>e.name===best1RMEx.name))
+        .reduce((best, e) => {
+          const sets = e.sets?.length>0 ? e.sets : [{weight:e.weight,reps:e.reps}];
+          return Math.max(best, ...sets.map(s=>calc1RM(parseFloat(s.weight)||0,parseFloat(s.reps)||0)));
+        }, 0);
+      return best1RMEx.rm > prevBest;
+    })() : false;
+
+    // Insights list
+    const insights = [];
+    if (newPRs && best1RMEx) insights.push({ icon: "🏆", text: `Nuevo PR en ${best1RMEx.name} — ${best1RMEx.rm}kg 1RM` });
+    if (volDiff !== null && volDiff > 5) insights.push({ icon: "📈", text: `+${volDiff}% volumen vs tu última sesión` });
+    if (volDiff !== null && volDiff < -5) insights.push({ icon: "📉", text: `${volDiff}% volumen vs tu última sesión` });
+    if (sessionAvgRpe !== null && sessionAvgRpe <= 6) insights.push({ icon: "⚡", text: "RPE bajo — podrías subir la intensidad" });
+    if (sessionAvgRpe !== null && sessionAvgRpe >= 9) insights.push({ icon: "🔥", text: "Sesión de alta intensidad — descansa bien" });
+    if (completionPct === 100) insights.push({ icon: "✅", text: "Completaste el 100% de la rutina" });
 
     return (
       <div style={{
-        position: "fixed", inset: 0, background: "var(--bg)",
-        display: "flex", flexDirection: "column",
+        position: "fixed", inset: 0, background: "#0a0a0a",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center",
         overflowY: "auto", overflowX: "hidden",
-        padding: "28px 20px 100px",
         animation: "fadeIn 0.4s ease",
         zIndex: 400,
       }}>
-        {/* Mascota celebrando — animada */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <style>{`
-            @keyframes dumbbellCelebrate {
-              0%   { transform: scale(1) rotate(0deg); }
-              15%  { transform: scale(1.3) rotate(-15deg); }
-              30%  { transform: scale(1.2) rotate(12deg); }
-              45%  { transform: scale(1.25) rotate(-10deg); }
-              60%  { transform: scale(1.15) rotate(8deg); }
-              75%  { transform: scale(1.1) rotate(-5deg); }
-              100% { transform: scale(1) rotate(0deg); }
-            }
-            @keyframes confettiFall {
-              0%   { transform: translateY(-20px) rotate(0deg); opacity:1; }
-              100% { transform: translateY(60px) rotate(360deg); opacity:0; }
-            }
-          `}</style>
+        <style>{`
+          @keyframes mascotBounce {
+            0%,100% { transform:translateY(0) scale(1); }
+            35%      { transform:translateY(-16px) scale(1.08) rotate(-4deg); }
+            65%      { transform:translateY(-6px) scale(1.03) rotate(2deg); }
+          }
+          @keyframes fadeUp {
+            from { opacity:0; transform:translateY(20px); }
+            to   { opacity:1; transform:translateY(0); }
+          }
+          @keyframes cardPop {
+            0%   { transform:scale(0.82); opacity:0; }
+            65%  { transform:scale(1.05); opacity:1; }
+            100% { transform:scale(1); }
+          }
+          @keyframes confettiFall {
+            0%   { transform:translateY(-10px) rotate(0deg); opacity:1; }
+            100% { transform:translateY(90px) rotate(400deg); opacity:0; }
+          }
+        `}</style>
 
-          {/* Confetti particles */}
-          <div style={{ position: "relative", display: "inline-block" }}>
-            {["🎊","✨","🌟","💥","🎉","⭐","🔥","💫"].map((e, i) => (
-              <div key={i} style={{
-                position: "absolute",
-                left: `${10 + (i * 11) % 80}%`,
-                top: `${(i * 17) % 40}%`,
-                fontSize: 16 + (i % 3) * 4,
-                animation: `confettiFall ${0.8 + (i % 4) * 0.3}s ease-out ${i * 0.1}s forwards`,
-                pointerEvents: "none",
-              }}>{e}</div>
-            ))}
+        {/* Glow de fondo */}
+        <div style={{ position:"fixed", top:"-80px", left:"50%", transform:"translateX(-50%)", width:"340px", height:"340px", background:"radial-gradient(circle, rgba(232,255,0,0.07) 0%, transparent 70%)", pointerEvents:"none", zIndex:0 }} />
 
-          {/* Personaje celebrando */}
-          <div style={{ animation: "dumbbellCelebrate 1s ease-out 0.2s both", display: "inline-block" }}>
-            <svg viewBox="0 0 80 88" width="120" height="132">
-              <defs>
-                <filter id="glowCelebrate"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                <filter id="neonCelebrate"><feGaussianBlur stdDeviation="1.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              </defs>
-              {/* Aura glow */}
-              <ellipse cx="40" cy="44" rx="36" ry="40" fill={`${celebMood.color}20`} filter="url(#glowCelebrate)"/>
-              {/* HEAD */}
-              <path d="M22 8 L58 8 L60 14 L60 36 L54 42 L26 42 L20 36 L20 14 Z"
-                fill="#0a0a0a" stroke={celebMood.color} strokeWidth="2.2" strokeLinejoin="miter" filter="url(#glowCelebrate)"/>
-              <path d="M24 8 L56 8 L58 10 L22 10 Z" fill={celebMood.color}/>
-              <path d="M26 16 L54 16 L56 20 L56 36 L52 39 L28 39 L24 36 L24 20 Z"
-                fill="#111" stroke={`${celebMood.color}70`} strokeWidth="1" strokeLinejoin="miter"/>
-              {/* Star eyes */}
-              {completionPct >= 90
-                ? (<>
-                    <text x="27" y="27" fontSize="9" textAnchor="middle" fill={celebMood.color} fontWeight="900">★</text>
-                    <text x="37" y="27" fontSize="9" textAnchor="middle" fill={celebMood.color} fontWeight="900">★</text>
-                  </>)
-                : (<>
-                    <rect x="24" y="21" width="7" height="5" rx="1" fill={celebMood.color}/>
-                    <rect x="33" y="21" width="7" height="5" rx="1" fill={celebMood.color}/>
-                    <rect x="25" y="22" width="2" height="2" fill="#0a0a0a"/>
-                    <rect x="34" y="22" width="2" height="2" fill="#0a0a0a"/>
-                  </>)
-              }
-              {/* Big angular grin */}
-              <path d="M25 30 L32 36 L39 30" stroke={celebMood.color} strokeWidth="2.8" fill={`${celebMood.color}35`} strokeLinecap="square" strokeLinejoin="miter"/>
-              <line x1="29" y1="30" x2="30" y2="34" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
-              <line x1="32" y1="30.5" x2="32" y2="36" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
-              <line x1="35" y1="30" x2="34" y2="34" stroke={celebMood.color} strokeWidth="1.2" opacity="0.6"/>
-              {/* Jaw accents */}
-              <line x1="20" y1="32" x2="26" y2="36" stroke={celebMood.color} strokeWidth="1.5" opacity="0.6"/>
-              <line x1="60" y1="32" x2="54" y2="36" stroke={celebMood.color} strokeWidth="1.5" opacity="0.6"/>
-              {/* NECK */}
-              <rect x="33" y="42" width="14" height="7" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.5"/>
-              {/* TORSO */}
-              <path d="M14 49 L66 49 L62 76 L18 76 Z"
-                fill="#0a0a0a" stroke={celebMood.color} strokeWidth="2.2" strokeLinejoin="miter" filter="url(#neonCelebrate)"/>
-              <path d="M18 49 L40 49 L38 62 L20 62 Z" fill={`${celebMood.color}25`} stroke={`${celebMood.color}60`} strokeWidth="1"/>
-              <path d="M62 49 L40 49 L42 62 L60 62 Z" fill={`${celebMood.color}25`} stroke={`${celebMood.color}60`} strokeWidth="1"/>
-              <line x1="40" y1="49" x2="40" y2="76" stroke={celebMood.color} strokeWidth="1.5" opacity="0.7"/>
-              <line x1="21" y1="62" x2="59" y2="62" stroke={celebMood.color} strokeWidth="1" opacity="0.35"/>
-              <line x1="22" y1="69" x2="58" y2="69" stroke={celebMood.color} strokeWidth="1" opacity="0.35"/>
-              {/* LEFT ARM */}
-              <path d="M14 49 L4 44 L0 34 L6 32 L10 40 L18 47 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <path d="M0 34 L-2 22 L4 18 L8 28 L6 32 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <rect x="-6" y="11" width="18" height="6" rx="0" fill={celebMood.color} filter="url(#glowCelebrate)"/>
-              <rect x="-8" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="8" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="-9" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              <rect x="14" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              {/* RIGHT ARM */}
-              <path d="M66 49 L76 44 L80 34 L74 32 L70 40 L62 47 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <path d="M80 34 L82 22 L76 18 L72 28 L74 32 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <rect x="68" y="11" width="18" height="6" rx="0" fill={celebMood.color} filter="url(#glowCelebrate)"/>
-              <rect x="66" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="80" y="7" width="6" height="14" rx="0" fill={celebMood.color}/>
-              <rect x="64" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              <rect x="83" y="9" width="3" height="10" rx="0" fill={`${celebMood.color}80`}/>
-              {/* LEGS */}
-              <path d="M18 76 L28 76 L26 88 L16 88 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <path d="M52 76 L62 76 L64 88 L54 88 Z" fill="#0a0a0a" stroke={celebMood.color} strokeWidth="1.8" strokeLinejoin="miter"/>
-              <rect x="14" y="86" width="14" height="4" fill={celebMood.color} opacity="0.9"/>
-              <rect x="52" y="86" width="14" height="4" fill={celebMood.color} opacity="0.9"/>
-              {/* FX */}
-              <text x="14" y="6" fontSize="10">✨</text>
-              <text x="56" y="5" fontSize="10">🎉</text>
-            </svg>
+        <div style={{
+          width:"100%", maxWidth:480,
+          display: "flex", flexDirection: "column", alignItems: "center",
+          padding: "0 20px 110px",
+          boxSizing: "border-box",
+          position: "relative", zIndex: 1,
+        }}>
+
+        {/* Confetti */}
+        <div style={{ position:"fixed", inset:0, pointerEvents:"none", overflow:"hidden", zIndex:0 }}>
+          {["🎊","✨","⭐","💥","🎉","🔥","💫","🌟"].map((e,i)=>(
+            <div key={i} style={{ position:"absolute", left:`${8+(i*12)%82}%`, top:`${(i*15)%25}%`, fontSize:14+(i%3)*5, animation:`confettiFall ${0.9+(i%3)*0.35}s ease-out ${i*0.1}s forwards` }}>{e}</div>
+          ))}
+        </div>
+
+        {/* Mascota */}
+        <div style={{ textAlign:"center", marginBottom:8, position:"relative", zIndex:1 }}>
+          <div style={{ animation:"mascotBounce 1.3s ease-out 0.1s both", display:"inline-block" }}>
+            <img src={getBeastMood(completionPct, sessionAvgRpe, newPRs)} alt="Beast"
+              style={{ width:200, height:200, objectFit:"contain",
+                filter:"drop-shadow(0 0 40px rgba(232,255,0,0.65)) drop-shadow(0 8px 20px rgba(0,0,0,0.9))" }} />
           </div>
-          </div>
+        </div>
 
-          {/* Mensaje de celebración */}
-          <div style={{ marginTop: 12, padding: "10px 20px", background: `${celebMood.color}15`, border: `1px solid ${celebMood.color}40`, borderRadius: 14, display: "inline-block", maxWidth: 320 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: celebMood.color, textTransform: "uppercase", marginBottom: 2 }}>🏋️ tu compañero de gym</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{celebMsg}</div>
+        {/* Mensaje motivacional */}
+        <div style={{ animation:"fadeUp 0.4s ease 0.1s both", textAlign:"center", marginBottom:10, position:"relative", zIndex:1, width:"100%" }}>
+          <div style={{ fontSize:14, color:"var(--accent)", fontWeight:800, letterSpacing:1.5, textTransform:"uppercase", fontFamily:"Barlow Condensed, sans-serif" }}>
+            {(() => {
+              if (newPRs)                                          return "🏆 Nuevo récord personal. Eso es historia.";
+              if (sessionAvgRpe !== null && sessionAvgRpe >= 9)   return "🔥 Empujaste hasta el límite. Brutal.";
+              if (completionPct === 100 && sessionAvgRpe !== null && sessionAvgRpe >= 7) return "⚡ Todo completo y a full intensidad.";
+              if (completionPct === 100)                          return "✅ Ni una serie sin marcar. Perfecto.";
+              if (sessionAvgRpe !== null && sessionAvgRpe <= 5)   return "💡 Queda margen. La próxima, más peso.";
+              if (completionPct >= 60)                            return "💪 La constancia construye el físico.";
+              return "👊 Aparecer ya es ganar. Sigue.";
+            })()}
           </div>
         </div>
 
         {/* Título */}
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 38, fontWeight: 900, letterSpacing: 1, marginBottom: 4 }}>
-            ¡Sesión completada!
+        <div style={{ textAlign:"center", marginBottom:16, animation:"fadeUp 0.4s ease 0.2s both", position:"relative", zIndex:1, width:"100%" }}>
+          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:54, fontWeight:900, color:"#fff", lineHeight:0.9, textTransform:"uppercase", letterSpacing:-1, marginBottom:10 }}>
+            ¡Sesión<br/>Completada!
           </div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{workout} · {fmt(elapsed)}</div>
+          <div style={{ display:"inline-block", background:"rgba(232,255,0,0.15)", border:"1px solid rgba(232,255,0,0.5)", padding:"5px 18px", borderRadius:4 }}>
+            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:14, color:"var(--accent)", letterSpacing:4, fontWeight:800, textTransform:"uppercase" }}>{workout}</span>
+          </div>
         </div>
 
-        {/* Stats grid */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-          gap: 12, maxWidth: 560, width: "100%",
-          margin: "0 auto", marginBottom: 28,
-        }}>
+        {/* Stats 3-col */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8, position:"relative", zIndex:1, width:"100%" }}>
           {[
-            { icon: "⏱️", label: "Tiempo",      value: fmt(elapsed) },
-            { icon: "🏋️", label: "Ejercicios",  value: exData.length },
-            { icon: "🔢", label: "Series",       value: completedSets },
-            { icon: "📦", label: "Volumen",
-              value: totalVol >= 1000 ? `${(totalVol / 1000).toFixed(1)}t` : `${Math.round(totalVol)}kg` },
-          ].concat(sessionAvgRpe !== null ? [
-            { icon: "🎯", label: "RPE prom.", value: sessionAvgRpe },
-          ] : []).map(s => (
+            { label:"TIEMPO",   value:fmt(elapsed) },
+            { label:"SERIES",   value:completedSets },
+            { label:"VOLUMEN",  value:totalVol >= 1000 ? `${(totalVol/1000).toFixed(1)}t` : `${Math.round(totalVol)}kg` },
+          ].map((s,i) => (
             <div key={s.label} style={{
-              background: "var(--card)", border: "1px solid var(--border)",
-              borderRadius: 16, padding: "16px 12px", textAlign: "center",
+              background:"#111", borderRadius:6,
+              border:"1px solid #1e1e1e",
+              boxShadow:"inset 0 2px 0 0 var(--accent)",
+              padding:"14px 6px", textAlign:"center",
+              animation:`cardPop 0.35s ease ${0.3+i*0.08}s both`
             }}>
-              <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
-              <div style={{
-                fontFamily: "Barlow Condensed, sans-serif",
-                fontSize: 28, fontWeight: 800, color: "var(--accent)",
-              }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:900, color:"#fff", lineHeight:1, marginBottom:4 }}>{s.value}</div>
+              <div style={{ fontSize:9, color:"#444", letterSpacing:2, textTransform:"uppercase", fontWeight:700 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Per-exercise breakdown */}
-        <div style={{ maxWidth: 560, margin: "0 auto", width: "100%", marginBottom: 28 }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 2,
-            color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12,
-          }}>
-            Resumen por ejercicio
-          </div>
-          {exData.map((ex, i) => {
-            const doneS  = ex.sets.filter(s => s.done);
-            const maxW   = doneS.length > 0 ? Math.max(...doneS.map(s => parseFloat(s.weight) || 0)) : 0;
-            const best1rm = doneS.length > 0
-              ? Math.max(...doneS.map(s => calc1RM(parseFloat(s.weight) || 0, parseFloat(s.reps) || 0)))
-              : 0;
-            const rpeValues = doneS.map(s => parseFloat(s.rpe)).filter(v => !isNaN(v) && v > 0);
-            const avgRpe = rpeValues.length > 0
-              ? Math.round((rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length) * 10) / 10
-              : null;
-            const ssCol = ex.supersetGroup ? getSupersetColor(ex.supersetGroup, exData) : null;
-            return (
-              <div key={i} style={{
-                background: "var(--card)",
-                border: `1px solid ${ssCol ? ssCol + "40" : "var(--border)"}`,
-                borderLeft: ssCol ? `3px solid ${ssCol}` : undefined,
-                borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-              }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <ExerciseGif exName={ex.name} size={44} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3, display: "flex", alignItems: "center", gap: 6 }}>
-                      {doneS.length > 0 ? "✓ " : "○ "}{ex.name}
-                      {ssCol && (
-                        <span style={{ background: ssCol, color: "#0a0a0a", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                      {doneS.length}/{ex.sets.length} series
-                      {maxW > 0 && ` · máx ${maxW}kg`}
-                      {best1rm > 0 && ` · ~${best1rm}kg 1RM`}
-                      {avgRpe !== null && (
-                        <span style={{
-                          marginLeft: 6,
-                          color: "rgba(232,255,0,0.8)",
-                          fontWeight: 700,
-                        }}>
-                          · RPE {avgRpe}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxWidth: 150, justifyContent: "flex-end" }}>
-                    {doneS.map((s, j) => (
-                      <span key={j} style={{
-                        fontSize: 11, padding: "2px 7px",
-                        background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)",
-                        borderRadius: 6, color: "#22c55e", fontWeight: 600,
-                      }}>
-                        {s.weight || "—"}×{s.reps || "—"}
-                        {s.rpe ? <span style={{ color: "rgba(232,255,0,0.7)", marginLeft: 3 }}>@{s.rpe}</span> : null}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                {ex.notes && (
-                  <div style={{
-                    marginTop: 8, paddingTop: 8,
-                    borderTop: "1px solid var(--border)",
-                    fontSize: 12, color: "var(--text-muted)",
-                    fontStyle: "italic",
-                    display: "flex", alignItems: "flex-start", gap: 6,
-                  }}>
-                    <span style={{ flexShrink: 0 }}>📝</span>
-                    <span>{ex.notes}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Stats 2-col */}
+        <div style={{ display:"grid", gridTemplateColumns: sessionAvgRpe !== null ? "1fr 1fr" : "1fr", gap:8, marginBottom:14, position:"relative", zIndex:1, width:"100%" }}>
+          {[
+            { label:"EJERCICIOS", value:exData.length },
+            ...(sessionAvgRpe !== null ? [{ label:"RPE PROM.", value:sessionAvgRpe }] : []),
+          ].map((s,i) => (
+            <div key={s.label} style={{
+              background:"#111", borderRadius:6,
+              border:"1px solid #1e1e1e",
+              boxShadow:"inset 0 2px 0 0 var(--accent)",
+              padding:"14px 6px", textAlign:"center",
+              animation:`cardPop 0.35s ease ${0.54+i*0.08}s both`
+            }}>
+              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:900, color:"#fff", lineHeight:1, marginBottom:4 }}>{s.value}</div>
+              <div style={{ fontSize:9, color:"#444", letterSpacing:2, textTransform:"uppercase", fontWeight:700 }}>{s.label}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Action buttons — sticky al fondo */}
+        {/* Insights */}
+        {insights.length > 0 && (
+          <div style={{ position:"relative", zIndex:1, animation:"fadeUp 0.4s ease 0.7s both", width:"100%" }}>
+            {insights.map((ins,i) => (
+              <div key={i} style={{
+                display:"flex", alignItems:"center", gap:12,
+                padding:"10px 14px",
+                background:"#111",
+                borderLeft:`3px solid ${ins.icon === "🏆" || ins.icon === "✅" || ins.icon === "⚡" ? "var(--accent)" : "#2a2a2a"}`,
+                borderRadius:"0 6px 6px 0",
+                marginBottom:6,
+              }}>
+                <span style={{ fontSize:16, flexShrink:0 }}>{ins.icon}</span>
+                <span style={{ fontSize:13, color: ins.icon === "🏆" || ins.icon === "✅" || ins.icon === "⚡" ? "#fff" : "#666", fontWeight:700, fontFamily:"Barlow, sans-serif" }}>{ins.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        </div>
+
+        {/* Action buttons — sticky al fondo, estilo Duolingo */}
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0,
-          padding: "12px 20px calc(12px + env(safe-area-inset-bottom, 0px))",
-          background: "linear-gradient(to top, var(--bg) 80%, transparent)",
-          display: "flex", gap: 12, maxWidth: 560, margin: "0 auto",
-          width: "100%", boxSizing: "border-box",
+          padding: "10px 16px calc(10px + env(safe-area-inset-bottom, 0px))",
+          background: "linear-gradient(to top, #0a0a0a 75%, transparent)",
           zIndex: 10,
         }}>
-          <button
-            onClick={onBack}
-            style={{
-              flex: 1, background: "var(--card)", border: "1px solid var(--border)",
-              color: "var(--text-muted)", borderRadius: 12, padding: 14,
-              fontFamily: "Barlow, sans-serif", fontSize: 14, cursor: "pointer",
-            }}
-          >
-            ✕ Descartar
-          </button>
-          <button
-            onClick={() => {
-              const finalExercises = exData
-                .map(ex => ({
-                  ...ex,
-                  sets: ex.sets.filter(s => {
-                    const w = parseFloat(s.weight) || 0;
-                    const r = parseFloat(s.reps) || 0;
-                    return w > 0 || r > 0;
-                  })
-                }))
-                .filter(ex => ex.sets.length > 0);
+          {/* Guardar — ancho completo arriba */}
+          <div style={{ maxWidth:560, margin:"0 auto", marginBottom:10 }}>
+            <button
+              onClick={() => {
+                const finalExercises = exData
+                  .map(ex => ({
+                    ...ex,
+                    sets: ex.sets.filter(s => {
+                      const w = parseFloat(s.weight) || 0;
+                      const r = parseFloat(s.reps) || 0;
+                      return w > 0 || r > 0;
+                    })
+                  }))
+                  .filter(ex => ex.sets.length > 0);
 
-              if (finalExercises.length === 0) {
-                alert("⚠️ Agrega al menos una serie con peso o repeticiones antes de guardar.");
-                return;
-              }
+                if (finalExercises.length === 0) {
+                  alert("⚠️ Agrega al menos una serie con peso o repeticiones antes de guardar.");
+                  return;
+                }
 
-              if (isFree) {
-                showInterstitial().finally(() => {
+                if (isFree) {
+                  showInterstitial().finally(() => {
+                    onSaveSession(finalExercises, elapsed);
+                  });
+                } else {
                   onSaveSession(finalExercises, elapsed);
-                });
-              } else {
-                onSaveSession(finalExercises, elapsed);
-              }
-            }}
-            style={{
-              flex: 2, background: "var(--accent)", border: "none",
-              color: "#0a0a0a", borderRadius: 12, padding: 14,
-              fontFamily: "Barlow Condensed, sans-serif",
-              fontSize: 20, fontWeight: 900, letterSpacing: 1, cursor: "pointer",
-              boxShadow: "0 0 24px rgba(232,255,0,0.3)",
-            }}
-          >
-            ✅ GUARDAR SESIÓN
-          </button>
+                }
+              }}
+              style={{
+                width: "100%", height: 58,
+                background: "var(--accent)", border: "none",
+                color: "#0a0a0a", borderRadius: 4,
+                fontFamily: "Barlow Condensed, sans-serif",
+                fontSize: 22, fontWeight: 900, letterSpacing: 3, cursor: "pointer",
+                textTransform: "uppercase",
+                boxShadow: "0 4px 24px rgba(232,255,0,0.35)",
+              }}
+            >
+              GUARDAR SESIÓN
+            </button>
+          </div>
+
+          {/* Compartir + Descartar — misma fila abajo */}
+          <div style={{ display:"flex", gap:8, maxWidth:560, margin:"0 auto" }}>
+            <button
+              onClick={() => {
+                const text = `💪 Terminé ${workout} en Beast!\n⏱ ${fmt(elapsed)} · 📦 ${Math.round(totalVol)}kg · ${completedSets} series`;
+                if (navigator.share) {
+                  navigator.share({ title: "Beast Gym", text });
+                } else {
+                  navigator.clipboard?.writeText(text);
+                }
+              }}
+              style={{
+                flex: 1, height: 44,
+                background: "rgba(232,255,0,0.08)", border: "1px solid rgba(232,255,0,0.4)",
+                borderRadius: 4, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                color: "var(--accent)", fontFamily: "Barlow Condensed, sans-serif",
+                fontSize: 15, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16 6 12 2 8 6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+              Compartir
+            </button>
+
+            <button
+              onClick={onBack}
+              style={{
+                flex: 1, height: 44,
+                background: "none", border: "1px solid #222",
+                borderRadius: 4, cursor: "pointer",
+                color: "rgba(255,255,255,0.3)", fontFamily: "Barlow, sans-serif",
+                fontSize: 13, fontWeight: 700, letterSpacing: 0.5,
+              }}
+            >
+              Descartar
+            </button>
+          </div>
         </div>
       </div>
     );
