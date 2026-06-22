@@ -2,6 +2,10 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Los <button> usan por defecto el color de texto negro del navegador. En un tema
+   oscuro eso deja los títulos casi invisibles. Forzar que hereden color y fuente. */
+button { font-family: inherit; color: inherit; }
+
 /* Paleta premium Android-first: escala de superficies con profundidad real,
    acento controlado y texto con contraste accesible (ver Fase 23). Se mantienen
    los nombres de variables para no romper el resto del CSS. */
