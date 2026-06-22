@@ -920,9 +920,8 @@ useEffect(() => {
   );  
 
   const NAV = [
-    { id: "new", icon: "⚡", label: "Nueva sesión" },
+    { id: "new", icon: "⚡", label: "Inicio" },
     { id: "history", icon: "📋", label: "Historial" },
-    { id: "dashboard", icon: "📊", label: "Dashboard" },
   ];
   
   // Earned badges count for notification dot
@@ -1546,99 +1545,37 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             );
           })()}
 
-          {/* ── ACCIONES PRINCIPALES (el entrenamiento manda) ── */}
-          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14, fontFamily: "Barlow Condensed, sans-serif" }}>
-            ¿Qué quieres hacer?
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 28 }}>
-
-            {/* ── Entrenar ahora ── */}
-            <button
-              onClick={() => { if (isGuest && !canAdd) { setGuestLimitModal("live"); return; } setWorkout(""); setShowNameModal(true); }}
-              style={{
-                background: "#DFFF00",
-                border: "none",
-                borderRadius: 16, padding: "24px 16px", cursor: "pointer",
-                textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; }}
-            >
-              <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "#09090B", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
-                Entrenar ahora
-              </div>
-              <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)", lineHeight: 1.5 }}>
-                Timer · series · descanso
-              </div>
-            </button>
-
-            {/* ── Registrar sesión ── */}
-            <button
-              onClick={() => { if (isGuest && !canAdd) { setGuestLimitModal("register"); return; } setSessionMode("register"); }}
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                borderRadius: 16, padding: "24px 16px", cursor: "pointer",
-                textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.background = "var(--accent-dim)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.background = "var(--input-bg)"; }}
-            >
-              <div style={{ fontSize: 36, marginBottom: 8 }}>📋</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "var(--text)", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
-                Registrar sesión
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                Ya entrenaste · guarda el historial
-              </div>
-            </button>
-
-          </div>
-
-          {/* Herramientas rápidas */}
-          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12, fontFamily: "Barlow Condensed, sans-serif" }}>
-            Herramientas
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[
-              { icon: "🧮", label: "Calc. 1RM",    action: () => setShowOneRM(true) },
-              { icon: "📚", label: "Biblioteca",    action: () => setShowLibrary(true) },
-            ].map(btn => (
-              <button
-                key={btn.label}
-                className="btn-ghost"
-                style={{ flex: "1 1 120px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                onClick={btn.action}
-              >
-                <span>{btn.icon}</span> {btn.label}
-              </button>
-            ))}
-          </div>
-
-          {/* ── BRUX — motivación al final, ya no domina el inicio ── */}
-          <div style={{ marginTop: 24 }}>
-            <BeastMascot
-              sessions={sessions}
-              todayPlanned={todayPlanned}
-              streak={currentStreak}
-              onStartSession={(muscle, suggestedExercises) => {
-                setExMuscle(muscle);
-                setSessionMode("live");
-                const name = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
-                setWorkout(name);
-                if (suggestedExercises && suggestedExercises.length > 0) {
-                  setCurrentExercises(suggestedExercises.map(ex => ({
-                    id: uid(), name: ex.name, muscle: ex.muscle,
-                    sets: [{ id: uid(), weight: "", reps: "" }],
-                    weight: "", reps: "", notes: "",
-                  })));
-                }
-              }}
-              inNewSession={true}
-            />
-          </div>
+          {/* ══ HOME UNIFICADO — Dashboard premium embebido ══════════════════ */}
+          <Dashboard
+            embedded
+            sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal}
+            user={user} isPro={isPro} newBadgesCount={newBadgesCount}
+            coachRoutines={coachRoutines}
+            showCompletedBanner={showCompletedBanner}
+            todayPlanned={todayPlanned}
+            plannedExCount={(weeklyPlan.mode === "weekly" ? weeklyPlan.weekly?.[todayDow]?.exercises : weeklyPlan.cycle?.[weeklyPlan.cyclePos]?.exercises)?.length || 0}
+            onStartPlanned={() => {
+              const plan = weeklyPlan.mode === "weekly" ? weeklyPlan.weekly?.[todayDow] : weeklyPlan.cycle?.[weeklyPlan.cyclePos];
+              const planEx = plan?.exercises || [];
+              if (todayPlanned) setWorkout(todayPlanned);
+              if (planEx.length > 0) setCurrentExercises(planEx.map(e => ({ ...e, id: uid() })));
+              setSessionMode("live");
+            }}
+            onGoalClick={(target) => target === "history" ? setActiveTab("history") : openPlanner("goal")}
+            onBadgesClick={() => openBadgesModal()}
+            onInsightsClick={() => setShowInsights(true)}
+            onStatsProClick={() => isPro ? setShowStatsPro(true) : setShowPaywall(true)}
+            onStatsUnlockedClick={() => setShowStatsPro(true)}
+            onOpenStreak={() => setShowStreakModal(true)}
+            onOpenCoach={() => setShowAthleteCoach(true)}
+            onStartCoachRoutine={(routine) => { setAthleteCoachInitialRoutine(routine); setShowAthleteCoach(true); }}
+            onMuscleMapClick={() => setShowMuscleMap(true)}
+            onLibrary={() => setShowLibrary(true)}
+            onAIChat={() => setShowAIChat(true)}
+            onStartSession={() => { if (isGuest && !canAdd) { setGuestLimitModal("live"); return; } setWorkout(""); setShowNameModal(true); }}
+            onRegisterSession={() => { if (isGuest && !canAdd) { setGuestLimitModal("register"); return; } setSessionMode("register"); }}
+            onGoHome={() => {}}
+          />
         </div>
       )}
 
@@ -2621,46 +2558,6 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
 )}
 
         {/* Dashboard */}
-<div className="content-area" style={{ display: activeTab === "dashboard" ? "block" : "none" }}>
-
-  <Dashboard sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal} onGoalClick={(target) => target === "history" ? setActiveTab("history") : openPlanner("goal")} onBadgesClick={() => openBadgesModal()}
-    newBadgesCount={newBadgesCount}
-    onInsightsClick={() => setShowInsights(true)}
-    onStatsProClick={() => isPro ? setShowStatsPro(true) : setShowPaywall(true)}
-    onStatsUnlockedClick={() => setShowStatsPro(true)}
-    isPro={isPro}
-    user={user}
-    coachRoutines={coachRoutines}
-    onOpenCoach={() => setShowAthleteCoach(true)}
-    onStartCoachRoutine={(routine) => { setAthleteCoachInitialRoutine(routine); setShowAthleteCoach(true); }}
-    showCompletedBanner={showCompletedBanner}
-    onOpenStreak={() => setShowStreakModal(true)}
-    onStartSession={(muscle, suggestedExercises) => {
-      setExMuscle(muscle);
-      setActiveTab("new");
-      setSessionMode("live");
-      // Nombre automático capitalizado
-      const name = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
-      setWorkout(name);
-      // Precargar ejercicios sugeridos
-      if (suggestedExercises && suggestedExercises.length > 0) {
-        setCurrentExercises(suggestedExercises.map(ex => ({
-          id: uid(), name: ex.name, muscle: ex.muscle,
-          sets: [{ id: uid(), weight: "", reps: "" }],
-          weight: "", reps: "", notes: "",
-        })));
-      }
-    }}
-    onMuscleMapClick={() => setShowMuscleMap(true)}
-    onRegisterSession={() => {
-      setActiveTab("new");
-      setSessionMode("log");
-    }}
-    onGoHome={() => setActiveTab("new")}
-    onLibrary={() => setShowLibrary(true)}
-    onAIChat={() => setShowAIChat(true)}
-    />
-</div>
       </main>
 
       {/* ── MODALES GLOBALES ── */}

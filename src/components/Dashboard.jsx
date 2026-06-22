@@ -8,7 +8,7 @@ import { MuscleBalance } from "./ProgressWidgets";
 import WeekComparison from "./WeekComparison";
 import { Dumbbell, ClipboardList, BookOpen, Sparkles, ChevronRight, Trophy } from "lucide-react";
 
-export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat }) {
+export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat, todayPlanned = "", plannedExCount = 0, onStartPlanned, embedded = false }) {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const weeklyTarget = weeklyGoal?.target || 3;
   const streak = getStreak(sessions, weeklyTarget);
@@ -69,14 +69,25 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
 
   const todayName = todayCoachRoutine?.name || todayCoachRoutine?.routineName || null;
   const todayExCount = (todayCoachRoutine?.exercises || []).length;
-  const todayMinEst = todayExCount > 0 ? todayExCount * 7 : null;
+
+  // Card principal "Entrenamiento de hoy": prioriza coach > rutina del planner > libre.
+  const showCoach = !!todayCoachRoutine && !coachRoutineDone;
+  const showPlanned = !showCoach && !!todayPlanned;
+  const mainKicker = showCoach && isCoachRoutineForToday ? "⚡ Tu coach · hoy" : (showPlanned ? "📅 Hoy toca" : "Entrenamiento de hoy");
+  const mainTitle = showCoach ? todayName : (showPlanned ? todayPlanned : "Entrenamiento libre");
+  const mainExCount = showCoach ? todayExCount : (showPlanned ? plannedExCount : 0);
+  const mainMinEst = mainExCount > 0 ? mainExCount * 7 : null;
+  const mainAction = showCoach
+    ? () => onStartCoachRoutine && onStartCoachRoutine(todayCoachRoutine)
+    : (showPlanned ? () => onStartPlanned && onStartPlanned() : () => onStartSession && onStartSession("Todos"));
 
   const CARD = { background:"var(--card)", border:"1px solid var(--border)", borderRadius:16, boxShadow:"var(--shadow)" };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
-      {/* ══ HEADER ════════════════════════════════════════════════════════════ */}
+      {/* ══ HEADER (oculto en modo embebido — el topbar ya saluda) ════════════ */}
+      {!embedded && (
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
         <div>
           <div style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>Hola, {firstName} 👋</div>
@@ -95,6 +106,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
           </button>
         </div>
       </div>
+      )}
 
       {/* ══ STREAK RISK (retención) ═══════════════════════════════════════════ */}
       <StreakRiskBanner
@@ -104,18 +116,19 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
         onRegisterSession={onRegisterSession} onGoHome={onGoHome}
       />
 
-      {/* ══ CARD PRINCIPAL — Entrenamiento de hoy ═════════════════════════════ */}
-      <div style={{ ...CARD, padding:0, overflow:"hidden", borderColor: todayCoachRoutine && !coachRoutineDone ? "var(--accent)" : "var(--border)" }}>
+      {/* ══ CARD PRINCIPAL — Entrenamiento de hoy (oculta en embebido) ════════ */}
+      {!embedded && (
+      <div style={{ ...CARD, padding:0, overflow:"hidden", borderColor: (showCoach || showPlanned) ? "var(--accent)" : "var(--border)" }}>
         <div style={{ padding:"16px 18px" }}>
           <div style={{ fontSize:10, fontWeight:800, letterSpacing:2, textTransform:"uppercase", color:"var(--accent)", marginBottom:8, fontFamily:"Barlow Condensed, sans-serif" }}>
-            {todayCoachRoutine && isCoachRoutineForToday ? "⚡ Tu coach · hoy" : "Entrenamiento de hoy"}
+            {mainKicker}
           </div>
           <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:900, lineHeight:1, textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>
-            {todayName || "Entrenamiento libre"}
+            {mainTitle}
           </div>
           <div style={{ display:"flex", gap:14, color:"var(--text-muted)", fontSize:13, fontWeight:500, marginBottom:16 }}>
-            <span>{todayExCount > 0 ? `${todayExCount} ejercicios` : "Tú eliges los ejercicios"}</span>
-            {todayMinEst && <span>· ~{todayMinEst} min</span>}
+            <span>{mainExCount > 0 ? `${mainExCount} ejercicios` : "Tú eliges los ejercicios"}</span>
+            {mainMinEst && <span>· ~{mainMinEst} min</span>}
           </div>
           {todayCoachRoutine && coachRoutineDone ? (
             <div style={{ display:"flex", alignItems:"center", gap:8, color:"var(--success)", fontWeight:700, fontSize:14 }}>
@@ -124,14 +137,15 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
             </div>
           ) : (
             <button
-              onClick={() => todayCoachRoutine ? (onStartCoachRoutine && onStartCoachRoutine(todayCoachRoutine)) : (onStartSession && onStartSession("Todos"))}
+              onClick={mainAction}
               style={{ width:"100%", background:"var(--accent)", border:"none", borderRadius:12, color:"#09090B", fontFamily:"Barlow Condensed, sans-serif", fontWeight:900, fontSize:17, letterSpacing:1.5, textTransform:"uppercase", padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
             >
-              <Dumbbell size={19} strokeWidth={2.5} /> Continuar entrenamiento
+              <Dumbbell size={19} strokeWidth={2.5} /> {showCoach || showPlanned ? "Continuar entrenamiento" : "Empezar a entrenar"}
             </button>
           )}
         </div>
       </div>
+      )}
 
       {/* ══ RESUMEN RÁPIDO — grid 2x2 ═════════════════════════════════════════ */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
