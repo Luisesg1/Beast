@@ -16,6 +16,7 @@ import ExerciseGif, { CustomGifCtx, useCustomGifs } from "./components/ExerciseG
 import TemplatesModal from "./components/TemplatesModal";
 import { calc1RM, calcSessionVolume, detectNewPRs, getStreak, getPRs, getWeeklyChallenge, addShield } from "./utils/gymCalcs";
 import { track } from "./utils/analytics";
+import NavIcon from "./components/NavIcon";
 import fireConfetti from "./utils/fireConfetti";
 import { GuestWall, EmailVerifyWall } from "./components/AuthWalls";
 import WeeklyGoalModal from "./components/WeeklyGoalModal";
@@ -109,7 +110,7 @@ function SidebarGroup({ label, items }) {
         <div style={{ animation: "fadeIn 0.15s ease" }}>
           {items.map(item => (
             <button key={item.label} className="nav-item" onClick={item.action}>
-              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-icon"><NavIcon e={item.icon} /></span>
               <span className="nav-label">{item.label}</span>
             </button>
           ))}
@@ -974,7 +975,7 @@ useEffect(() => {
         borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(232,255,0,0.2)",
       } : {}}
       onClick={() => navClick(item.id)}>
-      <span className="nav-icon">{item.icon}</span>
+      <span className="nav-icon"><NavIcon e={item.icon} /></span>
       <span className="nav-label">{item.label}</span>
     </button>
   ))}
@@ -1002,14 +1003,14 @@ useEffect(() => {
         </div>
         {group.items.map(item => (
           <button key={item.label} className="nav-item" onClick={item.action}>
-            <span className="nav-icon">{item.icon}</span>
+            <span className="nav-icon"><NavIcon e={item.icon} /></span>
             <span className="nav-label">{item.label}</span>
           </button>
         ))}
         {group.label === "PROGRESO" && (
           <>
             <button className="nav-item" onClick={() => openBadgesModal()} style={{ position:"relative" }}>
-              <span className="nav-icon">🏅</span>
+              <span className="nav-icon"><NavIcon e="🏅" /></span>
               <span className="nav-label">Logros</span>
               {newBadgesCount > 0 && (
                 <span style={{
@@ -1024,7 +1025,7 @@ useEffect(() => {
               )}
             </button>
             <button className="nav-item" onClick={() => setShowPhotoProgress(true)}>
-              <span className="nav-icon">📸</span>
+              <span className="nav-icon"><NavIcon e="📸" /></span>
               <span className="nav-label">Análisis IA</span>
             </button>
           </>
@@ -1047,7 +1048,7 @@ useEffect(() => {
               const { outcome } = await installPrompt.userChoice;
               if (outcome === "accepted") setInstallPrompt(null);
             }}>
-              <span className="nav-icon">📲</span>
+              <span className="nav-icon"><NavIcon e="📲" /></span>
               <span className="nav-label">Instalar app</span>
             </button>
           )}
@@ -1065,7 +1066,7 @@ useEffect(() => {
               }}
               onClick={() => setShowPaywall(true)}
             >
-              <span className="nav-icon">⚡</span>
+              <span className="nav-icon"><NavIcon e="⚡" /></span>
               <span className="nav-label" style={{ color: "#e8ff00", fontWeight: 800 }}>HAZTE PRO</span>
             </button>
           ) : (
@@ -1079,7 +1080,7 @@ useEffect(() => {
                 cursor: "default",
               }}
             >
-              <span className="nav-icon">⚡</span>
+              <span className="nav-icon"><NavIcon e="⚡" /></span>
               <span className="nav-label" style={{ color: "#e8ff00", fontWeight: 800 }}>
                 BEAST {user.plan?.toUpperCase()} ✓
               </span>
@@ -1098,7 +1099,7 @@ useEffect(() => {
             </div>
           </div>
           <button className="nav-item" onClick={() => askConfirm("¿Seguro que quieres salir?", logout)}>
-            <span className="nav-icon">🚪</span>
+            <span className="nav-icon"><NavIcon e="🚪" /></span>
             <span className="nav-label">Salir</span>
           </button>
         </div>
@@ -1156,7 +1157,7 @@ useEffect(() => {
                       borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(232,255,0,0.2)",
                     } : { marginBottom: 2 }}
                     onClick={() => navClick(item.id)}>
-                    <span className="nav-icon">{item.icon}</span>
+                    <span className="nav-icon"><NavIcon e={item.icon} /></span>
                     <span className="nav-label">{item.label}</span>
                   </button>
                 ))}
@@ -1169,7 +1170,7 @@ useEffect(() => {
                   { icon: "📄", label: "Plantillas", action: () => { setShowTemplates(true); setMobileNavOpen(false); } },
                 ].map(({ icon, label, action }) => (
                   <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
-                    <span className="nav-icon">{icon}</span>
+                    <span className="nav-icon"><NavIcon e={icon} /></span>
                     <span className="nav-label">{label}</span>
                   </button>
                 ))}
@@ -1183,7 +1184,7 @@ useEffect(() => {
                   ...(user.isCoach ? [{ icon: "🌟", label: "Panel Coach", action: () => { setShowCoach(true); setMobileNavOpen(false); } }] : []),
                 ].map(({ icon, label, action }) => (
                   <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
-                    <span className="nav-icon">{icon}</span>
+                    <span className="nav-icon"><NavIcon e={icon} /></span>
                     <span className="nav-label">{label}</span>
                   </button>
                 ))}
@@ -1196,12 +1197,12 @@ useEffect(() => {
                   ...(user.isAdmin ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => { setShowAdminExercises(true); setMobileNavOpen(false); } }] : []),
                 ].map(({ icon, label, action }) => (
                   <button key={label} className="nav-item" style={{ marginBottom: 2 }} onClick={action}>
-                    <span className="nav-icon">{icon}</span>
+                    <span className="nav-icon"><NavIcon e={icon} /></span>
                     <span className="nav-label">{label}</span>
                   </button>
                 ))}
                 <button className="nav-item" style={{ marginBottom:2, position:"relative" }} onClick={() => { openBadgesModal(); setMobileNavOpen(false); }}>
-                  <span className="nav-icon">🏅</span>
+                  <span className="nav-icon"><NavIcon e="🏅" /></span>
                   <span className="nav-label">Logros</span>
                   {newBadgesCount > 0 && (
                     <span style={{
@@ -1215,7 +1216,7 @@ useEffect(() => {
                   )}
                 </button>
                 <button className="nav-item" style={{ marginBottom:2 }} onClick={() => { setShowPhotoProgress(true); setMobileNavOpen(false); }}>
-                  <span className="nav-icon">📸</span>
+                  <span className="nav-icon"><NavIcon e="📸" /></span>
                   <span className="nav-label">Análisis IA</span>
                 </button>
 
@@ -1231,7 +1232,7 @@ useEffect(() => {
                     }}
                     onClick={() => { setShowPaywall(true); setMobileNavOpen(false); }}
                   >
-                    <span className="nav-icon">⚡</span>
+                    <span className="nav-icon"><NavIcon e="⚡" /></span>
                     <span className="nav-label" style={{ color: "#e8ff00", fontWeight: 800 }}>HAZTE PRO</span>
                   </button>
                 ) : (
@@ -1246,7 +1247,7 @@ useEffect(() => {
                     }}
                     onClick={() => { setShowPlanInfo(true); setMobileNavOpen(false); }}
                   >
-                    <span className="nav-icon">⚡</span>
+                    <span className="nav-icon"><NavIcon e="⚡" /></span>
                     <span className="nav-label" style={{ color: "#e8ff00", fontWeight: 800 }}>
                       BEAST {user.plan?.toUpperCase()} ✓
                     </span>
@@ -1266,7 +1267,7 @@ useEffect(() => {
                     if (outcome === "accepted") setInstallPrompt(null);
                     setMobileNavOpen(false);
                   }}>
-                    <span className="nav-icon">📲</span>
+                    <span className="nav-icon"><NavIcon e="📲" /></span>
                     <span className="nav-label">Instalar app</span>
                   </button>
                 )}
@@ -1283,7 +1284,7 @@ useEffect(() => {
                   </div>
                 </div>
                 <button className="nav-item" onClick={() => askConfirm("¿Seguro que quieres salir?", logout)}>
-                  <span className="nav-icon">🚪</span>
+                  <span className="nav-icon"><NavIcon e="🚪" /></span>
                   <span className="nav-label">Salir</span>
                 </button>
               </div>
