@@ -110,11 +110,11 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
       {/* ══ 3. COACH ROUTINE (si aplica) ══════════════════════════════════════ */}
       {todayCoachRoutine && !coachRoutineDone && (
         <div style={{
-          background:"rgba(232,255,0,0.04)", border:"2px solid var(--accent)",
+          background:"rgba(207,255,77,0.04)", border:"2px solid var(--accent)",
           borderRadius:12, marginBottom:20, overflow:"hidden",
-          boxShadow:"0 0 24px rgba(232,255,0,0.12)",
+          boxShadow:"0 0 24px rgba(207,255,77,0.12)",
         }}>
-          <div style={{ background:"rgba(232,255,0,0.12)", padding:"7px 14px", borderBottom:"1px solid rgba(232,255,0,0.15)" }}>
+          <div style={{ background:"rgba(207,255,77,0.12)", padding:"7px 14px", borderBottom:"1px solid rgba(207,255,77,0.15)" }}>
             <span style={{ fontSize:10, fontWeight:900, letterSpacing:2, textTransform:"uppercase", color:"var(--accent)" }}>
               {isCoachRoutineForToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
             </span>
@@ -135,7 +135,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
             </div>
             <button
               onClick={e => { e.stopPropagation(); onStartCoachRoutine && onStartCoachRoutine(todayCoachRoutine); }}
-              style={{ background:"var(--accent)", border:"none", borderRadius:10, color:"#0a0a0a", fontWeight:900, fontSize:13, padding:"10px 16px", cursor:"pointer", flexShrink:0, letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif", textTransform:"uppercase", boxShadow:"0 0 16px rgba(232,255,0,0.3)" }}
+              style={{ background:"var(--accent)", border:"none", borderRadius:10, color:"#0E0F13", fontWeight:900, fontSize:13, padding:"10px 16px", cursor:"pointer", flexShrink:0, letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif", textTransform:"uppercase", boxShadow:"0 0 16px rgba(207,255,77,0.3)" }}
             >⚡ INICIAR</button>
           </div>
         </div>

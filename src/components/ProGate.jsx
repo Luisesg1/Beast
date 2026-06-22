@@ -49,7 +49,7 @@ export default function ProGate({ required = "pro", children, inline = false, la
             display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center",
             gap: 8, borderRadius: 14,
-            border: "1px solid rgba(232,255,0,0.2)",
+            border: "1px solid rgba(207,255,77,0.2)",
           }}>
             <span style={{ fontSize: 28 }}>🔒</span>
             <span style={{
@@ -61,7 +61,7 @@ export default function ProGate({ required = "pro", children, inline = false, la
               {label}
             </span>
             <span style={{
-              background: "#e8ff00", color: "#000",
+              background: "#CFFF4D", color: "#000",
               fontSize: 11, fontWeight: 900,
               padding: "4px 12px", borderRadius: 20,
               letterSpacing: 1,

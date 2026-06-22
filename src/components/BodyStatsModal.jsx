@@ -134,7 +134,7 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
         <div style={{ display:"flex", gap:0, marginBottom:20, background:"var(--input-bg)", borderRadius:10, padding:3 }}>
           {[["stats","📊 Stats"],["medidas","📐 Medidas"]].map(([key,label]) => (
             <button key={key} onClick={() => { setActiveTab(key); setPhotoTab(key === "medidas"); }}
-              style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: activeTab===key ? "var(--accent)" : "transparent", color: activeTab===key ? "#0a0a0a" : "var(--text-muted)", fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s" }}>
+              style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: activeTab===key ? "var(--accent)" : "transparent", color: activeTab===key ? "#0E0F13" : "var(--text-muted)", fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s" }}>
               {label}
             </button>
           ))}

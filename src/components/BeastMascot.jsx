@@ -33,7 +33,7 @@ const SPRITE = {
 const BRUX_MOODS = {
   hype:      { color: "#84cc16", glow: "#84cc1620", label: "¡Vamos!" },
   happy:     { color: "#22c55e", glow: "#22c55e20", label: "¡Sí!" },
-  proud:     { color: "#facc15", glow: "#facc1520", label: "¡Bestia!" },
+  proud:     { color: "#FBBF24", glow: "#FBBF2420", label: "¡Bestia!" },
   warning:   { color: "#f97316", glow: "#f9731620", label: "¡Ey!" },
   shocked:   { color: "#ef4444", glow: "#ef444420", label: "¡Oye!" },
   chill:     { color: "#86efac", glow: "#86efac20", label: "Tranqui" },

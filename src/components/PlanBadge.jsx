@@ -6,7 +6,7 @@ import { usePlan } from "./usePlan";
 const PLAN_STYLE = {
   guest: { label: "INVITADO", bg: "#333",       color: "#aaa",    icon: "👤" },
   free:  { label: "FREE",     bg: "#1a1a1a",    color: "#aaa",    icon: null },
-  pro:   { label: "PRO",      bg: "#e8ff00",    color: "#000",    icon: "⚡" },
+  pro:   { label: "PRO",      bg: "#CFFF4D",    color: "#000",    icon: "⚡" },
   coach: { label: "COACH",    bg: "#8b5cf6",    color: "#fff",    icon: "🎯" },
   gym:   { label: "GYM",      bg: "#f97316",    color: "#fff",    icon: "🏋️" },
 };

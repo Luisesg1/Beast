@@ -60,14 +60,14 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
     return (
       <div onClick={onProClick} style={{
         marginBottom: 20,
-        background: "linear-gradient(135deg, rgba(232,255,0,0.07) 0%, rgba(232,255,0,0.03) 100%)",
-        border: "1px solid rgba(232,255,0,0.2)",
+        background: "linear-gradient(135deg, rgba(207,255,77,0.07) 0%, rgba(207,255,77,0.03) 100%)",
+        border: "1px solid rgba(207,255,77,0.2)",
         borderRadius: 16, padding: 16, cursor: "pointer",
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ background:"rgba(232,255,0,0.15)", border:"1px solid rgba(232,255,0,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>PRO</span>
+            <span style={{ background:"rgba(207,255,77,0.15)", border:"1px solid rgba(207,255,77,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>PRO</span>
             <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
           </div>
           <div style={{ fontSize:12, color:"var(--text-muted)" }}>Gráficos · Radar muscular · Metas · Alertas</div>
@@ -103,14 +103,14 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
   return (
     <div style={{
       marginBottom: 20,
-      background: "linear-gradient(135deg, rgba(232,255,0,0.07) 0%, rgba(232,255,0,0.03) 100%)",
-      border: "1px solid rgba(232,255,0,0.2)",
+      background: "linear-gradient(135deg, rgba(207,255,77,0.07) 0%, rgba(207,255,77,0.03) 100%)",
+      border: "1px solid rgba(207,255,77,0.2)",
       borderRadius: 16, padding: 16,
     }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ background:"rgba(232,255,0,0.15)", border:"1px solid rgba(232,255,0,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>PRO</span>
+            <span style={{ background:"rgba(207,255,77,0.15)", border:"1px solid rgba(207,255,77,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>PRO</span>
             <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
           </div>
           <div style={{ fontSize:12, color:"var(--text-muted)" }}>Gráficos · Radar muscular · Metas · Alertas</div>
@@ -122,7 +122,7 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
         {/* Botón principal — hazte pro */}
         <button onClick={onProClick} style={{
           flex: 2, padding:"10px 0", borderRadius:10,
-          background:"#e8ff00", border:"none",
+          background:"#CFFF4D", border:"none",
           fontFamily:"Barlow Condensed, sans-serif",
           fontSize:13, fontWeight:900, color:"#000",
           letterSpacing:1, cursor:"pointer",

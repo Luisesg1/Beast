@@ -5,9 +5,9 @@ function ProBadge() {
   return (
     <span style={{
       display: "inline-block",
-      background: "rgba(232,255,0,0.12)",
-      border: "1px solid rgba(232,255,0,0.35)",
-      color: "#e8ff00", fontSize: 9, fontWeight: 800,
+      background: "rgba(207,255,77,0.12)",
+      border: "1px solid rgba(207,255,77,0.35)",
+      color: "#CFFF4D", fontSize: 9, fontWeight: 800,
       letterSpacing: 1, padding: "2px 7px",
       borderRadius: 20, marginLeft: 6,
       verticalAlign: "middle", textTransform: "uppercase",
@@ -76,18 +76,18 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
             <div style={{ position: "relative" }}>
               <div style={{
                 position: "absolute", inset: -16, borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(232,255,0,0.12) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(207,255,77,0.12) 0%, transparent 70%)",
               }} />
               <img src={beastHype} alt="Beast" style={{
                 width: 110, height: 110, objectFit: "contain",
-                filter: "drop-shadow(0 0 16px rgba(232,255,0,0.4))",
+                filter: "drop-shadow(0 0 16px rgba(207,255,77,0.4))",
                 position: "relative", zIndex: 1,
               }} />
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {[
-              { icon: "⚡", label: "Entrena en vivo", color: "#e8ff00" },
+              { icon: "⚡", label: "Entrena en vivo", color: "#CFFF4D" },
               { icon: "📈", label: "Sigue tu progreso", color: "#22c55e" },
               { icon: "🏆", label: "Rompe tus PRs", color: "#f59e0b" },
               { icon: "👥", label: "Compite con amigos", color: "#3b82f6" },
@@ -134,7 +134,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
               );
             })}
           </div>
-          <div style={{ background: "rgba(232,255,0,0.05)", border: "1px solid rgba(232,255,0,0.12)", borderRadius: 12, padding: "12px 16px", textAlign: "center", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+          <div style={{ background: "rgba(207,255,77,0.05)", border: "1px solid rgba(207,255,77,0.12)", borderRadius: 12, padding: "12px 16px", textAlign: "center", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
             {selectedGoal <= 2 && "💡 Perfecto para comenzar. La consistencia es lo que importa."}
             {selectedGoal === 3 && "💡 3 días es ideal para recuperarse bien y progresar."}
             {selectedGoal === 4 && "💡 El clásico. 4 días es el punto ideal para la mayoría."}
@@ -182,9 +182,9 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
       content: (
         <div style={{ marginTop: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-            <div style={{ background: "rgba(232,255,0,0.06)", border: "1px solid rgba(232,255,0,0.2)", borderRadius: 12, padding: 14 }}>
+            <div style={{ background: "rgba(207,255,77,0.06)", border: "1px solid rgba(207,255,77,0.2)", borderRadius: 12, padding: 14 }}>
               <div style={{ fontSize: 24, marginBottom: 6 }}>⚡</div>
-              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 800, fontSize: 14, color: "#e8ff00", marginBottom: 4, letterSpacing: 1 }}>EN VIVO</div>
+              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 800, fontSize: 14, color: "#CFFF4D", marginBottom: 4, letterSpacing: 1 }}>EN VIVO</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.6 }}>Timer automático, marca series mientras entrenas, PRs al instante.</div>
             </div>
             <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 12, padding: 14 }}>
@@ -251,7 +251,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
           <FeatureRow icon="🤖" label="Coach IA ilimitado" pro />
           <FeatureRow icon="📸" label="Análisis de foto corporal con IA — feedback personalizado" pro />
           <FeatureRow icon="🎬" label="Ve un video y obtén 1 hora de stats avanzadas o un intento extra de IA" />
-          <div style={{ background: "rgba(232,255,0,0.04)", border: "1px solid rgba(232,255,0,0.12)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+          <div style={{ background: "rgba(207,255,77,0.04)", border: "1px solid rgba(207,255,77,0.12)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
             💡 Los usuarios Pro tienen acceso ilimitado a todas las funciones de IA sin ver videos.
           </div>
         </div>
@@ -308,7 +308,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
       >
         {/* Progress bar */}
         <div style={{ height: 3, background: "rgba(255,255,255,0.06)" }}>
-          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #e8ff00, #84cc16)", transition: "width 0.4s ease", borderRadius: "0 2px 2px 0" }} />
+          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #CFFF4D, #84cc16)", transition: "width 0.4s ease", borderRadius: "0 2px 2px 0" }} />
         </div>
 
         <div style={{ padding: "24px 24px 20px" }}>
@@ -318,7 +318,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
               {steps.map((_, i) => (
                 <div key={i} style={{
                   width: i === step ? 20 : 6, height: 6, borderRadius: 10,
-                  background: i === step ? "#e8ff00" : i < step ? "rgba(232,255,0,0.4)" : "rgba(255,255,255,0.08)",
+                  background: i === step ? "#CFFF4D" : i < step ? "rgba(207,255,77,0.4)" : "rgba(255,255,255,0.08)",
                   transition: "all 0.3s",
                 }} />
               ))}
@@ -333,7 +333,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
             {current.emoji && (
               <div style={{
                 fontSize: 44, marginBottom: 12,
-                filter: "drop-shadow(0 0 12px rgba(232,255,0,0.3))",
+                filter: "drop-shadow(0 0 12px rgba(207,255,77,0.3))",
               }}>{current.emoji}</div>
             )}
             <div style={{
@@ -366,11 +366,11 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
               onClick={() => isLast ? onComplete() : setStep(s => s + 1)}
               style={{
                 flex: 2, padding: "13px 0", borderRadius: 10, border: "none",
-                background: "#e8ff00", color: "#0a0a0a",
+                background: "#CFFF4D", color: "#0E0F13",
                 fontFamily: "Barlow Condensed, sans-serif",
                 fontWeight: 900, fontSize: 15, letterSpacing: 1,
                 cursor: "pointer", textTransform: "uppercase",
-                boxShadow: "0 0 20px rgba(232,255,0,0.2)",
+                boxShadow: "0 0 20px rgba(207,255,77,0.2)",
                 transition: "all 0.2s",
               }}>
               {isLast ? "¡COMENZAR! 💪" : "SIGUIENTE →"}

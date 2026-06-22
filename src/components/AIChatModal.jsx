@@ -249,11 +249,11 @@ function BruxAvatar({ size = 32 }) {
       {/* Face screen */}
       <rect x="34" y="18" width="32" height="22" rx="4" fill="#16a34a"/>
       {/* Eyes */}
-      <rect x="37" y="21" width="10" height="7" rx="2" fill="#e8ff00"/>
-      <rect x="53" y="21" width="10" height="7" rx="2" fill="#e8ff00"/>
+      <rect x="37" y="21" width="10" height="7" rx="2" fill="#CFFF4D"/>
+      <rect x="53" y="21" width="10" height="7" rx="2" fill="#CFFF4D"/>
       {/* Pupils */}
-      <rect x="40" y="23" width="4" height="3" rx="1" fill="#0a0a0a"/>
-      <rect x="56" y="23" width="4" height="3" rx="1" fill="#0a0a0a"/>
+      <rect x="40" y="23" width="4" height="3" rx="1" fill="#0E0F13"/>
+      <rect x="56" y="23" width="4" height="3" rx="1" fill="#0E0F13"/>
       {/* Mouth grill */}
       <rect x="38" y="31" width="24" height="7" rx="2" fill="#0a1a0f"/>
       <line x1="40" y1="33" x2="60" y2="33" stroke="#22c55e" strokeWidth="0.8" opacity="0.8"/>
@@ -265,8 +265,8 @@ function BruxAvatar({ size = 32 }) {
       <rect x="32" y="88" width="16" height="10" rx="3" fill="#141414" stroke="#1e1e1e" strokeWidth="0.8"/>
       <rect x="52" y="88" width="16" height="10" rx="3" fill="#141414" stroke="#1e1e1e" strokeWidth="0.8"/>
       {/* Boots */}
-      <rect x="30" y="96" width="20" height="4" rx="2" fill="#e8ff00" opacity="0.7"/>
-      <rect x="50" y="96" width="20" height="4" rx="2" fill="#e8ff00" opacity="0.7"/>
+      <rect x="30" y="96" width="20" height="4" rx="2" fill="#CFFF4D" opacity="0.7"/>
+      <rect x="50" y="96" width="20" height="4" rx="2" fill="#CFFF4D" opacity="0.7"/>
     </svg>
   );
 }
@@ -455,8 +455,8 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
             {!isPro && (
               <div style={{
                 fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
-                background: adWatched ? "rgba(34,197,94,0.15)" : remaining > 0 ? "rgba(232,255,0,0.1)" : "rgba(239,68,68,0.1)",
-                border: `1px solid ${adWatched ? "rgba(34,197,94,0.4)" : remaining > 0 ? "rgba(232,255,0,0.3)" : "rgba(239,68,68,0.3)"}`,
+                background: adWatched ? "rgba(34,197,94,0.15)" : remaining > 0 ? "rgba(207,255,77,0.1)" : "rgba(239,68,68,0.1)",
+                border: `1px solid ${adWatched ? "rgba(34,197,94,0.4)" : remaining > 0 ? "rgba(207,255,77,0.3)" : "rgba(239,68,68,0.3)"}`,
                 color: adWatched ? "#22c55e" : remaining > 0 ? "var(--accent)" : "#ef4444",
               }}>
                 {adWatched ? "✅ 1 consulta disponible" : remaining > 0 ? `${remaining} consultas restantes` : "Sin consultas hoy"}
@@ -521,7 +521,7 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
                   borderRadius: m.role === "user" ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
                   padding: "10px 14px",
                   fontSize: 14, lineHeight: 1.5,
-                  color: m.role === "user" ? "#0a0a0a" : "var(--text)",
+                  color: m.role === "user" ? "#0E0F13" : "var(--text)",
                   fontWeight: m.role === "user" ? 600 : 400,
                 }}>
                   {m.role === "assistant" ? renderMessage(stripRoutineJson(m.text)) : m.text}
@@ -537,9 +537,9 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
                           style={{
                             padding: "10px 16px", borderRadius: 12, border: "none",
                             background: "linear-gradient(135deg, var(--accent), #b8e600)",
-                            color: "#0a0a0a", fontWeight: 800, fontSize: 13,
+                            color: "#0E0F13", fontWeight: 800, fontSize: 13,
                             cursor: "pointer", display: "flex", alignItems: "center",
-                            gap: 6, boxShadow: "0 4px 12px rgba(232,255,0,0.3)",
+                            gap: 6, boxShadow: "0 4px 12px rgba(207,255,77,0.3)",
                           }}
                         >
                           💪 Entrenar ahora
@@ -632,7 +632,7 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
               <button onClick={() => setShowAdPrompt(false)} style={{
                 flex: 1, padding: "9px 0", borderRadius: 10, cursor: "pointer",
                 background: "var(--accent)", border: "none",
-                color: "#0a0a0a", fontWeight: 800, fontSize: 13,
+                color: "#0E0F13", fontWeight: 800, fontSize: 13,
               }}>
                 Pro ✨
               </button>
@@ -662,7 +662,7 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
             style={{
               width: 44, height: 44, borderRadius: 12, border: "none",
               background: input.trim() && !loading ? "var(--accent)" : "var(--input-bg)",
-              color: input.trim() && !loading ? "#0a0a0a" : "var(--text-muted)",
+              color: input.trim() && !loading ? "#0E0F13" : "var(--text-muted)",
               cursor: loading ? "not-allowed" : "pointer",
               fontSize: 18, flexShrink: 0, transition: "all 0.15s",
               display: "flex", alignItems: "center", justifyContent: "center",

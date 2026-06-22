@@ -182,8 +182,8 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
                       <span style={{ fontSize:9, color:"var(--text-muted)", fontWeight:700 }}>{viewLabels[view].split(" ")[0]}</span>
                     </div>
                     <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                      <div style={{ width:16, height:2, background:"rgba(232,255,0,0.6)", borderRadius:2, borderTop:"1px dashed rgba(232,255,0,0.6)" }}/>
-                      <span style={{ fontSize:9, color:"rgba(232,255,0,0.6)", fontWeight:700 }}>RPE</span>
+                      <div style={{ width:16, height:2, background:"rgba(207,255,77,0.6)", borderRadius:2, borderTop:"1px dashed rgba(207,255,77,0.6)" }}/>
+                      <span style={{ fontSize:9, color:"rgba(207,255,77,0.6)", fontWeight:700 }}>RPE</span>
                     </div>
                   </div>
                 )}
@@ -213,20 +213,20 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
                   {hasRpe && <>
                     <polyline
                       points={rpePoints.map(p=>`${px(p.i)},${pyRpe(p.v)}`).join(" ")}
-                      fill="none" stroke="rgba(232,255,0,0.55)" strokeWidth={1.8}
+                      fill="none" stroke="rgba(207,255,77,0.55)" strokeWidth={1.8}
                       strokeDasharray="5 3" strokeLinecap="round" strokeLinejoin="round"
                     />
                     {rpePoints.map(p => (
                       <g key={p.i}>
-                        <circle cx={px(p.i)} cy={pyRpe(p.v)} r={3} fill="rgba(232,255,0,0.8)" stroke="var(--card)" strokeWidth={1}/>
+                        <circle cx={px(p.i)} cy={pyRpe(p.v)} r={3} fill="rgba(207,255,77,0.8)" stroke="var(--card)" strokeWidth={1}/>
                         {(p.i === rpePoints[rpePoints.length-1].i) && (
-                          <text x={px(p.i)+6} y={pyRpe(p.v)+3} fill="rgba(232,255,0,0.7)" fontSize={8} fontWeight={800}>{p.v}</text>
+                          <text x={px(p.i)+6} y={pyRpe(p.v)+3} fill="rgba(207,255,77,0.7)" fontSize={8} fontWeight={800}>{p.v}</text>
                         )}
                       </g>
                     ))}
                     {/* Eje Y derecho para RPE */}
                     {[minRpe, maxRpe].map((v,i) => (
-                      <text key={i} x={W+6} y={pyRpe(v)+3} textAnchor="start" fill="rgba(232,255,0,0.4)" fontSize={8}>{v}</text>
+                      <text key={i} x={W+6} y={pyRpe(v)+3} textAnchor="start" fill="rgba(207,255,77,0.4)" fontSize={8}>{v}</text>
                     ))}
                   </>}
                 </svg>
@@ -259,15 +259,15 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
               ? rpeLast > rpeAll[0] ? "#f87171" : rpeLast < rpeAll[0] ? "#22c55e" : "var(--text-muted)"
               : "var(--text-muted)";
             return (
-              <div style={{ background:"rgba(232,255,0,0.04)", border:"1px solid rgba(232,255,0,0.2)", borderRadius:10, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:14 }}>
+              <div style={{ background:"rgba(207,255,77,0.04)", border:"1px solid rgba(207,255,77,0.2)", borderRadius:10, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:14 }}>
                 <div style={{ textAlign:"center" }}>
                   <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, color:"var(--accent)" }}>{rpeLast ?? rpeAvg}</div>
-                  <div style={{ fontSize:9, color:"rgba(232,255,0,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>RPE última</div>
+                  <div style={{ fontSize:9, color:"rgba(207,255,77,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>RPE última</div>
                 </div>
                 <div style={{ width:1, height:32, background:"var(--border)" }}/>
                 <div style={{ textAlign:"center" }}>
-                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, color:"rgba(232,255,0,0.6)" }}>{rpeAvg}</div>
-                  <div style={{ fontSize:9, color:"rgba(232,255,0,0.4)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>RPE prom.</div>
+                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, color:"rgba(207,255,77,0.6)" }}>{rpeAvg}</div>
+                  <div style={{ fontSize:9, color:"rgba(207,255,77,0.4)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>RPE prom.</div>
                 </div>
                 {rpeTrend && <>
                   <div style={{ width:1, height:32, background:"var(--border)" }}/>
@@ -287,7 +287,7 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
                   <span style={{ color:"var(--text-muted)", minWidth:70 }}>{fmtDate(h.date)}</span>
                   <span style={{ flex:1, color:"var(--text)" }}>{h.weight}kg × {h.reps} reps</span>
                   <span style={{ color:"#f59e0b", fontWeight:700, minWidth:60, textAlign:"right" }}>1RM {h.rm}kg</span>
-                  {h.avgRpe !== null && <span style={{ fontSize:10, color:"rgba(232,255,0,0.7)", fontWeight:700, marginLeft:6 }}>@{h.avgRpe}</span>}
+                  {h.avgRpe !== null && <span style={{ fontSize:10, color:"rgba(207,255,77,0.7)", fontWeight:700, marginLeft:6 }}>@{h.avgRpe}</span>}
                   {improved && <span style={{ fontSize:10, color:"#22c55e", marginLeft:8 }}>↑</span>}
                   {h===prEntry && <span style={{ fontSize:10, background:"rgba(245,158,11,0.15)", color:"#f59e0b", borderRadius:4, padding:"1px 5px", marginLeft:6, fontWeight:800 }}>PR</span>}
                 </div>
