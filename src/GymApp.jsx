@@ -1546,27 +1546,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             );
           })()}
 
-          {/* ── BRUX + LAS DOS TARJETAS PRINCIPALES ── */}
-          <BeastMascot
-            sessions={sessions}
-            todayPlanned={todayPlanned}
-            streak={currentStreak}
-            onStartSession={(muscle, suggestedExercises) => {
-              setExMuscle(muscle);
-              setSessionMode("live");
-              const name = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
-              setWorkout(name);
-              if (suggestedExercises && suggestedExercises.length > 0) {
-                setCurrentExercises(suggestedExercises.map(ex => ({
-                  id: uid(), name: ex.name, muscle: ex.muscle,
-                  sets: [{ id: uid(), weight: "", reps: "" }],
-                  weight: "", reps: "", notes: "",
-                })));
-              }
-            }}
-            inNewSession={true}
-          />
-
+          {/* ── ACCIONES PRINCIPALES (el entrenamiento manda) ── */}
           <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14, fontFamily: "Barlow Condensed, sans-serif" }}>
             ¿Qué quieres hacer?
           </div>
@@ -1579,12 +1559,11 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               style={{
                 background: "#DFFF00",
                 border: "none",
-                borderRadius: 8, padding: "24px 16px", cursor: "pointer",
+                borderRadius: 16, padding: "24px 16px", cursor: "pointer",
                 textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
-                boxShadow: "0 0 30px rgba(223,255,0,0.2)",
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 32px rgba(223,255,0,0.4)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 0 30px rgba(223,255,0,0.2)"; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "none"; }}
             >
               <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
               <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "#09090B", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
@@ -1599,9 +1578,9 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <button
               onClick={() => { if (isGuest && !canAdd) { setGuestLimitModal("register"); return; } setSessionMode("register"); }}
               style={{
-                background: "var(--input-bg)",
-                border: "2px solid var(--border)",
-                borderRadius: 8, padding: "24px 16px", cursor: "pointer",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 16, padding: "24px 16px", cursor: "pointer",
                 textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.background = "var(--accent-dim)"; }}
@@ -1636,6 +1615,29 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 <span>{btn.icon}</span> {btn.label}
               </button>
             ))}
+          </div>
+
+          {/* ── BRUX — motivación al final, ya no domina el inicio ── */}
+          <div style={{ marginTop: 24 }}>
+            <BeastMascot
+              sessions={sessions}
+              todayPlanned={todayPlanned}
+              streak={currentStreak}
+              onStartSession={(muscle, suggestedExercises) => {
+                setExMuscle(muscle);
+                setSessionMode("live");
+                const name = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
+                setWorkout(name);
+                if (suggestedExercises && suggestedExercises.length > 0) {
+                  setCurrentExercises(suggestedExercises.map(ex => ({
+                    id: uid(), name: ex.name, muscle: ex.muscle,
+                    sets: [{ id: uid(), weight: "", reps: "" }],
+                    weight: "", reps: "", notes: "",
+                  })));
+                }
+              }}
+              inNewSession={true}
+            />
           </div>
         </div>
       )}
