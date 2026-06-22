@@ -6,9 +6,9 @@ import { StreakRiskBanner } from "./StreakWidgets";
 import BeastMascot from "./BeastMascot";
 import { MuscleBalance } from "./ProgressWidgets";
 import WeekComparison from "./WeekComparison";
-import { Dumbbell, ClipboardList, BookOpen, Sparkles, ChevronRight, Trophy } from "lucide-react";
+import { Dumbbell, ClipboardList, BookOpen, Sparkles, ChevronRight, Trophy, Calculator, FileText } from "lucide-react";
 
-export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat, todayPlanned = "", plannedExCount = 0, onStartPlanned, embedded = false }) {
+export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat, todayPlanned = "", plannedExCount = 0, onStartPlanned, embedded = false, onOneRM, onTemplates }) {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const weeklyTarget = weeklyGoal?.target || 3;
   const streak = getStreak(sessions, weeklyTarget);
@@ -91,18 +91,18 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
         <div>
           <div style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>Hola, {firstName} 👋</div>
-          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:800, lineHeight:1.1, letterSpacing:0.5 }}>
+          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:600, lineHeight:1.1, letterSpacing:0.5 }}>
             ¿Listo para entrenar?
           </div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={onOpenStreak} style={{ ...CARD, padding:"7px 11px", display:"flex", alignItems:"center", gap:5, cursor:"pointer" }}>
             <span style={{ fontSize:14 }}>🔥</span>
-            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontWeight:800, fontSize:16, color: streak>0 ? "#f97316" : "var(--text-muted)" }}>{streak}</span>
+            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontWeight:600, fontSize:16, color: streak>0 ? "#f97316" : "var(--text-muted)" }}>{streak}</span>
           </button>
           <button onClick={() => onGoalClick && onGoalClick("goal")} style={{ ...CARD, padding:"7px 11px", display:"flex", alignItems:"center", gap:5, cursor:"pointer" }}>
             <span style={{ fontSize:14 }}>🎯</span>
-            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontWeight:800, fontSize:16 }}>{sessionsThisWeek}/{weeklyTarget}</span>
+            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontWeight:600, fontSize:16 }}>{sessionsThisWeek}/{weeklyTarget}</span>
           </button>
         </div>
       </div>
@@ -120,10 +120,10 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
       {!embedded && (
       <div style={{ ...CARD, padding:0, overflow:"hidden", borderColor: (showCoach || showPlanned) ? "var(--accent)" : "var(--border)" }}>
         <div style={{ padding:"16px 18px" }}>
-          <div style={{ fontSize:10, fontWeight:800, letterSpacing:2, textTransform:"uppercase", color:"var(--accent)", marginBottom:8, fontFamily:"Barlow Condensed, sans-serif" }}>
+          <div style={{ fontSize:10, fontWeight:600, letterSpacing:2, textTransform:"uppercase", color:"var(--accent)", marginBottom:8, fontFamily:"Barlow Condensed, sans-serif" }}>
             {mainKicker}
           </div>
-          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:900, lineHeight:1, textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>
+          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:30, fontWeight:700, lineHeight:1, textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>
             {mainTitle}
           </div>
           <div style={{ display:"flex", gap:14, color:"var(--text-muted)", fontSize:13, fontWeight:500, marginBottom:16 }}>
@@ -138,7 +138,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
           ) : (
             <button
               onClick={mainAction}
-              style={{ width:"100%", background:"var(--accent)", border:"none", borderRadius:12, color:"#09090B", fontFamily:"Barlow Condensed, sans-serif", fontWeight:900, fontSize:17, letterSpacing:1.5, textTransform:"uppercase", padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+              style={{ width:"100%", background:"var(--accent)", border:"none", borderRadius:12, color:"#09090B", fontFamily:"Barlow Condensed, sans-serif", fontWeight:700, fontSize:17, letterSpacing:1.5, textTransform:"uppercase", padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
             >
               <Dumbbell size={19} strokeWidth={2.5} /> {showCoach || showPlanned ? "Continuar entrenamiento" : "Empezar a entrenar"}
             </button>
@@ -158,7 +158,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
           <div key={i} onClick={s.onClick} style={{ ...CARD, padding:"14px 16px", cursor:s.onClick?"pointer":"default", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ fontSize:22 }}>{s.icon}</span>
             <div style={{ minWidth:0 }}>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, lineHeight:1, color:"var(--text)" }}>{s.value}</div>
+              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:700, lineHeight:1, color:"var(--text)" }}>{s.value}</div>
               <div style={{ fontSize:10.5, color:"var(--text-muted)", fontWeight:600, marginTop:3 }}>{s.label}</div>
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
 
       {/* ══ PROGRESO SEMANAL ══════════════════════════════════════════════════ */}
       <div style={{ ...CARD, padding:"16px 18px" }}>
-        <div style={{ fontSize:10, fontWeight:800, letterSpacing:2, textTransform:"uppercase", color:"var(--text-muted)", marginBottom:14, fontFamily:"Barlow Condensed, sans-serif" }}>
+        <div style={{ fontSize:10, fontWeight:600, letterSpacing:2, textTransform:"uppercase", color:"var(--text-muted)", marginBottom:14, fontFamily:"Barlow Condensed, sans-serif" }}>
           Esta semana
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:4 }}>
@@ -177,7 +177,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
             { value: weekMinutes > 0 ? weekMinutes : "—", label:"minutos" },
           ].map((s, i) => (
             <div key={i} style={{ textAlign:"center" }}>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:900, color:"var(--accent)", lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:700, color:"var(--accent)", lineHeight:1 }}>{s.value}</div>
               <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600, marginTop:4 }}>{s.label}</div>
             </div>
           ))}
@@ -190,7 +190,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
         <button onClick={onInsightsClick} style={{ ...CARD, padding:"13px 16px", display:"flex", alignItems:"center", gap:12, cursor:"pointer", textAlign:"left", width:"100%" }}>
           <span style={{ fontSize:20, flexShrink:0 }}>🤖</span>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:11, fontWeight:800, color:"var(--accent)", letterSpacing:1, textTransform:"uppercase", marginBottom:2 }}>Recomendación del día</div>
+            <div style={{ fontSize:11, fontWeight:600, color:"var(--accent)", letterSpacing:1, textTransform:"uppercase", marginBottom:2 }}>Recomendación del día</div>
             <div style={{ fontSize:13, color:"var(--text)", fontWeight:500, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{topInsight.title}</div>
           </div>
           <ChevronRight size={18} color="var(--text-muted)" style={{ flexShrink:0 }} />
@@ -199,21 +199,29 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
 
       {/* ══ ACCIONES RÁPIDAS — grid 2x2 ═══════════════════════════════════════ */}
       <div>
-        <div style={{ fontSize:10, fontWeight:800, letterSpacing:2, textTransform:"uppercase", color:"var(--text-muted)", marginBottom:10, fontFamily:"Barlow Condensed, sans-serif" }}>
+        <div style={{ fontSize:10, fontWeight:600, letterSpacing:2, textTransform:"uppercase", color:"var(--text-muted)", marginBottom:10, fontFamily:"Barlow Condensed, sans-serif" }}>
           Acciones rápidas
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          {[
-            { Icon: Dumbbell, label:"Entrenar", onClick:()=>onStartSession&&onStartSession("Todos") },
-            { Icon: ClipboardList, label:"Registrar", onClick:onRegisterSession },
-            { Icon: BookOpen, label:"Biblioteca", onClick:onLibrary },
-            { Icon: Sparkles, label:"IA Coach", onClick:onAIChat },
-          ].map(({ Icon, label, onClick }, i) => (
+          {(embedded
+            ? [
+                { Icon: BookOpen, label:"Biblioteca", onClick:onLibrary },
+                { Icon: Sparkles, label:"IA Coach", onClick:onAIChat },
+                { Icon: Calculator, label:"Calc. 1RM", onClick:onOneRM },
+                { Icon: FileText, label:"Plantillas", onClick:onTemplates },
+              ]
+            : [
+                { Icon: Dumbbell, label:"Entrenar", onClick:()=>onStartSession&&onStartSession("Todos") },
+                { Icon: ClipboardList, label:"Registrar", onClick:onRegisterSession },
+                { Icon: BookOpen, label:"Biblioteca", onClick:onLibrary },
+                { Icon: Sparkles, label:"IA Coach", onClick:onAIChat },
+              ]
+          ).filter(a => a.onClick).map(({ Icon, label, onClick }, i) => (
             <button key={i} onClick={onClick} style={{ ...CARD, padding:"16px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer", textAlign:"left" }}>
               <span style={{ width:38, height:38, borderRadius:10, background:"var(--accent-dim)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <Icon size={20} color="var(--accent)" strokeWidth={2.2} />
               </span>
-              <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontWeight:800, fontSize:16, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</span>
+              <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontWeight:600, fontSize:16, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</span>
             </button>
           ))}
         </div>
@@ -226,10 +234,10 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
             <Trophy size={22} color="var(--accent)" />
           </span>
           <div style={{ flex:1 }}>
-            <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:900, lineHeight:1, textTransform:"uppercase" }}>Nivel {level}</div>
+            <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:700, lineHeight:1, textTransform:"uppercase" }}>Nivel {level}</div>
             <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>{xpInLevel}/10 entrenos al siguiente nivel{newBadgesCount > 0 ? ` · ${newBadgesCount} logro${newBadgesCount>1?"s":""} nuevo${newBadgesCount>1?"s":""}` : ""}</div>
           </div>
-          {newBadgesCount > 0 && <span style={{ background:"var(--accent)", color:"#09090B", fontWeight:900, fontSize:11, borderRadius:20, padding:"2px 9px" }}>{newBadgesCount} 🆕</span>}
+          {newBadgesCount > 0 && <span style={{ background:"var(--accent)", color:"#09090B", fontWeight:700, fontSize:11, borderRadius:20, padding:"2px 9px" }}>{newBadgesCount} 🆕</span>}
         </div>
         <div style={{ height:8, background:"var(--input-bg)", borderRadius:20, overflow:"hidden" }}>
           <div style={{ width:`${xpPct}%`, height:"100%", background:"var(--accent)", borderRadius:20, transition:"width 0.4s ease" }} />
@@ -243,7 +251,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
       {recentSessions.length > 0 && (
         <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <span style={{ fontSize:10, fontWeight:800, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", fontFamily:"Barlow Condensed, sans-serif" }}>Actividad reciente</span>
+            <span style={{ fontSize:10, fontWeight:600, letterSpacing:2, color:"var(--text-muted)", textTransform:"uppercase", fontFamily:"Barlow Condensed, sans-serif" }}>Actividad reciente</span>
             <button onClick={() => typeof onGoalClick === "function" && onGoalClick("history")} style={{ background:"none", border:"none", color:"var(--accent)", fontSize:11, fontWeight:700, cursor:"pointer", padding:0 }}>Ver todo →</button>
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -255,7 +263,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
               return (
                 <div key={s.id} style={{ ...CARD, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:16, fontWeight:800, color:"var(--text)" }}>{s.workout || "Sesión"}</div>
+                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:16, fontWeight:600, color:"var(--text)" }}>{s.workout || "Sesión"}</div>
                     <div style={{ fontSize:11, color:"var(--text-muted)", display:"flex", gap:10, marginTop:2 }}>
                       <span>{dateLabel}</span>
                       {(s.exercises||[]).length > 0 && <span>{(s.exercises||[]).length} ejerc.</span>}
@@ -275,7 +283,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
       <button onClick={onMuscleMapClick} style={{ ...CARD, padding:"14px 18px", cursor:"pointer", display:"flex", alignItems:"center", gap:14, textAlign:"left", width:"100%" }}>
         <span style={{ fontSize:24 }}>💪</span>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:15, fontWeight:800, textTransform:"uppercase", letterSpacing:0.5 }}>Mapa muscular</div>
+          <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:15, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Mapa muscular</div>
           <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>Volumen y recuperación por músculo</div>
         </div>
         <ChevronRight size={18} color="var(--text-muted)" />

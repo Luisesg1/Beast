@@ -17,6 +17,7 @@ import TemplatesModal from "./components/TemplatesModal";
 import { calc1RM, calcSessionVolume, detectNewPRs, getStreak, getPRs, getWeeklyChallenge, addShield } from "./utils/gymCalcs";
 import { track } from "./utils/analytics";
 import NavIcon from "./components/NavIcon";
+import { Dumbbell, ClipboardList } from "lucide-react";
 import fireConfetti from "./utils/fireConfetti";
 import { GuestWall, EmailVerifyWall } from "./components/AuthWalls";
 import WeeklyGoalModal from "./components/WeeklyGoalModal";
@@ -1545,9 +1546,35 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             );
           })()}
 
+          {/* ══ ACCIÓN PRINCIPAL — Entrenar / Registrar en vivo ══════════════ */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:18 }}>
+            <button
+              onClick={() => { if (isGuest && !canAdd) { setGuestLimitModal("live"); return; } setWorkout(""); setShowNameModal(true); }}
+              style={{ background:"var(--accent)", border:"none", borderRadius:16, padding:"20px 14px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:10 }}
+            >
+              <Dumbbell size={26} color="#09090B" strokeWidth={2.4} />
+              <div>
+                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:19, fontWeight:700, color:"#09090B", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Entrenar</div>
+                <div style={{ fontSize:11, color:"rgba(0,0,0,0.55)", marginTop:4 }}>En vivo · timer · series</div>
+              </div>
+            </button>
+            <button
+              onClick={() => { if (isGuest && !canAdd) { setGuestLimitModal("register"); return; } setSessionMode("register"); }}
+              style={{ background:"var(--card)", border:"1px solid var(--border)", borderRadius:16, padding:"20px 14px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:10 }}
+            >
+              <ClipboardList size={26} color="var(--accent)" strokeWidth={2.2} />
+              <div>
+                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:19, fontWeight:700, color:"var(--text)", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Registrar</div>
+                <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>Ya entrenaste · guárdalo</div>
+              </div>
+            </button>
+          </div>
+
           {/* ══ HOME UNIFICADO — Dashboard premium embebido ══════════════════ */}
           <Dashboard
             embedded
+            onOneRM={() => setShowOneRM(true)}
+            onTemplates={() => setShowTemplates(true)}
             sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal}
             user={user} isPro={isPro} newBadgesCount={newBadgesCount}
             coachRoutines={coachRoutines}
