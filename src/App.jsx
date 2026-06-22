@@ -1,5 +1,5 @@
 import "./styles.css";
-import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { useState, useEffect, useRef, useMemo, createContext, useContext } from "react";
 import LoginScreen from "./components/LoginScreen";
 import ResetPasswordScreen from "./components/ResetPasswordScreen";
 import { AuthCtx } from "./components/AuthContext";
@@ -53,93 +53,184 @@ function BruxAvatar({ size = 32 }) {
   );
 }
 
-function SplashScreen({ splashPhrase }) {
-    const _matrixPhrases = [
-      "NO HAY EXCUSAS","DALE DURO","ROMPE TUS LÍMITES","SIN DOLOR NO HAY GLORIA",
-      "ENTRENA COMO BESTIA","UN DÍA MÁS","TÚ PUEDES MÁS","MODO HARDCORE",
-      "CADA REP CUENTA","NO TE RINDAS","SUPERA TUS MARCAS","MÁS PESO",
-      "CONSTANCIA ES CLAVE","SUDOR Y SACRIFICIO","NUNCA PARES","SUBE EL PESO",
-      "HOY MÁS QUE AYER","SIN LÍMITES","DESTRUYE EL LÍMITE","FULL POWER",
-      "CERO EXCUSAS","ROMPE RECORDS","SANGRE Y HIERRO","BRUTAL",
-      "DROP SET","SUPERSET","FUERZA TOTAL","A TOPE","BEAST MODE",
-    ];
-    const _fixedPhrases = [
-      "NO PARES HASTA ESTAR ORGULLOSO",
-      "LA EXCUSA NO QUEMA CALORÍAS",
-      "EL GYM NO MIENTE",
-      "UN REP MÁS SIEMPRE",
-      "ROMPE EL LÍMITE QUE PUSISTE AYER",
-      "LA CONSTANCIA VENCE AL TALENTO",
-      "LA DISCIPLINA ES EL CAMINO",
-      "YEAH BUDDY!! 🏆",
-    ];
-    const _cols = Array.from({length: 7}, (_, ci) => ({
-      id: ci,
-      left: `${5 + ci * 13.5}%`,
-      delay: ci * 0.18,
-      duration: 2.8 + ci * 0.3,
-      phrases: Array.from({length: 6}, (_, i) => _matrixPhrases[(ci * 6 + i) % _matrixPhrases.length]),
-    }));
+function SplashScreen() {
+    // Partículas amarillas que flotan hacia arriba (energía). Generadas una sola vez.
+    const _particles = useMemo(() => Array.from({ length: 16 }, (_, i) => ({
+      id: i,
+      left: `${(i * 6.1 + (i % 3) * 4) % 100}%`,
+      size: 2 + (i % 3),
+      delay: (i % 8) * 0.35,
+      duration: 3.2 + (i % 5) * 0.6,
+      drift: (i % 2 === 0 ? 1 : -1) * (10 + (i % 4) * 8),
+    })), []);
+
     return (
-      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#09090B", flexDirection:"column", gap:0, overflow:"hidden", position:"relative" }}>
+      <div className="bs-root">
         <style>{`
-          @keyframes splashZoom {
-            0%   { transform: scale(0.85); opacity: 0; }
-            60%  { transform: scale(1.03); opacity: 1; }
-            100% { transform: scale(1);    opacity: 1; }
+          .bs-root {
+            min-height: 100vh; min-height: 100dvh;
+            display: flex; align-items: center; justify-content: center; flex-direction: column;
+            background: #09090B; position: relative; overflow: hidden;
+            -webkit-font-smoothing: antialiased;
           }
-          @keyframes splashFadeUp {
-            0%   { opacity: 0; transform: translateY(10px); }
-            100% { opacity: 1; transform: translateY(0); }
+          /* Halo de energía que nace del centro */
+          .bs-glow {
+            position: absolute; left: 50%; top: 44%;
+            width: 130vw; height: 130vw; max-width: 720px; max-height: 720px;
+            transform: translate(-50%, -50%) scale(0.6); transform-origin: center;
+            background: radial-gradient(circle, rgba(223,255,0,0.22) 0%, rgba(223,255,0,0.08) 28%, rgba(223,255,0,0) 62%);
+            opacity: 0; pointer-events: none;
+            animation: bsGlowIn 0.9s ease 0.3s forwards, bsGlowPulse 3.2s ease-in-out 1.3s infinite;
           }
-          @keyframes matrixFall {
-            0%   { transform: translateX(0); opacity: 0; }
-            5%   { opacity: 1; }
-            85%  { opacity: 0.8; }
-            100% { transform: translateX(220vw); opacity: 0; }
+          /* Vignette para enfocar al centro y dar profundidad premium */
+          .bs-vignette {
+            position: absolute; inset: 0; pointer-events: none;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 38%, rgba(0,0,0,0.55) 100%);
           }
-          .splash-logo { animation: splashZoom 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards; z-index:10; position:relative; }
-          .splash-sub  { animation: splashFadeUp 0.4s ease 0.6s both; }
+          .bs-particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+          .bs-particle {
+            position: absolute; bottom: -10px; border-radius: 50%;
+            background: #DFFF00; opacity: 0;
+            box-shadow: 0 0 6px rgba(223,255,0,0.8);
+            animation: bsFloat linear infinite;
+          }
+          .bs-stack { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 0 24px; }
+          /* Relámpago */
+          .bs-bolt {
+            width: clamp(40px, 13vw, 64px); height: auto; margin-bottom: 6px;
+            filter: drop-shadow(0 0 10px rgba(223,255,0,0.7));
+            opacity: 0; transform-origin: center;
+            animation: bsBoltStrike 0.55s cubic-bezier(0.2,0.8,0.2,1) 0.7s forwards, bsBoltPulse 2.4s ease-in-out 1.4s infinite;
+          }
+          /* Destello que acompaña la entrada del relámpago */
+          .bs-flash {
+            position: absolute; left: 50%; top: 0; width: 220px; height: 220px;
+            transform: translate(-50%, -40%) scale(0.4);
+            background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(223,255,0,0.4) 30%, rgba(223,255,0,0) 65%);
+            border-radius: 50%; opacity: 0; pointer-events: none;
+            animation: bsFlash 0.5s ease-out 0.75s forwards;
+          }
+          /* Wordmark BEAST con textura industrial sutil */
+          .bs-title {
+            font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+            font-size: clamp(64px, 24vw, 132px); line-height: 0.9;
+            letter-spacing: clamp(4px, 2.2vw, 10px); text-transform: uppercase;
+            color: #FFFFFF; text-align: center; white-space: nowrap; margin: 0;
+            position: relative;
+            text-shadow: 0 0 1px rgba(255,255,255,0.4);
+            -webkit-text-stroke: 0.4px rgba(255,255,255,0.15);
+          }
+          /* Capa de textura industrial (rayado fino) recortada al texto */
+          .bs-title::after {
+            content: "BEAST"; position: absolute; left: 0; top: 0; right: 0;
+            letter-spacing: inherit;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 3px, rgba(0,0,0,0.28) 4px, rgba(0,0,0,0) 5px);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent; color: transparent;
+            mix-blend-mode: multiply; pointer-events: none;
+          }
+          .bs-title-wrap {
+            opacity: 0; transform: translateY(14px);
+            animation: bsTitleReveal 0.7s cubic-bezier(0.2,0.7,0.2,1) 1.05s forwards;
+          }
+          .bs-rule { width: 0; height: 2px; background: #DFFF00; margin: 14px 0 0; border-radius: 1px;
+            box-shadow: 0 0 10px rgba(223,255,0,0.6);
+            animation: bsRule 0.5s ease 1.35s forwards; }
+          .bs-sub {
+            margin-top: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800;
+            font-size: clamp(12px, 3.6vw, 16px); letter-spacing: clamp(4px, 1.6vw, 7px);
+            text-transform: uppercase; color: #DFFF00; text-align: center;
+            opacity: 0; animation: bsSubGlow 0.9s ease 1.5s forwards;
+          }
+          /* Barra de progreso */
+          .bs-loader { position: absolute; bottom: clamp(48px, 12vh, 96px); left: 50%; transform: translateX(-50%);
+            width: min(78vw, 320px); z-index: 10; text-align: center;
+            opacity: 0; animation: bsFadeIn 0.5s ease 1.7s forwards; }
+          .bs-loader-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+            font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #A1A1AA; margin-bottom: 12px; }
+          .bs-track { position: relative; height: 4px; border-radius: 4px; background: #111827; overflow: hidden; }
+          .bs-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 4px;
+            background: linear-gradient(90deg, rgba(223,255,0,0.6), #DFFF00);
+            box-shadow: 0 0 12px rgba(223,255,0,0.7);
+            animation: bsBarFill 1s cubic-bezier(0.4,0,0.2,1) 1.75s forwards; }
+          .bs-fill::after { content: ""; position: absolute; inset: 0; width: 40%;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
+            animation: bsSheen 1.1s ease-in-out 1.85s infinite; }
+
+          @keyframes bsGlowIn { to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+          @keyframes bsGlowPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.62; } }
+          @keyframes bsFloat {
+            0% { transform: translateY(0) translateX(0); opacity: 0; }
+            12% { opacity: 0.9; }
+            85% { opacity: 0.5; }
+            100% { transform: translateY(-78vh) translateX(var(--bs-drift, 0px)); opacity: 0; }
+          }
+          @keyframes bsBoltStrike {
+            0% { opacity: 0; transform: scale(0.4) rotate(-4deg); }
+            55% { opacity: 1; transform: scale(1.12) rotate(2deg); }
+            100% { opacity: 1; transform: scale(1) rotate(0deg); }
+          }
+          @keyframes bsBoltPulse {
+            0%,100% { filter: drop-shadow(0 0 10px rgba(223,255,0,0.7)); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 18px rgba(223,255,0,1)); transform: scale(1.04); }
+          }
+          @keyframes bsFlash {
+            0% { opacity: 0; transform: translate(-50%, -40%) scale(0.4); }
+            35% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -40%) scale(1.4); }
+          }
+          @keyframes bsTitleReveal { to { opacity: 1; transform: translateY(0); } }
+          @keyframes bsRule { to { width: clamp(40px, 12vw, 64px); } }
+          @keyframes bsSubGlow {
+            0% { opacity: 0; text-shadow: 0 0 0 rgba(223,255,0,0); }
+            60% { opacity: 1; text-shadow: 0 0 22px rgba(223,255,0,0.85); }
+            100% { opacity: 1; text-shadow: 0 0 12px rgba(223,255,0,0.45); }
+          }
+          @keyframes bsFadeIn { to { opacity: 1; } }
+          @keyframes bsBarFill { to { width: 100%; } }
+          @keyframes bsSheen { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
+
+          @media (prefers-reduced-motion: reduce) {
+            .bs-glow, .bs-particles, .bs-flash { animation: none; }
+            .bs-glow { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+            .bs-particle { display: none; }
+            .bs-bolt, .bs-title-wrap, .bs-sub, .bs-loader { opacity: 1; transform: none; animation: none; }
+            .bs-rule { width: clamp(40px, 12vw, 64px); animation: none; }
+            .bs-fill { width: 100%; animation: none; }
+            .bs-fill::after { animation: none; }
+          }
         `}</style>
 
-        {_cols.map(col => (
-          <div key={col.id} style={{
-            position:"absolute", left:"-100%",
-            top: `${8 + col.id * 13}%`,
-            display:"flex", flexDirection:"row", alignItems:"center", gap:32,
-            animation: `matrixFall ${col.duration}s linear ${col.delay}s infinite`,
-            pointerEvents:"none",
-          }}>
-            {col.phrases.map((p, i) => (
-              <span key={i} style={{
-                fontFamily:"'Barlow Condensed',sans-serif",
-                fontSize: i % 2 === 0 ? 11 : 9,
-                fontWeight: 800,
-                letterSpacing: 3,
-                textTransform:"uppercase",
-                whiteSpace:"nowrap",
-                color: i === 0 ? "rgba(223,255,0,0.45)" : `rgba(223,255,0,${0.05 + i * 0.025})`,
-              }}>{p}</span>
-            ))}
-          </div>
-        ))}
-
-        <div className="splash-logo" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:0, width:"100%", padding:"0 16px" }}>
-          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:40, lineHeight:1, marginBottom:4 }}>⚡</div>
-          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:"clamp(28px, 9vw, 48px)", fontWeight:900, color:"#f0f0f0", letterSpacing:"clamp(4px, 2vw, 8px)", textTransform:"uppercase", textAlign:"center", whiteSpace:"nowrap" }}>BEAST</div>
-          <div style={{ width:32, height:2, background:"#DFFF00", marginTop:10, borderRadius:1 }} />
-          {((_f) => (
-            <div className="splash-sub" style={{ marginTop:12, textAlign:"center",
-              color: _f === "YEAH BUDDY!! 🏆" ? "#DFFF00" : "rgba(255,255,255,0.25)",
-              fontSize: _f === "YEAH BUDDY!! 🏆" ? 18 : 10,
-              fontWeight: 900, letterSpacing: _f === "YEAH BUDDY!! 🏆" ? 3 : 5,
-              textTransform:"uppercase",
-              textShadow: _f === "YEAH BUDDY!! 🏆" ? "0 0 20px rgba(223,255,0,0.6)" : "none",
-            }}>{_f}</div>
-          ))(splashPhrase)}
+        <div className="bs-glow" />
+        <div className="bs-particles">
+          {_particles.map(p => (
+            <span key={p.id} className="bs-particle" style={{
+              left: p.left, width: p.size, height: p.size,
+              animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s`,
+              "--bs-drift": `${p.drift}px`,
+            }} />
+          ))}
         </div>
 
-        <div style={{ position:"absolute", bottom:40, color:"rgba(255,255,255,0.18)", fontSize:10, fontWeight:800, letterSpacing:5, textTransform:"uppercase", zIndex:10, animation:"splashFadeUp 0.4s ease 0.8s both" }}>CARGANDO</div>
+        <div className="bs-stack">
+          <div className="bs-flash" />
+          <svg className="bs-bolt" viewBox="0 0 48 64" fill="none" aria-hidden="true">
+            <path d="M28 2 L8 36 H22 L18 62 L42 24 H26 L28 2 Z"
+              fill="#DFFF00" stroke="#FFFFFF" strokeWidth="1" strokeLinejoin="round" />
+          </svg>
+          <div className="bs-title-wrap">
+            <h1 className="bs-title">BEAST</h1>
+          </div>
+          <div className="bs-rule" />
+          <div className="bs-sub">Modo Bestia Activado</div>
+        </div>
+
+        <div className="bs-loader">
+          <div className="bs-loader-label">Cargando tu experiencia</div>
+          <div className="bs-track"><div className="bs-fill" /></div>
+        </div>
+
+        <div className="bs-vignette" />
       </div>
     );
 }
@@ -162,42 +253,7 @@ export default function App() {
     return null;
   })();
 
-  const [splashPhrase] = useState(() => {
-    const _p = [
-  "NO PARES HASTA ESTAR ORGULLOSO",
-  "LA EXCUSA NO QUEMA CALORÍAS",
-  "EL GYM NO MIENTE",
-  "UN REP MÁS SIEMPRE",
-  "ROMPE EL LÍMITE QUE PUSISTE AYER",
-  "LA CONSTANCIA VENCE AL TALENTO",
-  "LA DISCIPLINA ES EL CAMINO",
-  "YEAH BUDDY!! 🏆",
-  "EL DOLOR ES TEMPORAL, EL ORGULLO ES ETERNO",
-  "NO DAYS OFF",
-  "SWEAT NOW, SHINE LATER",
-  "CADA REP CUENTA",
-  "TU ÚNICO COMPETIDOR ERES TÚ",
-  "FALL DOWN SEVEN, STAND UP EIGHT",
-  "MODO BESTIA ACTIVADO",
-  "SIN SACRIFICIO NO HAY GLORIA",
-  "EL CUERPO LOGRA LO QUE LA MENTE CREE",
-  "ENTRENA COMO SI TU VIDA DEPENDIERA DE ELLO",
-  "LOS QUE SE RINDEN NUNCA GANAN",
-  "SUDOR ES GRASA LLORANDO",
-  "BEAST MODE ON 🔥",
-  "MÁS PESO, MÁS CARÁCTER",
-  "HOY SE ENTRENA, MAÑANA SE DESCANSA",
-  "LA MENTE MANDA, EL CUERPO OBEDECE",
-  "NUNCA SUBESTIMES UN CALENTAMIENTO",
-  "EL GYM ES MI TERAPIA",
-  "PRIMERO EL GYM, LUEGO TODO LO DEMÁS",
-  "NO EXCUSES, ONLY RESULTS",
-  "IRON NEVER LIES",
-  "CERO EXCUSAS, PURO HIERRO",
-];
-    return _p[Math.floor(Math.random() * _p.length)];
-  });
-  useEffect(() => { const t = setTimeout(() => setSplashDone(true), 2200); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setSplashDone(true), 2600); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("gym_dark");
@@ -365,7 +421,7 @@ export default function App() {
     <ThemeCtx.Provider value={{ dark, toggleDark }}>
       <AuthCtx.Provider value={{ user: currentUser, loginWithFirebase, registerWithFirebase, logout, loginAsGuest, resetPassword, loginWithGoogle, updateUser: (patch) => setCurrentUser(prev => ({ ...prev, ...patch })) }}>
         {(authLoading || !splashDone)
-          ? <SplashScreen splashPhrase={splashPhrase} />
+          ? <SplashScreen />
           : !currentUser
             ? <LoginScreen initialTab={loginInitTab} />
             : <>{typeof document !== "undefined" && (document.body.classList.add("app-loaded"))}<GymApp showPaywallAfterExpiry={showPaywallAfterExpiry} setShowPaywallAfterExpiry={setShowPaywallAfterExpiry} /></>
