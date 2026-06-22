@@ -284,9 +284,9 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
                 const sc = starColors[b.stars];
                 const isNew = newBadges.includes(b.id);
                 return (
-                  <div key={b.id} onClick={() => setSelectedBadge(b)} style={{ position:"relative", background:sc.bg, border:`1px solid ${isNew ? "#CFFF4D" : sc.border}`, borderRadius:14, padding:"14px 12px", textAlign:"center", boxShadow: isNew ? "0 0 16px rgba(207,255,77,0.2)" : "none", cursor:"pointer", transition:"transform 0.15s", }} onMouseEnter={e => e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
+                  <div key={b.id} onClick={() => setSelectedBadge(b)} style={{ position:"relative", background:sc.bg, border:`1px solid ${isNew ? "#DFFF00" : sc.border}`, borderRadius:14, padding:"14px 12px", textAlign:"center", boxShadow: isNew ? "0 0 16px rgba(223,255,0,0.2)" : "none", cursor:"pointer", transition:"transform 0.15s", }} onMouseEnter={e => e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
                     {isNew && (
-                      <div style={{ position:"absolute", top:-8, right:-8, background:"#CFFF4D", color:"#000", fontSize:9, fontWeight:900, padding:"2px 7px", borderRadius:20, letterSpacing:1, textTransform:"uppercase" }}>
+                      <div style={{ position:"absolute", top:-8, right:-8, background:"#DFFF00", color:"#000", fontSize:9, fontWeight:900, padding:"2px 7px", borderRadius:20, letterSpacing:1, textTransform:"uppercase" }}>
                         NUEVO
                       </div>
                     )}

@@ -98,15 +98,15 @@ function RadarChart({ data }) {
         return <line key={i} x1={cx} y1={cy} x2={cx + Math.cos(angle) * r} y2={cy + Math.sin(angle) * r} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />;
       })}
       {/* Data polygon */}
-      <polygon points={polyPoints} fill="rgba(207,255,77,0.12)" stroke="#CFFF4D" strokeWidth="2" strokeLinejoin="round" />
+      <polygon points={polyPoints} fill="rgba(223,255,0,0.12)" stroke="#DFFF00" strokeWidth="2" strokeLinejoin="round" />
       {/* Data points */}
       {points.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#CFFF4D" />
+        <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#DFFF00" />
       ))}
       {/* Labels */}
       {points.map((p, i) => (
         <text key={i} x={p.lx} y={p.ly} textAnchor="middle" dominantBaseline="middle"
-          fill={p.pct > 0 ? "#CFFF4D" : "rgba(255,255,255,0.3)"}
+          fill={p.pct > 0 ? "#DFFF00" : "rgba(255,255,255,0.3)"}
           fontSize="9" fontWeight="700" fontFamily="Barlow Condensed, sans-serif">
           {p.label}
           {p.pct > 0 && <tspan x={p.lx} dy="10" fill="rgba(255,255,255,0.5)" fontSize="8" fontWeight="400">{p.pct}%</tspan>}
@@ -117,7 +117,7 @@ function RadarChart({ data }) {
 }
 
 // ─── Mini Line Chart SVG ──────────────────────────────────────────────────────
-function LineChart({ data, color = "#CFFF4D", height = 80 }) {
+function LineChart({ data, color = "#DFFF00", height = 80 }) {
   if (!data || data.length < 2) return <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Pocos datos</div>;
   const w = 300, h = height, pad = 8;
   const vals = data.map(d => d.value);
@@ -184,8 +184,8 @@ function ConsistencyMap({ sessions }) {
               {week.map((cell, di) => (
                 <div key={di} title={cell.dateStr} style={{
                   width: 10, height: 10, borderRadius: 2,
-                  background: cell.isFuture ? "transparent" : cell.trained ? "#CFFF4D" : "rgba(255,255,255,0.06)",
-                  border: cell.isFuture ? "none" : `1px solid ${cell.trained ? "#CFFF4D" : "rgba(255,255,255,0.04)"}`,
+                  background: cell.isFuture ? "transparent" : cell.trained ? "#DFFF00" : "rgba(255,255,255,0.06)",
+                  border: cell.isFuture ? "none" : `1px solid ${cell.trained ? "#DFFF00" : "rgba(255,255,255,0.04)"}`,
                   transition: "transform 0.1s",
                   cursor: cell.trained ? "pointer" : "default",
                 }} />
@@ -197,7 +197,7 @@ function ConsistencyMap({ sessions }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
         <div style={{ width: 10, height: 10, borderRadius: 2, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.04)" }} />
         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Sin entrenar</span>
-        <div style={{ width: 10, height: 10, borderRadius: 2, background: "#CFFF4D", marginLeft: 8 }} />
+        <div style={{ width: 10, height: 10, borderRadius: 2, background: "#DFFF00", marginLeft: 8 }} />
         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Entrenado</span>
       </div>
     </div>
@@ -272,7 +272,7 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
       <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 24, lineHeight: 1.6 }}>
         Define metas de fuerza por ejercicio,<br />sigue tu progreso y recibe alertas<br />cuando las alcances.
       </div>
-      <div style={{ background: "rgba(207,255,77,0.05)", border: "1px solid rgba(207,255,77,0.15)", borderRadius: 14, padding: "16px", marginBottom: 20, textAlign: "left" }}>
+      <div style={{ background: "rgba(223,255,0,0.05)", border: "1px solid rgba(223,255,0,0.15)", borderRadius: 14, padding: "16px", marginBottom: 20, textAlign: "left" }}>
         {["📈 Metas personalizadas por ejercicio", "🔔 Alertas al alcanzar tu objetivo", "📊 Historial de progreso", "⚡ Comparación con tu 1RM actual"].map(f => (
           <div key={f} style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>{f}</div>
         ))}
@@ -294,13 +294,13 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
         const pct = Math.min((g.current / g.target) * 100, 100);
         const done = pct >= 100;
         return (
-          <div key={g.id} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${done ? "rgba(207,255,77,0.4)" : "rgba(255,255,255,0.08)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
+          <div key={g.id} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${done ? "rgba(223,255,0,0.4)" : "rgba(255,255,255,0.08)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <div>
                 <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 800 }}>{g.exercise}</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
-                  Meta: <strong style={{ color: done ? "#CFFF4D" : "rgba(255,255,255,0.7)" }}>{g.target} {g.unit} 1RM</strong>
-                  {" · "}Actual: <strong style={{ color: "#CFFF4D" }}>{g.current} {g.unit}</strong>
+                  Meta: <strong style={{ color: done ? "#DFFF00" : "rgba(255,255,255,0.7)" }}>{g.target} {g.unit} 1RM</strong>
+                  {" · "}Actual: <strong style={{ color: "#DFFF00" }}>{g.current} {g.unit}</strong>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -310,11 +310,11 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
             </div>
             {/* Progress bar */}
             <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 6, height: 8, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, background: done ? "#CFFF4D" : "linear-gradient(90deg, rgba(207,255,77,0.6), #CFFF4D)", borderRadius: 6, transition: "width 0.6s ease" }} />
+              <div style={{ height: "100%", width: `${pct}%`, background: done ? "#DFFF00" : "linear-gradient(90deg, rgba(223,255,0,0.6), #DFFF00)", borderRadius: 6, transition: "width 0.6s ease" }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
               <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>0</span>
-              <span style={{ fontSize: 10, color: done ? "#CFFF4D" : "rgba(255,255,255,0.5)", fontWeight: 700 }}>{Math.round(pct)}%</span>
+              <span style={{ fontSize: 10, color: done ? "#DFFF00" : "rgba(255,255,255,0.5)", fontWeight: 700 }}>{Math.round(pct)}%</span>
               <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{g.target} {g.unit}</span>
             </div>
           </div>
@@ -322,8 +322,8 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
       })}
 
       {adding ? (
-        <div style={{ background: "rgba(207,255,77,0.04)", border: "1px solid rgba(207,255,77,0.2)", borderRadius: 14, padding: 16, marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#CFFF4D", marginBottom: 12, letterSpacing: 1, textTransform: "uppercase" }}>Nueva meta</div>
+        <div style={{ background: "rgba(223,255,0,0.04)", border: "1px solid rgba(223,255,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#DFFF00", marginBottom: 12, letterSpacing: 1, textTransform: "uppercase" }}>Nueva meta</div>
           <button onClick={() => onPickExercise(ex => setForm(f => ({ ...f, exercise: ex })))}
             style={{ width: "100%", marginBottom: 10, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "10px 14px", color: form.exercise ? "white" : "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>{form.exercise || "Selecciona ejercicio..."}</span>
@@ -338,20 +338,20 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
                 const converted = f.target ? (isKg ? Math.round(parseFloat(f.target) * 2.205) : Math.round(parseFloat(f.target) / 2.205)) : f.target;
                 return { ...f, unit: isKg ? "lb" : "kg", target: converted ? String(converted) : f.target };
               })} style={{
-                background: "rgba(207,255,77,0.12)",
-                border: "1px solid rgba(207,255,77,0.35)",
-                color: "#CFFF4D",
+                background: "rgba(223,255,0,0.12)",
+                border: "1px solid rgba(223,255,0,0.35)",
+                color: "#DFFF00",
                 borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer",
                 minWidth: 52, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1
               }}>{form.unit}</button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={addGoal} style={{ flex: 1, background: "#CFFF4D", color: "#000", border: "none", borderRadius: 8, padding: "10px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>GUARDAR</button>
+            <button onClick={addGoal} style={{ flex: 1, background: "#DFFF00", color: "#000", border: "none", borderRadius: 8, padding: "10px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>GUARDAR</button>
             <button onClick={() => setAdding(false)} style={{ flex: 1, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancelar</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ width: "100%", background: "rgba(207,255,77,0.07)", border: "1px dashed rgba(207,255,77,0.3)", borderRadius: 12, padding: "12px", color: "#CFFF4D", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>
+        <button onClick={() => setAdding(true)} style={{ width: "100%", background: "rgba(223,255,0,0.07)", border: "1px dashed rgba(223,255,0,0.3)", borderRadius: 12, padding: "12px", color: "#DFFF00", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>
           + AGREGAR META
         </button>
       )}
@@ -423,7 +423,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
       <div className="overlay" onClick={onClose}>
         <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 340, textAlign: "center", padding: "32px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, color: "#CFFF4D", letterSpacing: 2, marginBottom: 6 }}>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, color: "#DFFF00", letterSpacing: 2, marginBottom: 6 }}>
             ESTADÍSTICAS PRO
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 24, lineHeight: 1.6 }}>
@@ -434,9 +434,9 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
             disabled={watchingAd}
             style={{
               width: "100%", padding: "14px 0", borderRadius: 12, marginBottom: 10,
-              background: watchingAd ? "rgba(255,255,255,0.1)" : "rgba(207,255,77,0.12)",
-              border: "1px solid rgba(207,255,77,0.4)",
-              color: watchingAd ? "rgba(255,255,255,0.4)" : "#CFFF4D",
+              background: watchingAd ? "rgba(255,255,255,0.1)" : "rgba(223,255,0,0.12)",
+              border: "1px solid rgba(223,255,0,0.4)",
+              color: watchingAd ? "rgba(255,255,255,0.4)" : "#DFFF00",
               fontWeight: 800, fontSize: 15, cursor: watchingAd ? "not-allowed" : "pointer",
               fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1,
             }}
@@ -495,15 +495,15 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
       <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
 
         {/* Header */}
-        <div className="modal-header" style={{ borderBottom: "1px solid rgba(207,255,77,0.15)", paddingBottom: 14, marginBottom: 0 }}>
+        <div className="modal-header" style={{ borderBottom: "1px solid rgba(223,255,0,0.15)", paddingBottom: 14, marginBottom: 0 }}>
           <div>
             <h3 className="modal-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ background: "rgba(207,255,77,0.12)", border: "1px solid rgba(207,255,77,0.3)", borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 800, color: "#CFFF4D", letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>PRO</span>
+              <span style={{ background: "rgba(223,255,0,0.12)", border: "1px solid rgba(223,255,0,0.3)", borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 800, color: "#DFFF00", letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>PRO</span>
               Estadísticas Avanzadas
             </h3>
             {!isPro && unlockUntil && timeLeft && (
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-                ⏱ Acceso temporal: <span style={{ color: "#CFFF4D", fontWeight: 700 }}>{timeLeft}</span>
+                ⏱ Acceso temporal: <span style={{ color: "#DFFF00", fontWeight: 700 }}>{timeLeft}</span>
               </div>
             )}
           </div>
@@ -519,7 +519,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
           ].map(s => (
             <div key={s.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
               <div style={{ fontSize: 18, marginBottom: 2 }}>{s.icon}</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 800, color: "#CFFF4D" }}>{s.value}</div>
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 800, color: "#DFFF00" }}>{s.value}</div>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>{s.label}</div>
             </div>
           ))}
@@ -529,8 +529,8 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
         <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 0 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? "#CFFF4D" : "transparent"}`,
-              color: tab === t.id ? "#CFFF4D" : "rgba(255,255,255,0.35)",
+              flex: 1, background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? "#DFFF00" : "transparent"}`,
+              color: tab === t.id ? "#DFFF00" : "rgba(255,255,255,0.35)",
               padding: "8px 2px 10px", cursor: "pointer", fontSize: 9, fontWeight: 800,
               letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "Barlow Condensed, sans-serif",
               transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 3
@@ -551,9 +551,9 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                 { v: 90, l: "90 días" },
               ].map(p => (
                 <button key={p.v} onClick={() => setRadarPeriod(p.v)} style={{
-                  background: radarPeriod === p.v ? "rgba(207,255,77,0.12)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${radarPeriod === p.v ? "rgba(207,255,77,0.4)" : "rgba(255,255,255,0.08)"}`,
-                  color: radarPeriod === p.v ? "#CFFF4D" : "rgba(255,255,255,0.4)",
+                  background: radarPeriod === p.v ? "rgba(223,255,0,0.12)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${radarPeriod === p.v ? "rgba(223,255,0,0.4)" : "rgba(255,255,255,0.08)"}`,
+                  color: radarPeriod === p.v ? "#DFFF00" : "rgba(255,255,255,0.4)",
                   borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer"
                 }}>{p.l}</button>
               ))}
@@ -573,9 +573,9 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                       <div key={muscle} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                         <div style={{ width: 80, fontSize: 12, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>{muscle}</div>
                         <div style={{ flex: 1, background: "rgba(255,255,255,0.05)", borderRadius: 4, height: 6, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "#CFFF4D", borderRadius: 4 }} />
+                          <div style={{ height: "100%", width: `${pct}%`, background: "#DFFF00", borderRadius: 4 }} />
                         </div>
-                        <div style={{ width: 32, fontSize: 11, color: "#CFFF4D", fontWeight: 800, textAlign: "right" }}>{pct}%</div>
+                        <div style={{ width: 32, fontSize: 11, color: "#DFFF00", fontWeight: 800, textAlign: "right" }}>{pct}%</div>
                       </div>
                     );
                   })}
@@ -602,7 +602,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
               <>
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 12px", marginBottom: 16 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 12 }}>Evolución 1RM estimado</div>
-                  <LineChart data={lineData} color="#CFFF4D" height={100} />
+                  <LineChart data={lineData} color="#DFFF00" height={100} />
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
                     <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{lineData[0]?.label}</span>
                     <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{lineData[lineData.length - 1]?.label}</span>
@@ -617,7 +617,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                     { label: "Progreso", value: `${lineData[lineData.length - 1]?.value - lineData[0]?.value > 0 ? "+" : ""}${lineData[lineData.length - 1]?.value - lineData[0]?.value} kg` },
                   ].map(s => (
                     <div key={s.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800, color: "#CFFF4D" }}>{s.value}</div>
+                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800, color: "#DFFF00" }}>{s.value}</div>
                       <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{s.label}</div>
                     </div>
                   ))}
@@ -630,7 +630,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13 }}>
                       <span style={{ color: "rgba(255,255,255,0.5)" }}>{fmtDate(h.date)}</span>
                       <span>{h.weight} kg × {h.reps} reps</span>
-                      <span style={{ fontWeight: 800, color: "#CFFF4D" }}>{h.rm} kg 1RM</span>
+                      <span style={{ fontWeight: 800, color: "#DFFF00" }}>{h.rm} kg 1RM</span>
                     </div>
                   ))}
                 </div>
@@ -716,7 +716,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                         <div key={m.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px" }}>
                           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 8 }}>{m.label}</div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 900, color: "#CFFF4D", lineHeight: 1 }}>{m.fmt(m.this)}</span>
+                            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 900, color: "#DFFF00", lineHeight: 1 }}>{m.fmt(m.this)}</span>
                             {!neutral && (
                               <span style={{ fontSize: 13, fontWeight: 800, color }}>{up ? "▲" : "▼"} {m.isPercent ? `${Math.abs(m.diff)}%` : Math.abs(m.diff)}</span>
                             )}
@@ -727,8 +727,8 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                     })}
                   </div>
                   {thisPRs.length > 0 && (
-                    <div style={{ background: "rgba(207,255,77,0.06)", border: "1px solid rgba(207,255,77,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
-                      🏆 <strong style={{ color: "#CFFF4D" }}>{thisPRs.length} PR{thisPRs.length > 1 ? "s" : ""}</strong> esta semana: {thisPRs.slice(0, 3).join(", ")}{thisPRs.length > 3 ? ` +${thisPRs.length - 3} más` : ""}
+                    <div style={{ background: "rgba(223,255,0,0.06)", border: "1px solid rgba(223,255,0,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+                      🏆 <strong style={{ color: "#DFFF00" }}>{thisPRs.length} PR{thisPRs.length > 1 ? "s" : ""}</strong> esta semana: {thisPRs.slice(0, 3).join(", ")}{thisPRs.length > 3 ? ` +${thisPRs.length - 3} más` : ""}
                     </div>
                   )}
                   {thisWeekSessions.length === 0 && (
@@ -757,7 +757,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     <div style={{ width: 36, fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 700 }}>{months[m]}</div>
                     <div style={{ flex: 1, background: "rgba(255,255,255,0.05)", borderRadius: 4, height: 8, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: count >= 12 ? "#CFFF4D" : count >= 6 ? "#3b82f6" : "#f97316", borderRadius: 4 }} />
+                      <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: count >= 12 ? "#DFFF00" : count >= 6 ? "#3b82f6" : "#f97316", borderRadius: 4 }} />
                     </div>
                     <div style={{ width: 60, fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "right" }}>{count} sesiones</div>
                   </div>

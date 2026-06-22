@@ -6,7 +6,7 @@ export default function fireConfetti() {
   document.body.appendChild(canvas);
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
-  const colors = ["#CFFF4D","#22c55e","#f97316","#ffffff","#a3e635","#FBBF24","#34d399","#fb923c"];
+  const colors = ["#DFFF00","#22c55e","#f97316","#ffffff","#a3e635","#FBBF24","#34d399","#fb923c"];
 
   function burst(cx, cy, count, speedMult) {
     return Array.from({length: count}, () => {

@@ -564,7 +564,7 @@ Instrucciones:
             {exifDate ? (
               <span title="Fecha detectada de la foto">
                 {fmtDate(exifDate)}
-                <span style={{ marginLeft: 6, background: "rgba(207,255,77,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 9, letterSpacing: 1 }}>
+                <span style={{ marginLeft: 6, background: "rgba(223,255,0,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 9, letterSpacing: 1 }}>
                   EXIF ✓
                 </span>
               </span>
@@ -596,7 +596,7 @@ Instrucciones:
               Cancelar
             </button>
             <button onClick={confirmUpload} disabled={uploading}
-              style={{ flex: 2, background: "var(--accent)", border: "none", borderRadius: 10, padding: "10px 0", color: "#0E0F13", cursor: uploading ? "default" : "pointer", fontWeight: 900, fontSize: 13, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, opacity: uploading ? 0.7 : 1 }}>
+              style={{ flex: 2, background: "var(--accent)", border: "none", borderRadius: 10, padding: "10px 0", color: "#09090B", cursor: uploading ? "default" : "pointer", fontWeight: 900, fontSize: 13, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, opacity: uploading ? 0.7 : 1 }}>
               {uploading ? "Guardando..." : "✓ Guardar foto"}
             </button>
           </div>
@@ -659,9 +659,9 @@ Instrucciones:
                 onClick={() => { setCompareMode(m => !m); setSelected([]); setAnalysis(null); }}
                 style={{
                   flex: 1, borderRadius: 12, padding: "13px 0",
-                  border: compareMode ? "none" : "1px solid rgba(207,255,77,0.3)",
-                  background: compareMode ? "var(--accent)" : "rgba(207,255,77,0.06)",
-                  color: compareMode ? "#0E0F13" : "var(--accent)",
+                  border: compareMode ? "none" : "1px solid rgba(223,255,0,0.3)",
+                  background: compareMode ? "var(--accent)" : "rgba(223,255,0,0.06)",
+                  color: compareMode ? "#09090B" : "var(--accent)",
                   cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
                   fontWeight: 800, fontSize: 13, letterSpacing: 1,
                   transition: "all 0.2s",
@@ -677,7 +677,7 @@ Instrucciones:
       {/* Compare mode panel */}
       {compareMode && !showNoteInput && (
         <div style={{
-          background: selected.length === 2 ? "rgba(207,255,77,0.06)" : "var(--input-bg)",
+          background: selected.length === 2 ? "rgba(223,255,0,0.06)" : "var(--input-bg)",
           border: `1px solid ${selected.length === 2 ? "var(--accent)" : "var(--border)"}`,
           borderRadius: 12, padding: "12px 14px", marginBottom: 14,
           transition: "all 0.2s",
@@ -689,7 +689,7 @@ Instrucciones:
                 <div style={{
                   width: 22, height: 22, borderRadius: "50%",
                   background: selected.length > i ? "var(--accent)" : "var(--border)",
-                  color: selected.length > i ? "#0E0F13" : "var(--text-muted)",
+                  color: selected.length > i ? "#09090B" : "var(--text-muted)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 11, fontWeight: 900, transition: "all 0.2s",
                 }}>
@@ -716,7 +716,7 @@ Instrucciones:
               <>
                 <button onClick={analyzePhotos} style={{
                   width: "100%", background: "var(--accent)", border: "none",
-                  borderRadius: 10, padding: "12px 0", color: "#0E0F13",
+                  borderRadius: 10, padding: "12px 0", color: "#09090B",
                   cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
                   fontWeight: 900, fontSize: 15, letterSpacing: 2,
                 }}>
@@ -725,8 +725,8 @@ Instrucciones:
               </>
             ) : (
               <button onClick={handleWatchAd} disabled={watchingAd} style={{
-                width: "100%", background: "rgba(207,255,77,0.08)",
-                border: "1px solid rgba(207,255,77,0.3)", borderRadius: 10,
+                width: "100%", background: "rgba(223,255,0,0.08)",
+                border: "1px solid rgba(223,255,0,0.3)", borderRadius: 10,
                 padding: "12px 0", color: "var(--accent)", cursor: "pointer",
                 fontWeight: 700, fontSize: 13,
               }}>
@@ -766,8 +766,8 @@ Instrucciones:
               <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)" }}>{analysis}</div>
               <button onClick={() => { setAnalysis(null); setSelected([]); }} style={{
                 marginTop: 14, width: "100%",
-                background: "rgba(207,255,77,0.08)",
-                border: "1px solid rgba(207,255,77,0.3)",
+                background: "rgba(223,255,0,0.08)",
+                border: "1px solid rgba(223,255,0,0.3)",
                 borderRadius: 10, padding: "11px 0",
                 color: "var(--accent)",
                 cursor: "pointer", fontSize: 14, fontWeight: 800,
@@ -793,7 +793,7 @@ Instrucciones:
               ? `Llevas ${userStats.totalSessions} sesiones entrenadas — ya es hora de capturar cómo se ve ese trabajo`
               : "Agrega tu primera foto y deja que Progreso Físico trackee tu evolución"}
           </div>
-          <span style={{ background: "rgba(207,255,77,0.08)", border: "1px solid rgba(207,255,77,0.25)", color: "var(--accent)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>
+          <span style={{ background: "rgba(223,255,0,0.08)", border: "1px solid rgba(223,255,0,0.25)", color: "var(--accent)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>
             Progreso Físico · ANÁLISIS IA
           </span>
         </div>
@@ -824,7 +824,7 @@ Instrucciones:
                       position: "relative", borderRadius: 12, overflow: "hidden",
                       cursor: "pointer",
                       border: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
-                      boxShadow: isSelected ? "0 0 14px rgba(207,255,77,0.25)" : "none",
+                      boxShadow: isSelected ? "0 0 14px rgba(223,255,0,0.25)" : "none",
                       transition: "all 0.15s",
                       transform: isSelected ? "scale(0.97)" : "scale(1)",
                     }}
@@ -839,7 +839,7 @@ Instrucciones:
                     {compareMode && isSelected && (
                       <div style={{
                         position: "absolute", top: 7, left: 7,
-                        background: "var(--accent)", color: "#0E0F13",
+                        background: "var(--accent)", color: "#09090B",
                         borderRadius: "50%", width: 24, height: 24,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontWeight: 900, fontSize: 13,

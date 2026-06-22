@@ -12,7 +12,7 @@ export default function PRConfetti({ prs, user, onDone }) {
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    const COLORS = ["#CFFF4D","#f59e0b","#22c55e","#ec4899","#8b5cf6","#f97316","#ffffff"];
+    const COLORS = ["#DFFF00","#f59e0b","#22c55e","#ec4899","#8b5cf6","#f97316","#ffffff"];
     const particles = Array.from({ length: 180 }, () => ({
       x: canvas.width * 0.1 + Math.random() * canvas.width * 0.8,
       y: -20 - Math.random() * 200,
@@ -56,19 +56,19 @@ export default function PRConfetti({ prs, user, onDone }) {
         }} onClick={handleClose}>
           <div onClick={e => e.stopPropagation()} style={{
             width:"100%", maxWidth:360,
-            background:"#0E0F13",
-            border:"1px solid rgba(207,255,77,0.3)",
+            background:"#09090B",
+            border:"1px solid rgba(223,255,0,0.3)",
             borderRadius:24, padding:"28px 24px",
-            boxShadow:"0 0 80px rgba(207,255,77,0.15), 0 20px 60px rgba(0,0,0,0.7)",
+            boxShadow:"0 0 80px rgba(223,255,0,0.15), 0 20px 60px rgba(0,0,0,0.7)",
             textAlign:"center",
           }}>
-            <div style={{ fontSize:56, marginBottom:4, filter:"drop-shadow(0 0 20px rgba(207,255,77,0.5))" }}>🏆</div>
+            <div style={{ fontSize:56, marginBottom:4, filter:"drop-shadow(0 0 20px rgba(223,255,0,0.5))" }}>🏆</div>
 
             <div style={{
               fontFamily:"'Barlow Condensed',sans-serif",
               fontSize:38, fontWeight:900, letterSpacing:2,
-              color:"#CFFF4D", textTransform:"uppercase",
-              textShadow:"0 0 30px rgba(207,255,77,0.5)", marginBottom:4,
+              color:"#DFFF00", textTransform:"uppercase",
+              textShadow:"0 0 30px rgba(223,255,0,0.5)", marginBottom:4,
             }}>
               ¡Nuevo Récord!
             </div>
@@ -79,8 +79,8 @@ export default function PRConfetti({ prs, user, onDone }) {
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
               {prs.slice(0,3).map(pr => (
                 <div key={pr.name} style={{
-                  background:"rgba(207,255,77,0.07)",
-                  border:"1px solid rgba(207,255,77,0.2)",
+                  background:"rgba(223,255,0,0.07)",
+                  border:"1px solid rgba(223,255,0,0.2)",
                   borderRadius:12, padding:"12px 16px",
                   display:"flex", justifyContent:"space-between", alignItems:"center",
                 }}>
@@ -93,11 +93,11 @@ export default function PRConfetti({ prs, user, onDone }) {
                     </div>
                   </div>
                   <div style={{
-                    background:"#CFFF4D", color:"#000",
+                    background:"#DFFF00", color:"#000",
                     fontWeight:900, fontSize:16,
                     padding:"6px 14px", borderRadius:20,
                     fontFamily:"'Barlow Condensed',sans-serif",
-                    boxShadow:"0 0 16px rgba(207,255,77,0.4)",
+                    boxShadow:"0 0 16px rgba(223,255,0,0.4)",
                   }}>
                     {pr.weight} kg
                   </div>
@@ -108,11 +108,11 @@ export default function PRConfetti({ prs, user, onDone }) {
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setShowShare(true)} style={{
                 flex:2, padding:"13px 0", borderRadius:12,
-                background:"#CFFF4D", border:"none",
+                background:"#DFFF00", border:"none",
                 fontFamily:"'Barlow Condensed',sans-serif",
                 fontSize:15, fontWeight:900, color:"#000",
                 letterSpacing:1, cursor:"pointer",
-                boxShadow:"0 0 20px rgba(207,255,77,0.3)",
+                boxShadow:"0 0 20px rgba(223,255,0,0.3)",
               }}>
                 📸 COMPARTIR
               </button>

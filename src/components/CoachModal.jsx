@@ -912,10 +912,10 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                       : null;
                                     return (
                                       <div key={ei} style={{ marginBottom:5 }}>
-                                        <div style={{ fontSize:10, fontWeight:700, color:"var(--text)", marginBottom:2 }}>{ex.name} {rpeStr && <span style={{ color:"rgba(207,255,77,0.7)", fontWeight:400 }}>· {rpeStr}</span>}</div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:"var(--text)", marginBottom:2 }}>{ex.name} {rpeStr && <span style={{ color:"rgba(223,255,0,0.7)", fontWeight:400 }}>· {rpeStr}</span>}</div>
                                         {doneSets.map((st, si) => (
                                           <div key={si} style={{ fontSize:10, color:"var(--text-muted)", paddingLeft:8 }}>
-                                            S{si+1}: {st.weight||"—"}kg × {st.reps||"—"} reps{st.rpe ? <span style={{ color:"rgba(207,255,77,0.6)" }}> @{st.rpe}</span> : null}
+                                            S{si+1}: {st.weight||"—"}kg × {st.reps||"—"} reps{st.rpe ? <span style={{ color:"rgba(223,255,0,0.6)" }}> @{st.rpe}</span> : null}
                                           </div>
                                         ))}
                                       </div>
@@ -997,7 +997,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                   <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
                                       {ex.name}
-                                      {col && <span style={{ background: col, color: "#0E0F13", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>}
+                                      {col && <span style={{ background: col, color: "#09090B", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>}
                                     </div>
                                     <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                                       {ex.sets?.length > 0 ? `${ex.sets.length} series · ${ex.sets[0].weight||"—"}kg × ${ex.sets[0].reps||"—"} reps` : ex.weight ? `${ex.weight}kg × ${ex.reps}` : "Sin peso definido"}
@@ -1217,7 +1217,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                     <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                                       {ex.name}
                                       {col && (
-                                        <span style={{ background: col, color: "#0E0F13", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
+                                        <span style={{ background: col, color: "#09090B", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
                                       )}
                                     </div>
                                     <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -1231,7 +1231,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                     title="Editar ejercicio"
                                     onClick={() => setEditingExIdx(p => ({ ...p, [i]: !p[i] }))}
                                     style={{
-                                      background: editingExIdx[i] ? "rgba(207,255,77,0.15)" : "none",
+                                      background: editingExIdx[i] ? "rgba(223,255,0,0.15)" : "none",
                                       border: `1px solid ${editingExIdx[i] ? "var(--accent)" : "var(--border)"}`,
                                       color: editingExIdx[i] ? "var(--accent)" : "var(--text-muted)",
                                       borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13,
@@ -1530,7 +1530,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
                                       <span style={{ fontSize:12, fontWeight:700, color:"var(--text)" }}>{ex.name}</span>
                                       {avgRpe && (
-                                        <span style={{ fontSize:11, background:"rgba(207,255,77,0.08)", border:"1px solid rgba(207,255,77,0.25)", borderRadius:5, padding:"2px 7px", color:"rgba(207,255,77,0.9)", fontWeight:700 }}>
+                                        <span style={{ fontSize:11, background:"rgba(223,255,0,0.08)", border:"1px solid rgba(223,255,0,0.25)", borderRadius:5, padding:"2px 7px", color:"rgba(223,255,0,0.9)", fontWeight:700 }}>
                                           RPE prom. {avgRpe}
                                         </span>
                                       )}
@@ -1546,7 +1546,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                           <span style={{ color:"var(--text-muted)" }}>S{si+1}</span>
                                           <span style={{ color:"var(--text)", fontWeight:600 }}>{st.weight||"—"} kg</span>
                                           <span style={{ color:"var(--text)", fontWeight:600 }}>{st.reps||"—"}</span>
-                                          <span style={{ color: st.rpe ? "rgba(207,255,77,0.85)" : "var(--text-muted)", fontWeight: st.rpe ? 700 : 400 }}>{st.rpe || "—"}</span>
+                                          <span style={{ color: st.rpe ? "rgba(223,255,0,0.85)" : "var(--text-muted)", fontWeight: st.rpe ? 700 : 400 }}>{st.rpe || "—"}</span>
                                         </React.Fragment>
                                       ))}
                                     </div>

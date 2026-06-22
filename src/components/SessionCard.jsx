@@ -174,7 +174,7 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
             if (rpeVals.length === 0) return null;
             const avg = Math.round((rpeVals.reduce((a,b)=>a+b,0)/rpeVals.length)*10)/10;
             return (
-              <span className="ex-count" style={{ color:"var(--accent)", borderColor:"rgba(207,255,77,0.25)", background:"rgba(207,255,77,0.05)" }}>
+              <span className="ex-count" style={{ color:"var(--accent)", borderColor:"rgba(223,255,0,0.25)", background:"rgba(223,255,0,0.05)" }}>
                 🎯 RPE {avg}
               </span>
             );
@@ -199,7 +199,7 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
                     <span className="ex-name">{ex.name}</span>
                     {prs.has(ex.name) && <span style={{ fontSize: 9, background: "rgba(251,191,36,0.15)", color: "#f59e0b", borderRadius: 4, padding: "1px 5px", marginLeft: 6, fontWeight: 800 }}>PR</span>}
                     {ex.supersetGroup && (
-                      <span style={{ fontSize: 8, background: getSupersetColor(ex.supersetGroup, s.exercises || []), color: "#0E0F13", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 900, letterSpacing: 1, verticalAlign: "middle" }}>SS</span>
+                      <span style={{ fontSize: 8, background: getSupersetColor(ex.supersetGroup, s.exercises || []), color: "#09090B", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 900, letterSpacing: 1, verticalAlign: "middle" }}>SS</span>
                     )}
                   </div>
                   <button className="icon-action" title="Ver progreso" onClick={() => onProgress(ex.name)}>📈</button>
@@ -241,7 +241,7 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
                         onClick={() => setExpandedNotes(prev => ({ ...prev, [noteKey]: !isExpanded }))}
                         style={{
                           background: "none", border: "none", padding: "2px 0 0 20px",
-                          color: "rgba(207,255,77,0.5)", fontSize: 10, fontWeight: 700,
+                          color: "rgba(223,255,0,0.5)", fontSize: 10, fontWeight: 700,
                           cursor: "pointer", fontFamily: "Barlow, sans-serif", letterSpacing: 1,
                         }}
                       >

@@ -31,7 +31,7 @@ Object.entries(MUSCLE_TO_SLUG).forEach(([muscle, slug]) => {
 
 // Colores de fallback por músculo (por si MUSCLE_GROUPS no tiene .fill definido)
 const MUSCLE_COLOR = {
-  "Pecho":        "#CFFF4D",
+  "Pecho":        "#DFFF00",
   "Espalda":      "#3b82f6",
   "Trapecios":    "#8b5cf6",
   "Hombros":      "#a855f7",

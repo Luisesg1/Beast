@@ -348,7 +348,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
         </div>
 
         {showNewForm && (
-          <div style={{ background: "rgba(207,255,77,0.05)", border: "1px solid rgba(207,255,77,0.2)", borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <div style={{ background: "rgba(223,255,0,0.05)", border: "1px solid rgba(223,255,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 16 }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: "var(--accent)", marginBottom: 12, letterSpacing: 1, textTransform: "uppercase" }}>➕ Nuevo ejercicio</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div>
@@ -613,7 +613,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                     const hasOverride = exercises.some(e => e.status === "override" && e.originalName === ex.name);
                     const gifUrl = catalogGifInputs[ex.name] || exercises.find(e => e.status === "override" && e.originalName === ex.name)?.gifUrl || GIF_MAP[ex.name] || "";
                     return (
-                      <div key={ex.name} style={{ background: "var(--input-bg)", border: `1px solid ${hasOverride ? "rgba(207,255,77,0.3)" : "var(--border)"}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                      <div key={ex.name} style={{ background: "var(--input-bg)", border: `1px solid ${hasOverride ? "rgba(223,255,0,0.3)" : "var(--border)"}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
                         {!isEditing ? (
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div>

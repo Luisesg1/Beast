@@ -8,9 +8,9 @@ const THEMES = [
   {
     id: "classic", label: "Clásico", emoji: "⚡",
     bg1: "#05050a", bg2: "rgba(20,15,0,1)", bg3: "rgba(0,15,5,1)",
-    accent: "#CFFF4D", accentDim: "rgba(207,255,77,",
-    titleWord1: "#ffffff", titleWord2: "#CFFF4D",
-    pillBg: "#CFFF4D", pillText: "#05050a", isLight: false,
+    accent: "#DFFF00", accentDim: "rgba(223,255,0,",
+    titleWord1: "#ffffff", titleWord2: "#DFFF00",
+    pillBg: "#DFFF00", pillText: "#05050a", isLight: false,
   },
   {
     id: "neon", label: "Neón", emoji: "🟣",
@@ -304,7 +304,7 @@ export default function PRShareModal({ prs, user, onClose }) {
               })}
             </div>
           </div>
-          <canvas ref={canvasRef} style={{ width:"100%", borderRadius:12, border:"1px solid rgba(207,255,77,0.2)", display:"block" }} />
+          <canvas ref={canvasRef} style={{ width:"100%", borderRadius:12, border:"1px solid rgba(223,255,0,0.2)", display:"block" }} />
           <div style={{ display:"flex", gap:10, marginTop:16 }}>
             <button className="btn-primary" style={{ flex:1, fontSize:14 }} onClick={download} disabled={downloading}>
               {downloading ? "⏳ Compartiendo…" : "📤 Compartir imagen"}

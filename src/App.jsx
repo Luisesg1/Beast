@@ -36,10 +36,10 @@ function BruxAvatar({ size = 32 }) {
       <rect x="43" y="42" width="14" height="12" rx="2" fill="#161616"/>
       <rect x="28" y="12" width="44" height="32" rx="8" fill="#1a1a1a" stroke="#222" strokeWidth="1.5"/>
       <rect x="33" y="17" width="34" height="22" rx="4" fill="#16a34a"/>
-      <rect x="36" y="20" width="11" height="8" rx="2" fill="#CFFF4D"/>
-      <rect x="53" y="20" width="11" height="8" rx="2" fill="#CFFF4D"/>
-      <rect x="39" y="22" width="5" height="4" rx="1" fill="#0E0F13"/>
-      <rect x="56" y="22" width="5" height="4" rx="1" fill="#0E0F13"/>
+      <rect x="36" y="20" width="11" height="8" rx="2" fill="#DFFF00"/>
+      <rect x="53" y="20" width="11" height="8" rx="2" fill="#DFFF00"/>
+      <rect x="39" y="22" width="5" height="4" rx="1" fill="#09090B"/>
+      <rect x="56" y="22" width="5" height="4" rx="1" fill="#09090B"/>
       <rect x="37" y="31" width="26" height="6" rx="2" fill="#0a1a0f"/>
       <line x1="39" y1="33" x2="63" y2="33" stroke="#22c55e" strokeWidth="0.8" opacity="0.8"/>
       <line x1="39" y1="36" x2="63" y2="36" stroke="#22c55e" strokeWidth="0.8" opacity="0.5"/>
@@ -47,8 +47,8 @@ function BruxAvatar({ size = 32 }) {
       <circle cx="64" cy="60" r="2.5" fill="#22c55e"/>
       <rect x="31" y="87" width="17" height="8" rx="3" fill="#141414" stroke="#1e1e1e" strokeWidth="0.8"/>
       <rect x="52" y="87" width="17" height="8" rx="3" fill="#141414" stroke="#1e1e1e" strokeWidth="0.8"/>
-      <rect x="29" y="93" width="21" height="4" rx="2" fill="#CFFF4D" opacity="0.7"/>
-      <rect x="50" y="93" width="21" height="4" rx="2" fill="#CFFF4D" opacity="0.7"/>
+      <rect x="29" y="93" width="21" height="4" rx="2" fill="#DFFF00" opacity="0.7"/>
+      <rect x="50" y="93" width="21" height="4" rx="2" fill="#DFFF00" opacity="0.7"/>
     </svg>
   );
 }
@@ -81,7 +81,7 @@ function SplashScreen({ splashPhrase }) {
       phrases: Array.from({length: 6}, (_, i) => _matrixPhrases[(ci * 6 + i) % _matrixPhrases.length]),
     }));
     return (
-      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0E0F13", flexDirection:"column", gap:0, overflow:"hidden", position:"relative" }}>
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#09090B", flexDirection:"column", gap:0, overflow:"hidden", position:"relative" }}>
         <style>{`
           @keyframes splashZoom {
             0%   { transform: scale(0.85); opacity: 0; }
@@ -118,7 +118,7 @@ function SplashScreen({ splashPhrase }) {
                 letterSpacing: 3,
                 textTransform:"uppercase",
                 whiteSpace:"nowrap",
-                color: i === 0 ? "rgba(207,255,77,0.45)" : `rgba(207,255,77,${0.05 + i * 0.025})`,
+                color: i === 0 ? "rgba(223,255,0,0.45)" : `rgba(223,255,0,${0.05 + i * 0.025})`,
               }}>{p}</span>
             ))}
           </div>
@@ -127,14 +127,14 @@ function SplashScreen({ splashPhrase }) {
         <div className="splash-logo" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:0, width:"100%", padding:"0 16px" }}>
           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:40, lineHeight:1, marginBottom:4 }}>⚡</div>
           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:"clamp(28px, 9vw, 48px)", fontWeight:900, color:"#f0f0f0", letterSpacing:"clamp(4px, 2vw, 8px)", textTransform:"uppercase", textAlign:"center", whiteSpace:"nowrap" }}>BEAST</div>
-          <div style={{ width:32, height:2, background:"#CFFF4D", marginTop:10, borderRadius:1 }} />
+          <div style={{ width:32, height:2, background:"#DFFF00", marginTop:10, borderRadius:1 }} />
           {((_f) => (
             <div className="splash-sub" style={{ marginTop:12, textAlign:"center",
-              color: _f === "YEAH BUDDY!! 🏆" ? "#CFFF4D" : "rgba(255,255,255,0.25)",
+              color: _f === "YEAH BUDDY!! 🏆" ? "#DFFF00" : "rgba(255,255,255,0.25)",
               fontSize: _f === "YEAH BUDDY!! 🏆" ? 18 : 10,
               fontWeight: 900, letterSpacing: _f === "YEAH BUDDY!! 🏆" ? 3 : 5,
               textTransform:"uppercase",
-              textShadow: _f === "YEAH BUDDY!! 🏆" ? "0 0 20px rgba(207,255,77,0.6)" : "none",
+              textShadow: _f === "YEAH BUDDY!! 🏆" ? "0 0 20px rgba(223,255,0,0.6)" : "none",
             }}>{_f}</div>
           ))(splashPhrase)}
         </div>

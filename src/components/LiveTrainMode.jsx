@@ -63,7 +63,7 @@ const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 const load  = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 
 const BRUX_MOODS = {
-  happy:    { face: "happy",    color: "#CFFF4D", glow: "#CFFF4D25", label: "Feliz" },
+  happy:    { face: "happy",    color: "#DFFF00", glow: "#DFFF0025", label: "Feliz" },
   proud:    { face: "proud",    color: "#f59e0b", glow: "#f59e0b25", label: "Orgulloso" },
   celebrate:{ face: "celebrate",color: "#f97316", glow: "#f9731625", label: "Celebrando" },
 };
@@ -148,10 +148,10 @@ function ExerciseHistoryBadge({ sessions, exName, unit = "kg" }) {
       {isFirstTime ? (
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 5,
-          background: "rgba(207,255,77,0.06)",
-          border: "1px solid rgba(207,255,77,0.18)",
+          background: "rgba(223,255,0,0.06)",
+          border: "1px solid rgba(223,255,0,0.18)",
           borderRadius: 8, padding: "5px 12px",
-          fontSize: 11, color: "rgba(207,255,77,0.7)",
+          fontSize: 11, color: "rgba(223,255,0,0.7)",
           fontFamily: "Barlow, sans-serif", fontWeight: 600,
         }}>
           💪 Primera vez
@@ -198,7 +198,7 @@ function ExerciseHistoryBadge({ sessions, exName, unit = "kg" }) {
                 }}>
                   <span style={{
                     fontSize: 10, fontWeight: 700,
-                    color: i === 0 ? "rgba(207,255,77,0.55)" : "var(--text-muted)",
+                    color: i === 0 ? "rgba(223,255,0,0.55)" : "var(--text-muted)",
                     fontFamily: "Barlow Condensed, sans-serif",
                     letterSpacing: 0.5, flexShrink: 0,
                   }}>
@@ -498,7 +498,7 @@ function LiveTrainMode({
   if (showProBanner) {
     return (
       <div style={{
-        position: "fixed", inset: 0, background: "#0E0F13",
+        position: "fixed", inset: 0, background: "#09090B",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
         zIndex: 9999, padding: "32px 24px",
@@ -506,7 +506,7 @@ function LiveTrainMode({
         <div style={{ fontSize: 48, marginBottom: 12 }}>⚡</div>
         <div style={{
           fontFamily: "'Barlow Condensed', sans-serif",
-          fontSize: 28, fontWeight: 900, color: "#CFFF4D",
+          fontSize: 28, fontWeight: 900, color: "#DFFF00",
           letterSpacing: 3, textAlign: "center", marginBottom: 8,
         }}>
           ELIMINA LOS ANUNCIOS
@@ -523,7 +523,7 @@ function LiveTrainMode({
           onClick={() => { setShowProBanner(false); if (onShowPaywall) onShowPaywall(); else setShowSummary(true); }}
           style={{
             width: "100%", maxWidth: 320, padding: "16px 0",
-            borderRadius: 14, background: "#CFFF4D",
+            borderRadius: 14, background: "#DFFF00",
             color: "#000", fontWeight: 900, fontSize: 18,
             border: "none", cursor: "pointer",
             fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: 1,
@@ -576,7 +576,7 @@ function LiveTrainMode({
             marginTop: 20,
             background: adCountdown > 0 ? "#1a1a1a" : "var(--accent)",
             border: `1px solid ${adCountdown > 0 ? "#333" : "var(--accent)"}`,
-            color: adCountdown > 0 ? "#555" : "#0E0F13",
+            color: adCountdown > 0 ? "#555" : "#09090B",
             borderRadius: 10, padding: "10px 24px",
             fontFamily: "Barlow Condensed, sans-serif",
             fontSize: 16, fontWeight: 700, cursor: adCountdown > 0 ? "default" : "pointer",
@@ -650,7 +650,7 @@ function LiveTrainMode({
 
     return (
       <div style={{
-        position: "fixed", inset: 0, background: "#0E0F13",
+        position: "fixed", inset: 0, background: "#09090B",
         display: "flex", flexDirection: "column", alignItems: "center",
         justifyContent: "center",
         overflowY: "auto", overflowX: "hidden",
@@ -679,7 +679,7 @@ function LiveTrainMode({
         `}</style>
 
         {/* Glow de fondo */}
-        <div style={{ position:"fixed", top:"-80px", left:"50%", transform:"translateX(-50%)", width:"340px", height:"340px", background:"radial-gradient(circle, rgba(207,255,77,0.07) 0%, transparent 70%)", pointerEvents:"none", zIndex:0 }} />
+        <div style={{ position:"fixed", top:"-80px", left:"50%", transform:"translateX(-50%)", width:"340px", height:"340px", background:"radial-gradient(circle, rgba(223,255,0,0.07) 0%, transparent 70%)", pointerEvents:"none", zIndex:0 }} />
 
         <div style={{
           width:"100%", maxWidth:480,
@@ -701,7 +701,7 @@ function LiveTrainMode({
           <div style={{ animation:"mascotBounce 1.3s ease-out 0.1s both", display:"inline-block" }}>
             <img src={getBeastMood(completionPct, sessionAvgRpe, newPRs)} alt="Beast"
               style={{ width:200, height:200, objectFit:"contain",
-                filter:"drop-shadow(0 0 40px rgba(207,255,77,0.65)) drop-shadow(0 8px 20px rgba(0,0,0,0.9))" }} />
+                filter:"drop-shadow(0 0 40px rgba(223,255,0,0.65)) drop-shadow(0 8px 20px rgba(0,0,0,0.9))" }} />
           </div>
         </div>
 
@@ -725,7 +725,7 @@ function LiveTrainMode({
           <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:54, fontWeight:900, color:"#fff", lineHeight:0.9, textTransform:"uppercase", letterSpacing:-1, marginBottom:10 }}>
             ¡Sesión<br/>Completada!
           </div>
-          <div style={{ display:"inline-block", background:"rgba(207,255,77,0.15)", border:"1px solid rgba(207,255,77,0.5)", padding:"5px 18px", borderRadius:4 }}>
+          <div style={{ display:"inline-block", background:"rgba(223,255,0,0.15)", border:"1px solid rgba(223,255,0,0.5)", padding:"5px 18px", borderRadius:4 }}>
             <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:14, color:"var(--accent)", letterSpacing:4, fontWeight:800, textTransform:"uppercase" }}>{workout}</span>
           </div>
         </div>
@@ -794,7 +794,7 @@ function LiveTrainMode({
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0,
           padding: "10px 16px calc(10px + env(safe-area-inset-bottom, 0px))",
-          background: "linear-gradient(to top, #0E0F13 75%, transparent)",
+          background: "linear-gradient(to top, #09090B 75%, transparent)",
           zIndex: 10,
         }}>
           {/* Guardar — ancho completo arriba */}
@@ -828,11 +828,11 @@ function LiveTrainMode({
               style={{
                 width: "100%", height: 58,
                 background: "var(--accent)", border: "none",
-                color: "#0E0F13", borderRadius: 4,
+                color: "#09090B", borderRadius: 4,
                 fontFamily: "Barlow Condensed, sans-serif",
                 fontSize: 22, fontWeight: 900, letterSpacing: 3, cursor: "pointer",
                 textTransform: "uppercase",
-                boxShadow: "0 4px 24px rgba(207,255,77,0.35)",
+                boxShadow: "0 4px 24px rgba(223,255,0,0.35)",
               }}
             >
               GUARDAR SESIÓN
@@ -852,7 +852,7 @@ function LiveTrainMode({
               }}
               style={{
                 flex: 1, height: 44,
-                background: "rgba(207,255,77,0.08)", border: "1px solid rgba(207,255,77,0.4)",
+                background: "rgba(223,255,0,0.08)", border: "1px solid rgba(223,255,0,0.4)",
                 borderRadius: 4, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                 color: "var(--accent)", fontFamily: "Barlow Condensed, sans-serif",
@@ -993,16 +993,16 @@ function LiveTrainMode({
               <button onClick={() => setCurrentEx(i)} style={{
                 background: currentEx === i
                   ? (ssColor || "var(--accent)")
-                  : allDone ? "rgba(207,255,77,0.08)"
-                  : anyDone ? "rgba(207,255,77,0.04)"
+                  : allDone ? "rgba(223,255,0,0.08)"
+                  : anyDone ? "rgba(223,255,0,0.04)"
                   : "var(--card)",
                 border: `1px solid ${currentEx === i
                   ? (ssColor || "var(--accent)")
                   : ssColor && (allDone || anyDone) ? ssColor + "60"
                   : ssColor ? ssColor + "40"
-                  : allDone ? "rgba(207,255,77,0.3)"
+                  : allDone ? "rgba(223,255,0,0.3)"
                   : "var(--border)"}`,
-                color: currentEx === i ? "#0E0F13" : allDone ? "var(--accent)" : "var(--text-muted)",
+                color: currentEx === i ? "#09090B" : allDone ? "var(--accent)" : "var(--text-muted)",
                 borderRadius: 4, padding: "6px 10px", cursor: "pointer",
                 fontFamily: "'Barlow Condensed', sans-serif", fontSize: 12, fontWeight: 900,
                 whiteSpace: "nowrap", letterSpacing: 1, textTransform: "uppercase",
@@ -1011,7 +1011,7 @@ function LiveTrainMode({
                 {ssGroup && (
                   <span style={{
                     position: "absolute", top: -6, right: -4,
-                    background: ssColor, color: "#0E0F13",
+                    background: ssColor, color: "#09090B",
                     fontSize: 7, fontWeight: 900, padding: "1px 4px",
                     borderRadius: 3, letterSpacing: 0.5,
                   }}>SS</span>
@@ -1070,7 +1070,7 @@ function LiveTrainMode({
                   display: "flex", alignItems: "center", gap: 10,
                 }}>
                   <div style={{
-                    background: ssColor, color: "#0E0F13",
+                    background: ssColor, color: "#09090B",
                     fontSize: 9, fontWeight: 900, padding: "2px 8px",
                     borderRadius: 4, letterSpacing: 1.5, flexShrink: 0,
                   }}>
@@ -1117,7 +1117,7 @@ function LiveTrainMode({
                   {bestPrev > 0 && (
                     <div style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
-                      background: "var(--accent-dim)", border: "1px solid rgba(207,255,77,0.3)",
+                      background: "var(--accent-dim)", border: "1px solid rgba(223,255,0,0.3)",
                       borderRadius: 4, padding: "4px 10px", fontSize: 12, color: "var(--accent)",
                     }}>
                       ★ MEJOR: {bestPrev}kg 1RM
@@ -1335,7 +1335,7 @@ function LiveTrainMode({
                   {["#", `Peso (${unit})`, "Reps", "RPE", "✓"].map(h => (
                     <div key={h} style={{
                       fontSize: 10, fontWeight: 700,
-                      color: h === "RPE" ? "rgba(207,255,77,0.5)" : "var(--text-muted)",
+                      color: h === "RPE" ? "rgba(223,255,0,0.5)" : "var(--text-muted)",
                       textAlign: "center", letterSpacing: 1, textTransform: "uppercase",
                     }}>
                       {h}
@@ -1401,8 +1401,8 @@ function LiveTrainMode({
                       inputMode="numeric"
                       maxLength={2}
                       style={{
-                        background: s.rpe ? "rgba(207,255,77,0.06)" : "var(--input-bg)",
-                        border: `1px solid ${s.rpe ? "rgba(207,255,77,0.35)" : "var(--border)"}`,
+                        background: s.rpe ? "rgba(223,255,0,0.06)" : "var(--input-bg)",
+                        border: `1px solid ${s.rpe ? "rgba(223,255,0,0.35)" : "var(--border)"}`,
                         borderRadius: 8, padding: "8px 4px", color: s.rpe ? "var(--accent)" : "var(--text-muted)",
                         fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, fontWeight: 800,
                         textAlign: "center", outline: "none", width: "100%",
@@ -1459,7 +1459,7 @@ function LiveTrainMode({
                     onClick={() => toggleNote(currentEx)}
                     style={{
                       background: "none",
-                      border: ex.notes ? "1px solid rgba(207,255,77,0.25)" : "1px dashed rgba(255,255,255,0.1)",
+                      border: ex.notes ? "1px solid rgba(223,255,0,0.25)" : "1px dashed rgba(255,255,255,0.1)",
                       color: ex.notes ? "var(--accent)" : "var(--text-muted)",
                       borderRadius: 10, padding: "7px 14px",
                       cursor: "pointer", fontFamily: "Barlow, sans-serif",
@@ -1474,7 +1474,7 @@ function LiveTrainMode({
                 ) : (
                   <div style={{
                     background: "var(--card)",
-                    border: "1px solid rgba(207,255,77,0.2)",
+                    border: "1px solid rgba(223,255,0,0.2)",
                     borderRadius: 12, padding: "10px 12px",
                   }}>
                     <div style={{
@@ -1483,7 +1483,7 @@ function LiveTrainMode({
                     }}>
                       <span style={{
                         fontSize: 10, fontWeight: 800, letterSpacing: 2,
-                        color: "rgba(207,255,77,0.6)", textTransform: "uppercase",
+                        color: "rgba(223,255,0,0.6)", textTransform: "uppercase",
                       }}>📝 Nota</span>
                       <button
                         onClick={() => toggleNote(currentEx)}
@@ -1552,7 +1552,7 @@ function LiveTrainMode({
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                       {REST_OPTS_LIVE.map(o => (
                         <button key={o.label} onClick={() => startRest(o.secs)}
-                          style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#0E0F13" : "var(--text-muted)", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                          style={{ background: restTimer.total === o.secs ? "var(--accent)" : "var(--input-bg)", border: `1px solid ${restTimer.total === o.secs ? "var(--accent)" : "var(--border)"}`, color: restTimer.total === o.secs ? "#09090B" : "var(--text-muted)", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                           {o.label}
                         </button>
                       ))}
@@ -1613,7 +1613,7 @@ function LiveTrainMode({
                         onClick={() => groupAsSuperset(currentEx - 1, currentEx)}
                         style={{
                           flex: 1, background: "none",
-                          border: "1px dashed rgba(207,255,77,0.25)",
+                          border: "1px dashed rgba(223,255,0,0.25)",
                           color: "var(--text-muted)", borderRadius: 10, padding: "8px 6px",
                           cursor: "pointer", fontFamily: "Barlow, sans-serif",
                           fontSize: 11, fontWeight: 600, textAlign: "center",
@@ -1642,7 +1642,7 @@ function LiveTrainMode({
                         onClick={() => groupAsSuperset(currentEx, currentEx + 1)}
                         style={{
                           flex: 1, background: "none",
-                          border: "1px dashed rgba(207,255,77,0.25)",
+                          border: "1px dashed rgba(223,255,0,0.25)",
                           color: "var(--text-muted)", borderRadius: 10, padding: "8px 6px",
                           cursor: "pointer", fontFamily: "Barlow, sans-serif",
                           fontSize: 11, fontWeight: 600, textAlign: "center",
@@ -1699,7 +1699,7 @@ function LiveTrainMode({
                       flex: 2,
                       background: ssGroup && nextInGroupIdx !== null && exData[nextInGroupIdx] ? `${ssColor}20` : "var(--accent)",
                       border: ssGroup && nextInGroupIdx !== null && exData[nextInGroupIdx] ? `2px solid ${ssColor}` : "none",
-                      color: ssGroup && nextInGroupIdx !== null && exData[nextInGroupIdx] ? ssColor : "#0E0F13",
+                      color: ssGroup && nextInGroupIdx !== null && exData[nextInGroupIdx] ? ssColor : "#09090B",
                       borderRadius: 10, padding: 11,
                       cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
                       fontSize: 17, fontWeight: 700,
@@ -1725,10 +1725,10 @@ function LiveTrainMode({
                     }}
                     style={{
                       flex: 2, background: "var(--accent)",
-                      border: "none", color: "#0E0F13", borderRadius: 4, padding: 11,
+                      border: "none", color: "#09090B", borderRadius: 4, padding: 11,
                       cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
                       fontSize: 17, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase",
-                      boxShadow: "0 0 20px rgba(207,255,77,0.2)",
+                      boxShadow: "0 0 20px rgba(223,255,0,0.2)",
                     }}
                   >
                     FINALIZAR →

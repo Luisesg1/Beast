@@ -50,7 +50,7 @@ export default function ResetPasswordScreen({ oobCode }) {
           position: absolute;
           width: 500px; height: 500px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(207,255,77,0.06) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(223,255,0,0.06) 0%, transparent 70%);
           top: -100px; left: 50%; transform: translateX(-50%);
           pointer-events: none;
         }
@@ -65,7 +65,7 @@ export default function ResetPasswordScreen({ oobCode }) {
           border-radius: 14px;
           overflow: hidden;
           margin: 0 auto 10px;
-          box-shadow: 0 0 28px rgba(207,255,77,0.35);
+          box-shadow: 0 0 28px rgba(223,255,0,0.35);
         }
         .rp-icon img { width: 100%; height: 100%; object-fit: cover; }
         .rp-appname {
@@ -77,7 +77,7 @@ export default function ResetPasswordScreen({ oobCode }) {
         .rp-slogan-row {
           display: flex; align-items: center; gap: 8px; margin-top: 10px; justify-content: center;
         }
-        .rp-line { width: 20px; height: 2px; background: #CFFF4D; border-radius: 1px; }
+        .rp-line { width: 20px; height: 2px; background: #DFFF00; border-radius: 1px; }
         .rp-slogan {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: 11px; font-weight: 700; letter-spacing: 3px;
@@ -128,7 +128,7 @@ export default function ResetPasswordScreen({ oobCode }) {
           outline: none;
           transition: border 0.2s;
         }
-        .rp-input:focus { border-color: rgba(207,255,77,0.4); }
+        .rp-input:focus { border-color: rgba(223,255,0,0.4); }
         .rp-input::placeholder { color: rgba(255,255,255,0.2); }
         .rp-eye {
           position: absolute; right: 13px; top: 50%;
@@ -146,7 +146,7 @@ export default function ResetPasswordScreen({ oobCode }) {
         }
         .rp-btn {
           width: 100%;
-          background: #CFFF4D;
+          background: #DFFF00;
           color: #000; font-weight: 900;
           font-size: 13px; letter-spacing: 3px;
           padding: 15px; border-radius: 10px;
@@ -170,7 +170,7 @@ export default function ResetPasswordScreen({ oobCode }) {
         }
         .rp-success-btn {
           display: block;
-          background: #CFFF4D; color: #000;
+          background: #DFFF00; color: #000;
           font-weight: 900; font-size: 13px; letter-spacing: 3px;
           padding: 15px; border-radius: 10px;
           text-decoration: none; text-align: center;

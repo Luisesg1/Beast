@@ -20,7 +20,7 @@ function fireConfetti() {
   document.body.appendChild(canvas);
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
-  const colors = ["#CFFF4D","#22c55e","#f97316","#ffffff","#a3e635","#FBBF24","#34d399","#fb923c"];
+  const colors = ["#DFFF00","#22c55e","#f97316","#ffffff","#a3e635","#FBBF24","#34d399","#fb923c"];
 
   function burst(cx, cy, count, speedMult) {
     return Array.from({length: count}, () => {
@@ -328,7 +328,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                 cardOpacity = 0.7;
               } else if (isToday) {
                 cardBorder = "2px solid var(--accent)";
-                cardBg = "rgba(207,255,77,0.04)";
+                cardBg = "rgba(223,255,0,0.04)";
                 cardOpacity = 1;
               } else {
                 cardBorder = "1px solid var(--border)";
@@ -344,7 +344,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                         <div style={{ fontWeight:700, fontSize:15 }}>{r.name}</div>
                         {isToday && !isCompleted && (
                           <span style={{ fontSize:9, fontWeight:900, letterSpacing:1.5, textTransform:"uppercase",
-                            background:"var(--accent)", color:"#0E0F13", borderRadius:4, padding:"2px 6px" }}>HOY</span>
+                            background:"var(--accent)", color:"#09090B", borderRadius:4, padding:"2px 6px" }}>HOY</span>
                         )}
                       </div>
                       {dayLabel && (
@@ -360,7 +360,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                       </div>
                     ) : (
                       <button className="btn-primary" style={{ fontSize:14, padding:"8px 16px",
-                        boxShadow: isToday ? "0 0 16px rgba(207,255,77,0.3)" : "none" }}
+                        boxShadow: isToday ? "0 0 16px rgba(223,255,0,0.3)" : "none" }}
                         onClick={() => {
                           if (!isToday && r.dayOfWeek >= 0) {
                             const hoy = DAYS_ES[todayDow];
@@ -374,7 +374,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                   {r.notes && <div style={{ fontSize:12, color:"var(--text-muted)", fontStyle:"italic", marginBottom:8 }}>{r.notes}</div>}
                   <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                     {(r.exercises||[]).map(ex => (
-                      <span key={ex.id} title={ex.comment || undefined} style={{ fontSize:11, padding:"2px 8px", background:"rgba(59,130,246,0.1)", border: ex.comment ? "1px solid rgba(207,255,77,0.35)" : "1px solid rgba(59,130,246,0.2)", borderRadius:10, color: ex.comment ? "var(--accent)" : "var(--text-muted)", cursor: ex.comment ? "help" : "default" }}>
+                      <span key={ex.id} title={ex.comment || undefined} style={{ fontSize:11, padding:"2px 8px", background:"rgba(59,130,246,0.1)", border: ex.comment ? "1px solid rgba(223,255,0,0.35)" : "1px solid rgba(59,130,246,0.2)", borderRadius:10, color: ex.comment ? "var(--accent)" : "var(--text-muted)", cursor: ex.comment ? "help" : "default" }}>
                         {ex.comment ? "💬 " : ""}{ex.name}
                       </span>
                     ))}
@@ -397,7 +397,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                 {c.photoURL ? (
                   <img src={c.photoURL} alt="coach" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:"1px solid var(--accent)", flexShrink:0 }} />
                 ) : (
-                  <div style={{ width:40, height:40, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#0E0F13", flexShrink:0 }}>
+                  <div style={{ width:40, height:40, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#09090B", flexShrink:0 }}>
                     {c.coachName?.[0]?.toUpperCase()||"?"}
                   </div>
                 )}

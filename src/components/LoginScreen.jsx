@@ -132,7 +132,7 @@ function ParticlesBackground() {
     const yeahDrop = drops[Math.floor(Math.random() * drops.length)];
     yeahDrop.word = "YEAH BUDDY";
     yeahDrop.isYeah = true;
-    yeahDrop.color = "#CFFF4D";
+    yeahDrop.color = "#DFFF00";
     yeahDrop.fontSize = 14;        // small, subtle
     yeahDrop.alpha = 0.45;         // barely visible
     yeahDrop.speed = 0.4;          // very slow
@@ -145,7 +145,7 @@ function ParticlesBackground() {
       drop.x = W * 0.1 + Math.random() * W * 0.8;
       drop.word = "YEAH BUDDY";
       drop.isYeah = true;
-      drop.color = "#CFFF4D";
+      drop.color = "#DFFF00";
       drop.fontSize = 48;        // big and proud
       drop.alpha = 1.0;
       drop.speed = 5 + Math.random() * 2;
@@ -165,7 +165,7 @@ function ParticlesBackground() {
 
       // Screen flash on impact
       if (flashAlpha > 0) {
-        ctx.fillStyle = `rgba(207,255,77,${flashAlpha})`;
+        ctx.fillStyle = `rgba(223,255,0,${flashAlpha})`;
         ctx.fillRect(0, 0, W, H);
         flashAlpha = Math.max(0, flashAlpha - 0.06);
       }
@@ -179,10 +179,10 @@ function ParticlesBackground() {
         } else {
           ctx.beginPath();
           ctx.arc(shockwave.x, shockwave.y, shockwave.r, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(207,255,77,${shockwave.alpha})`;
+          ctx.strokeStyle = `rgba(223,255,0,${shockwave.alpha})`;
           ctx.lineWidth = 3;
           ctx.shadowBlur = 20;
-          ctx.shadowColor = "#CFFF4D";
+          ctx.shadowColor = "#DFFF00";
           ctx.stroke();
           ctx.shadowBlur = 0;
           ctx.lineWidth = 1;
@@ -210,7 +210,7 @@ function ParticlesBackground() {
             const trailAlpha = drop.alpha * ratio * (isYeah ? 0.6 : 0.4);
             ctx.font = `800 ${drop.fontSize * (0.5 + ratio * 0.5)}px "Barlow Condensed", sans-serif`;
             if (isYeah) {
-              ctx.fillStyle = `rgba(207,255,77,${trailAlpha})`;
+              ctx.fillStyle = `rgba(223,255,0,${trailAlpha})`;
             } else {
               ctx.fillStyle = drop.color.startsWith("#fff")
                 ? `rgba(255,255,255,${trailAlpha})`
@@ -227,9 +227,9 @@ function ParticlesBackground() {
         ctx.font = `800 ${drop.fontSize}px "Barlow Condensed", sans-serif`;
         if (isYeah) {
           ctx.shadowBlur = 30;
-          ctx.shadowColor = "#CFFF4D";
+          ctx.shadowColor = "#DFFF00";
           ctx.globalAlpha = drop.alpha;
-          ctx.fillStyle = "#CFFF4D";
+          ctx.fillStyle = "#DFFF00";
         } else {
           ctx.shadowBlur = drop.trailLength > 80 ? 24 : drop.trailLength > 0 ? 10 : 4;
           ctx.shadowColor = drop.color;
@@ -374,7 +374,7 @@ function LoginScreen({ initialTab }) {
     width: "100%",
     background: "transparent",
     border: "none",
-    borderBottom: `2px solid ${focusedField === field ? "#CFFF4D" : "rgba(255,255,255,0.2)"}`,
+    borderBottom: `2px solid ${focusedField === field ? "#DFFF00" : "rgba(255,255,255,0.2)"}`,
     color: "white",
     fontFamily: "'Barlow', sans-serif",
     fontSize: 15,
@@ -390,7 +390,7 @@ function LoginScreen({ initialTab }) {
     fontWeight: 800,
     letterSpacing: 3,
     textTransform: "uppercase",
-    color: focusedField === field ? "#CFFF4D" : "rgba(255,255,255,0.4)",
+    color: focusedField === field ? "#DFFF00" : "rgba(255,255,255,0.4)",
     display: "block",
     marginBottom: 4,
     transition: "color 0.25s",
@@ -401,7 +401,7 @@ function LoginScreen({ initialTab }) {
       minHeight: "100dvh",
       width: "100vw",
       maxWidth: "100%",
-      background: "#0E0F13",
+      background: "#09090B",
       display: "flex",
       flexDirection: "row",
       position: "relative",
@@ -442,7 +442,7 @@ function LoginScreen({ initialTab }) {
           <div style={{
             width: 30, height: 30, borderRadius: 6,
             overflow: "hidden", flexShrink: 0,
-            boxShadow: "0 0 10px rgba(207,255,77,0.25)",
+            boxShadow: "0 0 10px rgba(223,255,0,0.25)",
           }}><img src={`data:image/webp;base64,${BEAST_ICON_B64}`} alt="Beast" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
           <span style={{
             fontFamily: "'Barlow Condensed', sans-serif",
@@ -471,7 +471,7 @@ function LoginScreen({ initialTab }) {
             fontWeight: 900,
             lineHeight: 0.88,
             letterSpacing: "-2px",
-            WebkitTextStroke: "2.5px #CFFF4D",
+            WebkitTextStroke: "2.5px #DFFF00",
             color: "transparent",
             textShadow: "0 0 0 transparent",
             textTransform: "uppercase",
@@ -483,7 +483,7 @@ function LoginScreen({ initialTab }) {
 
           {/* Rule + motivational phrase */}
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, marginBottom: 16 }}>
-            <div style={{ width: 44, height: 3, background: "#CFFF4D", borderRadius: 2, flexShrink: 0 }} />
+            <div style={{ width: 44, height: 3, background: "#DFFF00", borderRadius: 2, flexShrink: 0 }} />
             <span style={{
               fontFamily: "'Barlow Condensed', sans-serif",
               fontSize: 14, fontWeight: 700, letterSpacing: 2,
@@ -510,7 +510,7 @@ function LoginScreen({ initialTab }) {
               <div key={lbl}>
                 <div style={{
                   fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: 22, fontWeight: 900, color: "#CFFF4D",
+                  fontSize: 22, fontWeight: 900, color: "#DFFF00",
                 }}>{val}</div>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: 2, textTransform: "uppercase" }}>{lbl}</div>
               </div>
@@ -538,7 +538,7 @@ function LoginScreen({ initialTab }) {
           position: "absolute",
           left: 0, top: "10%", bottom: "10%",
           width: 1,
-          background: "linear-gradient(to bottom, transparent, rgba(207,255,77,0.3), transparent)",
+          background: "linear-gradient(to bottom, transparent, rgba(223,255,0,0.3), transparent)",
         }} />
 
         <div style={{
@@ -547,7 +547,7 @@ function LoginScreen({ initialTab }) {
           background: "rgba(10,10,10,0.55)",
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",
-          border: "1px solid rgba(207,255,77,0.12)",
+          border: "1px solid rgba(223,255,0,0.12)",
           borderRadius: 16,
           padding: "22px 20px",
           boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
@@ -566,7 +566,7 @@ function LoginScreen({ initialTab }) {
           <div style={{
             width: 52, height: 52, borderRadius: 14,
             overflow: "hidden", marginBottom: 8,
-            boxShadow: "0 0 24px rgba(207,255,77,0.35)",
+            boxShadow: "0 0 24px rgba(223,255,0,0.35)",
           }}><img src={`data:image/webp;base64,${BEAST_ICON_B64}`} alt="Beast" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
           {/* App name — protagonist */}
           <div style={{
@@ -579,13 +579,13 @@ function LoginScreen({ initialTab }) {
           <div style={{
             display: "flex", alignItems: "center", gap: 8, marginTop: 10,
           }}>
-            <div style={{ width: 20, height: 2, background: "#CFFF4D", borderRadius: 1 }} />
+            <div style={{ width: 20, height: 2, background: "#DFFF00", borderRadius: 1 }} />
             <span style={{
               fontFamily: "'Barlow Condensed', sans-serif",
               fontSize: 12, fontWeight: 700, letterSpacing: 3,
               color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
             }}>{slogan.top} {slogan.bottom}</span>
-            <div style={{ width: 20, height: 2, background: "#CFFF4D", borderRadius: 1 }} />
+            <div style={{ width: 20, height: 2, background: "#DFFF00", borderRadius: 1 }} />
           </div>
           {/* Motivational phrase */}
           <div style={{
@@ -616,9 +616,9 @@ function LoginScreen({ initialTab }) {
                   fontWeight: 700,
                   letterSpacing: 1,
                   textTransform: "uppercase",
-                  color: mode === m ? "#CFFF4D" : "rgba(255,255,255,0.25)",
+                  color: mode === m ? "#DFFF00" : "rgba(255,255,255,0.25)",
                   cursor: "pointer",
-                  borderBottom: mode === m ? "2px solid #CFFF4D" : "2px solid transparent",
+                  borderBottom: mode === m ? "2px solid #DFFF00" : "2px solid transparent",
                   marginBottom: -1,
                   transition: "all 0.2s",
                 }}>{label}</button>
@@ -640,7 +640,7 @@ function LoginScreen({ initialTab }) {
                 fontFamily: "'Barlow Condensed', sans-serif",
                 fontSize: 36, fontWeight: 900, color: "white", textTransform: "uppercase",
                 letterSpacing: 1, lineHeight: 1,
-              }}>RECUPERAR<br/><span style={{ color: "#CFFF4D" }}>CONTRASEÑA</span></div>
+              }}>RECUPERAR<br/><span style={{ color: "#DFFF00" }}>CONTRASEÑA</span></div>
               <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>
                 Te enviaremos un enlace para restablecer tu acceso.
               </p>
@@ -710,7 +710,7 @@ function LoginScreen({ initialTab }) {
                       letterSpacing: 1, textTransform: "uppercase", padding: 0,
                       transition: "color 0.2s",
                     }}
-                      onMouseEnter={e => e.currentTarget.style.color = "#CFFF4D"}
+                      onMouseEnter={e => e.currentTarget.style.color = "#DFFF00"}
                       onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
                     >¿Olvidaste tu contraseña?</button>
                   </div>
@@ -727,7 +727,7 @@ function LoginScreen({ initialTab }) {
                       ...inputStyle("passConfirm"),
                       borderBottomColor: pass && passConfirm && pass !== passConfirm
                         ? "#ef4444"
-                        : focusedField === "passConfirm" ? "#CFFF4D" : "rgba(255,255,255,0.2)",
+                        : focusedField === "passConfirm" ? "#DFFF00" : "rgba(255,255,255,0.2)",
                       paddingRight: 32,
                     }}
                     type={showPassConfirm ? "text" : "password"}
@@ -783,10 +783,10 @@ function LoginScreen({ initialTab }) {
               marginTop: 28,
               width: "100%",
               padding: "15px 0",
-              background: loading ? "rgba(255,255,255,0.08)" : "#CFFF4D",
+              background: loading ? "rgba(255,255,255,0.08)" : "#DFFF00",
               border: "none",
               borderRadius: 4,
-              color: loading ? "rgba(255,255,255,0.3)" : "#0E0F13",
+              color: loading ? "rgba(255,255,255,0.3)" : "#09090B",
               fontFamily: "'Barlow Condensed', sans-serif",
               fontSize: 16,
               fontWeight: 900,
@@ -794,10 +794,10 @@ function LoginScreen({ initialTab }) {
               textTransform: "uppercase",
               cursor: loading ? "not-allowed" : "pointer",
               transition: "all 0.2s",
-              boxShadow: loading ? "none" : "0 0 30px rgba(207,255,77,0.25)",
+              boxShadow: loading ? "none" : "0 0 30px rgba(223,255,0,0.25)",
             }}
-            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = "#f0ff40"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 40px rgba(207,255,77,0.4)"; } }}
-            onMouseLeave={e => { e.currentTarget.style.background = loading ? "rgba(255,255,255,0.08)" : "#CFFF4D"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = loading ? "none" : "0 0 30px rgba(207,255,77,0.25)"; }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = "#f0ff40"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 40px rgba(223,255,0,0.4)"; } }}
+            onMouseLeave={e => { e.currentTarget.style.background = loading ? "rgba(255,255,255,0.08)" : "#DFFF00"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = loading ? "none" : "0 0 30px rgba(223,255,0,0.25)"; }}
           >
             {loading ? "⏳ Cargando..." : mode === "login" ? "ENTRAR →" : mode === "register" ? "CREAR CUENTA →" : "ENVIAR ENLACE →"}
           </button>
@@ -861,7 +861,7 @@ function LoginScreen({ initialTab }) {
                   fontFamily: "'Barlow', sans-serif",
                   transition: "all 0.2s",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(207,255,77,0.3)"; e.currentTarget.style.background = "rgba(207,255,77,0.03)"; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(223,255,0,0.3)"; e.currentTarget.style.background = "rgba(223,255,0,0.03)"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "transparent"; }}
               >
                 <span style={{ fontSize: 18 }}>👤</span>
@@ -878,7 +878,7 @@ function LoginScreen({ initialTab }) {
                   onClick={() => switchMode(mode === "login" ? "register" : "login")}
                   style={{
                     background: "none", border: "none",
-                    color: "#CFFF4D", fontWeight: 800, cursor: "pointer",
+                    color: "#DFFF00", fontWeight: 800, cursor: "pointer",
                     fontFamily: "'Barlow', sans-serif", fontSize: 12, padding: 0,
                   }}
                 >

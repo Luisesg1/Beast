@@ -11,7 +11,7 @@ const PLANS = {
     id: "pro",
     name: "BEAST PRO",
     emoji: "⚡",
-    color: "#CFFF4D",
+    color: "#DFFF00",
     monthly: { key: "monthly",  fallbackPrice: "Ver precio en Play Store",  yearly: false },
     yearly:  { key: "yearly",   fallbackPrice: "Ver precio en Play Store", badge: "Ahorra 16%", yearly: true },
     features: [
@@ -72,7 +72,7 @@ function GuestView({ onClose }) {
       <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
       <div style={{
         fontFamily: "'Barlow Condensed',sans-serif",
-        fontSize: 24, fontWeight: 900, color: "#CFFF4D",
+        fontSize: 24, fontWeight: 900, color: "#DFFF00",
         letterSpacing: 2, marginBottom: 8,
       }}>
         CREA TU CUENTA
@@ -85,7 +85,7 @@ function GuestView({ onClose }) {
         onClick={onClose}
         style={{
           width: "100%", padding: "14px 0", borderRadius: 12,
-          background: "#CFFF4D", color: "#000",
+          background: "#DFFF00", color: "#000",
           fontWeight: 900, fontSize: 16, border: "none",
           cursor: "pointer",
           fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
@@ -349,7 +349,7 @@ export default function PaywallModal({ onClose, defaultPlan = "pro" }) {
         style={{
           width: "100%", maxWidth: 360,
           background: "#111",
-          border: "1px solid rgba(207,255,77,0.25)",
+          border: "1px solid rgba(223,255,0,0.25)",
           borderRadius: 20, padding: "28px 24px",
           boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
           maxHeight: "90vh", overflowY: "auto",

@@ -9,7 +9,7 @@ const THEMES = [
   {
     id: "classic", label: "Clásico", emoji: "⚡",
     bg1: "#05050a", bg2: "rgba(20,15,0,1)", bg3: "rgba(0,15,5,1)",
-    accent: "#CFFF4D", accentDim: "rgba(207,255,77,", isLight: false,
+    accent: "#DFFF00", accentDim: "rgba(223,255,0,", isLight: false,
   },
   {
     id: "neon", label: "Neón", emoji: "🟣",

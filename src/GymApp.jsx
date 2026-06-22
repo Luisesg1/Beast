@@ -81,10 +81,10 @@ function BruxAvatar({ size = 32 }) {
       <rect x="43" y="42" width="14" height="12" rx="2" fill="#161616"/>
       <rect x="28" y="12" width="44" height="32" rx="8" fill="#1a1a1a" stroke="#222" strokeWidth="1.5"/>
       <rect x="33" y="17" width="34" height="22" rx="4" fill="#16a34a"/>
-      <rect x="36" y="20" width="11" height="8" rx="2" fill="#CFFF4D"/>
-      <rect x="53" y="20" width="11" height="8" rx="2" fill="#CFFF4D"/>
-      <rect x="39" y="22" width="5" height="4" rx="1" fill="#0E0F13"/>
-      <rect x="56" y="22" width="5" height="4" rx="1" fill="#0E0F13"/>
+      <rect x="36" y="20" width="11" height="8" rx="2" fill="#DFFF00"/>
+      <rect x="53" y="20" width="11" height="8" rx="2" fill="#DFFF00"/>
+      <rect x="39" y="22" width="5" height="4" rx="1" fill="#09090B"/>
+      <rect x="56" y="22" width="5" height="4" rx="1" fill="#09090B"/>
       <rect x="37" y="31" width="26" height="6" rx="2" fill="#0a1a0f"/>
       <line x1="39" y1="33" x2="63" y2="33" stroke="#22c55e" strokeWidth="0.8" opacity="0.8"/>
       <line x1="39" y1="36" x2="63" y2="36" stroke="#22c55e" strokeWidth="0.8" opacity="0.5"/>
@@ -92,8 +92,8 @@ function BruxAvatar({ size = 32 }) {
       <circle cx="64" cy="60" r="2.5" fill="#22c55e"/>
       <rect x="31" y="87" width="17" height="8" rx="3" fill="#141414" stroke="#1e1e1e" strokeWidth="0.8"/>
       <rect x="52" y="87" width="17" height="8" rx="3" fill="#141414" stroke="#1e1e1e" strokeWidth="0.8"/>
-      <rect x="29" y="93" width="21" height="4" rx="2" fill="#CFFF4D" opacity="0.7"/>
-      <rect x="50" y="93" width="21" height="4" rx="2" fill="#CFFF4D" opacity="0.7"/>
+      <rect x="29" y="93" width="21" height="4" rx="2" fill="#DFFF00" opacity="0.7"/>
+      <rect x="50" y="93" width="21" height="4" rx="2" fill="#DFFF00" opacity="0.7"/>
     </svg>
   );
 }
@@ -432,7 +432,7 @@ useEffect(() => {
                       schedule: { at: new Date(Date.now() + 500) },
                       smallIcon: "ic_notification",
                       channelId: "gymtracker_default",
-              iconColor: "#CFFF4D",
+              iconColor: "#DFFF00",
                       sound: null,
                     }]
                   }).catch(() => {});
@@ -644,7 +644,7 @@ useEffect(() => {
             sound: null,
             smallIcon: "ic_notification",
             channelId: "gymtracker_default",
-            iconColor: "#CFFF4D",
+            iconColor: "#DFFF00",
           });
         }
 
@@ -664,7 +664,7 @@ useEffect(() => {
               sound: null,
               smallIcon: "ic_notification",
               channelId: "gymtracker_default",
-              iconColor: "#CFFF4D",
+              iconColor: "#DFFF00",
             });
           }
         }
@@ -964,15 +964,15 @@ useEffect(() => {
           </div>
         </div>
 
-        {todayPlanned&&(()=>{const ts=todayStr();const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"0 12px 12px",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(207,255,77,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
+        {todayPlanned&&(()=>{const ts=todayStr();const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"0 12px 12px",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(223,255,0,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
 
         <nav className="sidebar-nav">
   {NAV.map(item => (
     <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`}
       style={item.id === "new" ? {
-        background: "#CFFF4D", color: "#0E0F13", fontWeight: 900,
+        background: "#DFFF00", color: "#09090B", fontWeight: 900,
         letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
-        borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(207,255,77,0.2)",
+        borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(223,255,0,0.2)",
       } : {}}
       onClick={() => navClick(item.id)}>
       <span className="nav-icon"><NavIcon e={item.icon} /></span>
@@ -1060,28 +1060,28 @@ useEffect(() => {
               className="nav-item"
               style={{
                 marginBottom: 8, marginTop: 4,
-                background: "rgba(207,255,77,0.08)",
-                border: "1px solid rgba(207,255,77,0.25)",
+                background: "rgba(223,255,0,0.08)",
+                border: "1px solid rgba(223,255,0,0.25)",
                 borderRadius: 8,
               }}
               onClick={() => setShowPaywall(true)}
             >
               <span className="nav-icon"><NavIcon e="⚡" /></span>
-              <span className="nav-label" style={{ color: "#CFFF4D", fontWeight: 800 }}>HAZTE PRO</span>
+              <span className="nav-label" style={{ color: "#DFFF00", fontWeight: 800 }}>HAZTE PRO</span>
             </button>
           ) : (
             <button
               className="nav-item"
               style={{
                 marginBottom: 8, marginTop: 4,
-                background: "rgba(207,255,77,0.05)",
-                border: "1px solid rgba(207,255,77,0.15)",
+                background: "rgba(223,255,0,0.05)",
+                border: "1px solid rgba(223,255,0,0.15)",
                 borderRadius: 8,
                 cursor: "default",
               }}
             >
               <span className="nav-icon"><NavIcon e="⚡" /></span>
-              <span className="nav-label" style={{ color: "#CFFF4D", fontWeight: 800 }}>
+              <span className="nav-label" style={{ color: "#DFFF00", fontWeight: 800 }}>
                 BEAST {user.plan?.toUpperCase()} ✓
               </span>
             </button>
@@ -1124,9 +1124,9 @@ useEffect(() => {
           <div className="topbar-actions">
             {(()=>{const sv=currentStreak;const tt=sessions.some(s=>s.date===todayStr());return(<button className="topbar-btn" onClick={()=>{ setActiveTab("history"); setTimeout(()=>{ const el=document.getElementById("training-calendar-section"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },100); }} style={{cursor:"pointer",opacity:tt?1:0.45,filter:tt?"none":"grayscale(1)",background:"none",border:"none"}}><span className="topbar-btn-icon">🔥</span><span className="topbar-btn-label" style={{color:tt?"#f97316":"var(--text-muted)",fontWeight:800}}>{sv}sem</span></button>);})()}
             <button className="topbar-btn" onClick={() => isPro ? setShowPlanInfo(true) : setShowPaywall(true)}
-              style={{ background: isPro ? "rgba(207,255,77,0.08)" : "rgba(207,255,77,0.12)", border: `1px solid ${isPro ? "rgba(207,255,77,0.2)" : "rgba(207,255,77,0.35)"}`, borderRadius: 8, cursor: "pointer" }}>
+              style={{ background: isPro ? "rgba(223,255,0,0.08)" : "rgba(223,255,0,0.12)", border: `1px solid ${isPro ? "rgba(223,255,0,0.2)" : "rgba(223,255,0,0.35)"}`, borderRadius: 8, cursor: "pointer" }}>
               <span className="topbar-btn-icon">⚡</span>
-              <span className="topbar-btn-label" style={{ color: "#CFFF4D", fontWeight: 800 }}>
+              <span className="topbar-btn-label" style={{ color: "#DFFF00", fontWeight: 800 }}>
                 {isPro ? user.plan.toUpperCase() : "FREE"}
               </span>
             </button>
@@ -1146,15 +1146,15 @@ useEffect(() => {
                 <button onClick={() => setMobileNavOpen(false)} style={{ background:"none", border:"none", color:"var(--text-muted)", fontSize:18, cursor:"pointer", padding:"4px 8px", lineHeight:1 }}>✕</button>
               </div>
 
-              {todayPlanned&&(()=>{const ts=todayStr();const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"12px 12px 0",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(207,255,77,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
+              {todayPlanned&&(()=>{const ts=todayStr();const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"12px 12px 0",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(223,255,0,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
 
               <nav style={{ padding: "12px 8px", flex: 1 }}>
                 {NAV.map(item => (
                   <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`}
                     style={item.id === "new" ? {
-                      background: "#CFFF4D", color: "#0E0F13", fontWeight: 900,
+                      background: "#DFFF00", color: "#09090B", fontWeight: 900,
                       letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
-                      borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(207,255,77,0.2)",
+                      borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(223,255,0,0.2)",
                     } : { marginBottom: 2 }}
                     onClick={() => navClick(item.id)}>
                     <span className="nav-icon"><NavIcon e={item.icon} /></span>
@@ -1226,29 +1226,29 @@ useEffect(() => {
                     className="nav-item"
                     style={{
                       marginBottom: 2, marginTop: 6,
-                      background: "rgba(207,255,77,0.08)",
-                      border: "1px solid rgba(207,255,77,0.25)",
+                      background: "rgba(223,255,0,0.08)",
+                      border: "1px solid rgba(223,255,0,0.25)",
                       borderRadius: 8,
                     }}
                     onClick={() => { setShowPaywall(true); setMobileNavOpen(false); }}
                   >
                     <span className="nav-icon"><NavIcon e="⚡" /></span>
-                    <span className="nav-label" style={{ color: "#CFFF4D", fontWeight: 800 }}>HAZTE PRO</span>
+                    <span className="nav-label" style={{ color: "#DFFF00", fontWeight: 800 }}>HAZTE PRO</span>
                   </button>
                 ) : (
                   <button
                     className="nav-item"
                     style={{
                       marginBottom: 2, marginTop: 6,
-                      background: "rgba(207,255,77,0.05)",
-                      border: "1px solid rgba(207,255,77,0.15)",
+                      background: "rgba(223,255,0,0.05)",
+                      border: "1px solid rgba(223,255,0,0.15)",
                       borderRadius: 8,
                       cursor: "pointer",
                     }}
                     onClick={() => { setShowPlanInfo(true); setMobileNavOpen(false); }}
                   >
                     <span className="nav-icon"><NavIcon e="⚡" /></span>
-                    <span className="nav-label" style={{ color: "#CFFF4D", fontWeight: 800 }}>
+                    <span className="nav-label" style={{ color: "#DFFF00", fontWeight: 800 }}>
                       BEAST {user.plan?.toUpperCase()} ✓
                     </span>
                   </button>
@@ -1377,12 +1377,12 @@ useEffect(() => {
             return (
               <div style={{
                 background:"var(--card)",
-                border:"1px solid rgba(207,255,77,0.15)", borderRadius:6,
+                border:"1px solid rgba(223,255,0,0.15)", borderRadius:6,
                 padding:"14px 18px", marginBottom:16,
                 display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10
               }}>
                 <div>
-                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"rgba(207,255,77,0.6)", textTransform:"uppercase", marginBottom:4, fontFamily:"Barlow Condensed,sans-serif" }}>
+                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"rgba(223,255,0,0.6)", textTransform:"uppercase", marginBottom:4, fontFamily:"Barlow Condensed,sans-serif" }}>
                     📋 Plantilla de hoy
                   </div>
                   <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:800 }}>{tplHoy.name}</div>
@@ -1423,8 +1423,8 @@ useEffect(() => {
             return (
               <div style={{background:doneToday?"rgba(34,197,94,0.07)":"var(--card)",border:`1px solid ${doneToday?"rgba(34,197,94,0.25)":"var(--border)"}`,borderRadius:6,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:doneToday?"#22c55e":"#CFFF4D",textTransform:"uppercase",marginBottom:4}}>{doneToday?"✅ Completada hoy":"📅 Hoy toca"}</div>
-                  <div style={{fontFamily:"Barlow Condensed, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"#CFFF4D"}}>{name}</div>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:doneToday?"#22c55e":"#DFFF00",textTransform:"uppercase",marginBottom:4}}>{doneToday?"✅ Completada hoy":"📅 Hoy toca"}</div>
+                  <div style={{fontFamily:"Barlow Condensed, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"#DFFF00"}}>{name}</div>
                   {!doneToday&&planEx.length>0&&<div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{planEx.length} ejercicios planificados</div>}
                   {doneToday&&todaySess&&<div style={{fontSize:12,color:"#86efac",marginTop:3}}>{todaySess.exercises?.length||0} ejercicios · {todaySess.durationSecs?`${Math.round(todaySess.durationSecs/60)} min`:"registrada"}</div>}
                 </div>
@@ -1455,7 +1455,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                   <span style={{ color: "var(--text-muted)" }}>{tw}/{weeklyGoal.target} sesiones</span>
                 </div>
                 <div style={{ background: "var(--border)", borderRadius: 2, height: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", background: ok ? "#22c55e" : "#CFFF4D", width: `${p * 100}%`, borderRadius: 2, transition: "width 0.5s" }} />
+                  <div style={{ height: "100%", background: ok ? "#22c55e" : "#DFFF00", width: `${p * 100}%`, borderRadius: 2, transition: "width 0.5s" }} />
                 </div>
               </div>
             );
@@ -1493,15 +1493,15 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
 
             return (
               <div style={{
-                background:"rgba(207,255,77,0.04)",
+                background:"rgba(223,255,0,0.04)",
                 border:"2px solid var(--accent)",
                 borderRadius:12, marginBottom:20, overflow:"hidden",
-                boxShadow:"0 0 24px rgba(207,255,77,0.12)",
+                boxShadow:"0 0 24px rgba(223,255,0,0.12)",
               }}>
                 <div style={{
-                  background:"rgba(207,255,77,0.12)",
+                  background:"rgba(223,255,0,0.12)",
                   padding:"8px 14px", display:"flex", alignItems:"center", gap:8,
-                  borderBottom:"1px solid rgba(207,255,77,0.15)",
+                  borderBottom:"1px solid rgba(223,255,0,0.15)",
                 }}>
                   <span style={{fontSize:10,fontWeight:900,letterSpacing:2,textTransform:"uppercase",color:"var(--accent)"}}>
                     {isToday ? "⚡ TU COACH TE MANDÓ RUTINA PARA HOY" : "🏋️ TU COACH TE ASIGNÓ UNA RUTINA"}
@@ -1535,11 +1535,11 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                     setShowAthleteCoach(true);
                   }} style={{
                     background:"var(--accent)", border:"none", borderRadius:10,
-                    color:"#0E0F13", fontWeight:900, fontSize:13,
+                    color:"#09090B", fontWeight:900, fontSize:13,
                     padding:"10px 16px", cursor:"pointer", flexShrink:0,
                     display:"flex",alignItems:"center",gap:5,
                     letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
-                    textTransform:"uppercase", boxShadow:"0 0 16px rgba(207,255,77,0.3)",
+                    textTransform:"uppercase", boxShadow:"0 0 16px rgba(223,255,0,0.3)",
                   }}>⚡ INICIAR</button>
                 </div>
               </div>
@@ -1577,17 +1577,17 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <button
               onClick={() => { if (isGuest && !canAdd) { setGuestLimitModal("live"); return; } setWorkout(""); setShowNameModal(true); }}
               style={{
-                background: "#CFFF4D",
+                background: "#DFFF00",
                 border: "none",
                 borderRadius: 8, padding: "24px 16px", cursor: "pointer",
                 textAlign: "center", transition: "all 0.2s", fontFamily: "Barlow, sans-serif",
-                boxShadow: "0 0 30px rgba(207,255,77,0.2)",
+                boxShadow: "0 0 30px rgba(223,255,0,0.2)",
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 32px rgba(207,255,77,0.4)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 0 30px rgba(207,255,77,0.2)"; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 32px rgba(223,255,0,0.4)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 0 30px rgba(223,255,0,0.2)"; }}
             >
               <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "#0E0F13", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "#09090B", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
                 Entrenar ahora
               </div>
               <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)", lineHeight: 1.5 }}>
@@ -1876,7 +1876,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                           <span style={{ fontWeight: 600, fontSize: 14, flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
                             {ex.name}
                             {ssColor && (
-                              <span style={{ background: ssColor, color: "#0E0F13", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
+                              <span style={{ background: ssColor, color: "#09090B", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
                             )}
                           </span>
 
@@ -1894,7 +1894,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                                   <button
                                     title="Agrupar como superset con el ejercicio anterior"
                                     onClick={() => groupExercisesAsSuperset(exIdx - 1, exIdx)}
-                                    style={{ background: "none", border: "1px solid rgba(207,255,77,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                                    style={{ background: "none", border: "1px solid rgba(223,255,0,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
                                   >⚡SS↑</button>
                                 )}
                                 {exIdx > 0 && currentExercises[exIdx - 1]?.supersetGroup && (
@@ -1908,7 +1908,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                                   <button
                                     title="Agrupar como superset con el ejercicio siguiente"
                                     onClick={() => groupExercisesAsSuperset(exIdx, exIdx + 1)}
-                                    style={{ background: "none", border: "1px solid rgba(207,255,77,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                                    style={{ background: "none", border: "1px solid rgba(223,255,0,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
                                   >⚡SS↓</button>
                                 )}
                                 {exIdx < currentExercises.length - 1 && currentExercises[exIdx + 1]?.supersetGroup && (
@@ -1972,10 +1972,10 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               style={{
                 width: "100%",
                 background: "var(--accent)",
-                border: "none", color: "#0E0F13", borderRadius: 10, padding: "18px",
+                border: "none", color: "#09090B", borderRadius: 10, padding: "18px",
                 fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 900,
                 letterSpacing: 2, cursor: "pointer",
-                boxShadow: "0 0 28px rgba(207,255,77,0.35)",
+                boxShadow: "0 0 28px rgba(223,255,0,0.35)",
               }}
             >
               ⚡ INICIAR ENTRENAMIENTO
@@ -1984,7 +1984,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <button
               onClick={() => showToast("⚠️ Agrega al menos un ejercicio antes de iniciar")}
               style={{
-                width: "100%", background: "rgba(207,255,77,0.08)", border: "1px solid rgba(207,255,77,0.2)",
+                width: "100%", background: "rgba(223,255,0,0.08)", border: "1px solid rgba(223,255,0,0.2)",
                 color: "var(--text-muted)", borderRadius: 10, padding: "18px",
                 fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700,
                 letterSpacing: 2, cursor: "pointer",
@@ -2225,7 +2225,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 <div style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
                   {ex.name}
                   {ssColor && (
-                    <span style={{ background: ssColor, color: "#0E0F13", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
+                    <span style={{ background: ssColor, color: "#09090B", fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3, letterSpacing: 1 }}>SS</span>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -2249,7 +2249,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                       <button
                         title="Agrupar como superset con el ejercicio anterior"
                         onClick={() => groupExercisesAsSuperset(exIdx - 1, exIdx)}
-                        style={{ background: "none", border: "1px solid rgba(207,255,77,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 7px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                        style={{ background: "none", border: "1px solid rgba(223,255,0,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 7px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
                       >⚡SS↑</button>
                     )}
                     {exIdx > 0 && currentExercises[exIdx - 1]?.supersetGroup && (
@@ -2263,7 +2263,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                       <button
                         title="Agrupar como superset con el ejercicio siguiente"
                         onClick={() => groupExercisesAsSuperset(exIdx, exIdx + 1)}
-                        style={{ background: "none", border: "1px solid rgba(207,255,77,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 7px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                        style={{ background: "none", border: "1px solid rgba(223,255,0,0.25)", color: "var(--text-muted)", borderRadius: 6, padding: "3px 7px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
                       >⚡SS↓</button>
                     )}
                     {exIdx < currentExercises.length - 1 && currentExercises[exIdx + 1]?.supersetGroup && (
@@ -2325,7 +2325,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
     {!isPro && !isGuest && (
       <div onClick={() => setShowPaywall(true)} style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "rgba(207,255,77,0.05)", border: "1px solid rgba(207,255,77,0.2)",
+        background: "rgba(223,255,0,0.05)", border: "1px solid rgba(223,255,0,0.2)",
         borderRadius: 12, padding: "10px 14px", marginBottom: 16, cursor: "pointer",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2335,7 +2335,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Hazte Pro para ver todo tu historial</div>
           </div>
         </div>
-        <span style={{ fontSize: 11, fontWeight: 800, color: "#CFFF4D", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>PRO →</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "#DFFF00", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>PRO →</span>
       </div>
     )}
     {(() => {
@@ -2381,9 +2381,9 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 <button key={dateStr} onClick={() => setCalSelectedDate(isSelected ? null : dateStr)}
                   title={trained ? `${sessCount} sesión${sessCount>1?"es":""}` : ""}
                   style={{
-                    aspectRatio: "1", borderRadius: 8, border: isSelected ? "2px solid var(--accent)" : isToday ? "2px solid rgba(207,255,77,0.4)" : "1px solid transparent",
-                    background: isSelected ? "var(--accent)" : trained ? "rgba(207,255,77,0.15)" : "transparent",
-                    color: isSelected ? "#0E0F13" : isToday ? "var(--accent)" : trained ? "var(--text)" : "var(--text-muted)",
+                    aspectRatio: "1", borderRadius: 8, border: isSelected ? "2px solid var(--accent)" : isToday ? "2px solid rgba(223,255,0,0.4)" : "1px solid transparent",
+                    background: isSelected ? "var(--accent)" : trained ? "rgba(223,255,0,0.15)" : "transparent",
+                    color: isSelected ? "#09090B" : isToday ? "var(--accent)" : trained ? "var(--text)" : "var(--text-muted)",
                     fontWeight: trained || isToday ? 800 : 400,
                     fontSize: 12, cursor: trained ? "pointer" : "default",
                     display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1,
@@ -2391,7 +2391,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                     opacity: trained || isToday ? 1 : 0.4,
                   }}>
                   {d}
-                  {trained && <div style={{ width: isSelected ? 4 : 3, height: isSelected ? 4 : 3, borderRadius: "50%", background: isSelected ? "#0E0F13" : "var(--accent)", flexShrink: 0 }} />}
+                  {trained && <div style={{ width: isSelected ? 4 : 3, height: isSelected ? 4 : 3, borderRadius: "50%", background: isSelected ? "#09090B" : "var(--accent)", flexShrink: 0 }} />}
                 </button>
               );
             })}
@@ -2436,7 +2436,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <button onClick={() => setHistFiltersOpen(o => !o)} style={{
               background: hasActive ? "var(--accent)" : "var(--card)",
               border: `1px solid ${hasActive ? "var(--accent)" : "var(--border)"}`,
-              color: hasActive ? "#0E0F13" : "var(--text)",
+              color: hasActive ? "#09090B" : "var(--text)",
               borderRadius: 10, padding: "0 14px", cursor: "pointer",
               fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6,
               whiteSpace: "nowrap", flexShrink: 0,
@@ -2460,7 +2460,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                       flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
                       background: filterOrder === v ? "var(--accent)" : "var(--input-bg)",
                       border: `1px solid ${filterOrder === v ? "var(--accent)" : "var(--border)"}`,
-                      color: filterOrder === v ? "#0E0F13" : "var(--text-muted)",
+                      color: filterOrder === v ? "#09090B" : "var(--text-muted)",
                     }}>{l}</button>
                   ))}
                 </div>
@@ -2488,7 +2488,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                       padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
                       background: filterPeriod === v ? "var(--accent)" : "var(--input-bg)",
                       border: `1px solid ${filterPeriod === v ? "var(--accent)" : "var(--border)"}`,
-                      color: filterPeriod === v ? "#0E0F13" : "var(--text-muted)",
+                      color: filterPeriod === v ? "#09090B" : "var(--text-muted)",
                     }}>{l}</button>
                   ))}
                 </div>
@@ -2504,7 +2504,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                         padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
                         background: filterMuscle === m ? "var(--accent)" : "var(--input-bg)",
                         border: `1px solid ${filterMuscle === m ? "var(--accent)" : "var(--border)"}`,
-                        color: filterMuscle === m ? "#0E0F13" : "var(--text-muted)",
+                        color: filterMuscle === m ? "#09090B" : "var(--text-muted)",
                       }}>{m || "Todos"}</button>
                     ))}
                   </div>
@@ -2521,7 +2521,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                         padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
                         background: filterWorkout === r ? "var(--accent)" : "var(--input-bg)",
                         border: `1px solid ${filterWorkout === r ? "var(--accent)" : "var(--border)"}`,
-                        color: filterWorkout === r ? "#0E0F13" : "var(--text-muted)",
+                        color: filterWorkout === r ? "#09090B" : "var(--text-muted)",
                       }}>{r || "Todas"}</button>
                     ))}
                   </div>
@@ -2655,6 +2655,8 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
       setSessionMode("log");
     }}
     onGoHome={() => setActiveTab("new")}
+    onLibrary={() => setShowLibrary(true)}
+    onAIChat={() => setShowAIChat(true)}
     />
 </div>
       </main>
@@ -2943,7 +2945,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               <div style={{ display:"flex", gap:0, marginBottom:16, background:"var(--input-bg)", borderRadius:10, padding:3 }}>
                 {[["records","🏆 Récords"],["actividad","📅 Actividad"],["ejercicio","💪 Por ejercicio"]].map(([k,l]) => (
                   <button key={k} onClick={() => setPickerMuscle(k === "actividad" ? "__actividad__" : k === "records" ? "__records__" : activeMuscle)}
-                    style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: (k==="actividad"?pickerMuscle==="__actividad__":k==="records"?pickerMuscle==="__records__":pickerMuscle!=="__actividad__"&&pickerMuscle!=="__records__") ? "var(--accent)" : "transparent", color: (k==="actividad"?pickerMuscle==="__actividad__":k==="records"?pickerMuscle==="__records__":pickerMuscle!=="__actividad__"&&pickerMuscle!=="__records__") ? "#0E0F13" : "var(--text-muted)", fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s" }}>{l}</button>
+                    style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", background: (k==="actividad"?pickerMuscle==="__actividad__":k==="records"?pickerMuscle==="__records__":pickerMuscle!=="__actividad__"&&pickerMuscle!=="__records__") ? "var(--accent)" : "transparent", color: (k==="actividad"?pickerMuscle==="__actividad__":k==="records"?pickerMuscle==="__records__":pickerMuscle!=="__actividad__"&&pickerMuscle!=="__records__") ? "#09090B" : "var(--text-muted)", fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s" }}>{l}</button>
                 ))}
               </div>
 
@@ -3065,7 +3067,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             style={{
               width: "100%", maxWidth: 340,
               background: "#111",
-              border: "1px solid rgba(207,255,77,0.2)",
+              border: "1px solid rgba(223,255,0,0.2)",
               borderRadius: 20, padding: "32px 24px",
               textAlign: "center",
               boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
@@ -3075,7 +3077,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <div style={{
               fontFamily: "'Barlow Condensed',sans-serif",
               fontSize: 26, fontWeight: 900,
-              color: "#CFFF4D", letterSpacing: 2, marginBottom: 8,
+              color: "#DFFF00", letterSpacing: 2, marginBottom: 8,
             }}>
               TU PLAN VENCIÓ
             </div>
@@ -3089,7 +3091,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               onClick={() => { setShowPaywallAfterExpiry(false); setShowPaywall(true); }}
               style={{
                 width: "100%", padding: "14px 0", borderRadius: 12,
-                background: "#CFFF4D", color: "#000",
+                background: "#DFFF00", color: "#000",
                 fontWeight: 900, fontSize: 16, border: "none",
                 cursor: "pointer",
                 fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
@@ -3117,18 +3119,18 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
       {showPlanInfo && (
         <div style={{ position:"fixed", inset:0, zIndex:99999, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}
           onClick={() => setShowPlanInfo(false)}>
-          <div style={{ width:"100%", maxWidth:340, background:"#111", border:"1px solid rgba(207,255,77,0.25)", borderRadius:20, padding:"28px 24px", boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}
+          <div style={{ width:"100%", maxWidth:340, background:"#111", border:"1px solid rgba(223,255,0,0.25)", borderRadius:20, padding:"28px 24px", boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
               <div style={{ fontSize:40, marginBottom:8 }}>⚡</div>
-              <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:26, fontWeight:900, color:"#CFFF4D", letterSpacing:2 }}>
+              <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:26, fontWeight:900, color:"#DFFF00", letterSpacing:2 }}>
                 PLAN {user.plan.toUpperCase()}
               </div>
               <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>
                 {user.email}
               </div>
             </div>
-            <div style={{ background:"rgba(207,255,77,0.05)", border:"1px solid rgba(207,255,77,0.15)", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
+            <div style={{ background:"rgba(223,255,0,0.05)", border:"1px solid rgba(223,255,0,0.15)", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
               {[
                 user.plan === "pro" && { icon:"📊", text:"Estadísticas avanzadas" },
                 user.plan === "pro" && { icon:"🚫", text:"Sin anuncios" },
@@ -3146,7 +3148,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             </div>
             <button
               onClick={() => { setShowPlanInfo(false); setShowPaywall(true); }}
-              style={{ width:"100%", padding:"13px 0", borderRadius:12, background:"#CFFF4D", border:"none", fontFamily:"Barlow Condensed,sans-serif", fontSize:15, fontWeight:900, letterSpacing:2, color:"#0E0F13", cursor:"pointer", marginBottom:10 }}
+              style={{ width:"100%", padding:"13px 0", borderRadius:12, background:"#DFFF00", border:"none", fontFamily:"Barlow Condensed,sans-serif", fontSize:15, fontWeight:900, letterSpacing:2, color:"#09090B", cursor:"pointer", marginBottom:10 }}
             >
               ⚡ VER PLANES
             </button>
@@ -3193,10 +3195,10 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               onClick={() => { setGuestLimitModal(null); logout(true); }}
               style={{
                 width: "100%", padding: "14px 0",
-                background: "#CFFF4D", border: "none", borderRadius: 8,
+                background: "#DFFF00", border: "none", borderRadius: 8,
                 fontFamily: "Barlow Condensed, sans-serif",
                 fontSize: 16, fontWeight: 900, letterSpacing: 2,
-                color: "#0E0F13", cursor: "pointer", marginBottom: 10,
+                color: "#09090B", cursor: "pointer", marginBottom: 10,
                 textTransform: "uppercase",
               }}
             >
@@ -3349,7 +3351,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 <button
                   disabled={!workout.trim()}
                   onClick={() => { setShowNameModal(false); setSessionMode("live"); }}
-                  style={{ background: workout.trim() ? "var(--accent)" : "var(--input-bg)", border: "none", borderRadius: 4, padding: "0 18px", fontSize: 22, cursor: workout.trim() ? "pointer" : "not-allowed", color: workout.trim() ? "#0E0F13" : "var(--text-muted)", flexShrink: 0, transition: "all 0.2s" }}
+                  style={{ background: workout.trim() ? "var(--accent)" : "var(--input-bg)", border: "none", borderRadius: 4, padding: "0 18px", fontSize: 22, cursor: workout.trim() ? "pointer" : "not-allowed", color: workout.trim() ? "#09090B" : "var(--text-muted)", flexShrink: 0, transition: "all 0.2s" }}
                 >→</button>
               </div>
 
@@ -3495,7 +3497,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <p style={{ margin:"0 0 24px", fontSize:15, color:"#f0f0f0", lineHeight:1.5, textAlign:"center", fontFamily:"'Barlow', sans-serif" }}>{confirmModal.message}</p>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={closeConfirm} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"1px solid rgba(255,255,255,0.08)", background:"transparent", color:"rgba(255,255,255,0.35)", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'Barlow', sans-serif" }}>Cancelar</button>
-              <button onClick={() => { confirmModal.onConfirm?.(); closeConfirm(); }} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", background:"#CFFF4D", color:"#0E0F13", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"'Barlow Condensed', sans-serif", letterSpacing:1 }}>Confirmar</button>
+              <button onClick={() => { confirmModal.onConfirm?.(); closeConfirm(); }} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", background:"#DFFF00", color:"#09090B", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"'Barlow Condensed', sans-serif", letterSpacing:1 }}>Confirmar</button>
             </div>
           </div>
         </div>
