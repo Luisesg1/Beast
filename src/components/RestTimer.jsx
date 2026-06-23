@@ -14,7 +14,7 @@ function CustomTimerInput({ onApply }) {
         value={val}
         onChange={e => setVal(e.target.value)}
         onKeyDown={e => e.key === "Enter" && apply()}
-        style={{ width: 100, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 10px", color: "var(--text)", fontFamily: "Barlow, sans-serif", fontSize: 14, textAlign: "center", outline: "none" }}
+        style={{ width: 100, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 10px", color: "var(--text)", fontFamily: "Inter, sans-serif", fontSize: 14, textAlign: "center", outline: "none" }}
       />
       <button className="btn-ghost small" onClick={apply}>Aplicar</button>
     </div>

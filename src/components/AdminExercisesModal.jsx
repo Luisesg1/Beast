@@ -327,7 +327,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
           {[["exercises","🏋️ Ejercicios"], ["catalog","📋 Catálogo"], ["diag","🔍 Diagnóstico"]].map(([key, label]) => (
             <button key={key} onClick={() => setAdminTab(key)}
               style={{ padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontFamily: "Barlow, sans-serif", fontWeight: 700, fontSize: 13,
+                fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 13,
                 background: adminTab === key ? "var(--accent)" : "var(--input-bg)",
                 color: adminTab === key ? "white" : "var(--text-muted)",
                 transition: "all 0.15s" }}>
@@ -342,7 +342,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Ejercicios del catálogo global. El admin puede crear, editar y asignar GIFs.</div>
           <button
             onClick={() => { setShowNewForm(p => !p); setNewExError(""); }}
-            style={{ background: showNewForm ? "rgba(239,68,68,0.15)" : "var(--accent)", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 800, fontSize: 12, color: showNewForm ? "#ef4444" : "#000", fontFamily: "Barlow, sans-serif", flexShrink: 0 }}>
+            style={{ background: showNewForm ? "rgba(239,68,68,0.15)" : "var(--accent)", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 800, fontSize: 12, color: showNewForm ? "#ef4444" : "#000", fontFamily: "Inter, sans-serif", flexShrink: 0 }}>
             {showNewForm ? "✕ Cancelar" : "➕ Nuevo ejercicio"}
           </button>
         </div>
@@ -401,7 +401,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
           {["Todos", ...MUSCLES].map(m => (
             <button key={m} onClick={() => setMuscleFilter(m)}
-              style={{ padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "Barlow, sans-serif",
+              style={{ padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "Inter, sans-serif",
                 background: muscleFilter === m ? "var(--accent)" : "var(--input-bg)",
                 color: muscleFilter === m ? "#000" : "var(--text-muted)",
                 border: `1px solid ${muscleFilter === m ? "var(--accent)" : "var(--border)"}`,
@@ -456,7 +456,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                           {savingMeta[ex.id] ? "⏳" : "✅ Guardar"}
                         </button>
                         <button onClick={() => cancelEdit(ex.id)}
-                          style={{ fontSize: 11, padding: "5px 12px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif" }}>
+                          style={{ fontSize: 11, padding: "5px 12px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
                           Cancelar
                         </button>
                       </div>
@@ -490,7 +490,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
               {/* Toggle URL / Archivo local */}
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 <button onClick={() => setMode(ex.id, "url")}
-                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontWeight: 600,
+                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, sans-serif", fontWeight: 600,
                     background: mode === "url" ? "var(--accent)" : "none",
                     color: mode === "url" ? "white" : "var(--text-muted)",
                     border: `1px solid ${mode === "url" ? "var(--accent)" : "var(--border)"}`,
@@ -498,7 +498,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                   🔗 URL
                 </button>
                 <button onClick={() => setMode(ex.id, "file")}
-                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif", fontWeight: 600,
+                  style={{ flex: 1, fontSize: 11, padding: "5px 0", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, sans-serif", fontWeight: 600,
                     background: mode === "file" ? "var(--accent)" : "none",
                     color: mode === "file" ? "white" : "var(--text-muted)",
                     border: `1px solid ${mode === "file" ? "var(--accent)" : "var(--border)"}`,
@@ -534,7 +534,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                     <button
                       onClick={() => fileInputRefs.current[ex.id]?.click()}
                       style={{ flex: 1, background: "var(--input-bg)", border: "1.5px dashed var(--border)", color: "var(--text-muted)",
-                        borderRadius: 8, padding: "9px 12px", cursor: "pointer", fontSize: 12, fontFamily: "Barlow, sans-serif",
+                        borderRadius: 8, padding: "9px 12px", cursor: "pointer", fontSize: 12, fontFamily: "Inter, sans-serif",
                         textAlign: "left", transition: "border-color 0.15s" }}
                       onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent)"}
                       onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
@@ -595,7 +595,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
                 {["Todos", ...MUSCLES].map(m => (
                   <button key={m} onClick={() => setCatalogMuscleFilter(m)}
-                    style={{ padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "Barlow, sans-serif",
+                    style={{ padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "Inter, sans-serif",
                       background: catalogMuscleFilter === m ? "var(--accent)" : "var(--input-bg)",
                       color: catalogMuscleFilter === m ? "#000" : "var(--text-muted)",
                       border: `1px solid ${catalogMuscleFilter === m ? "var(--accent)" : "var(--border)"}`,
@@ -669,7 +669,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                                 {catalogSaving[ex.name] ? "⏳ Guardando..." : "✅ Guardar override"}
                               </button>
                               <button onClick={() => setCatalogEditing(p => { const n = { ...p }; delete n[ex.name]; return n; })}
-                                style={{ fontSize: 12, padding: "8px 14px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Barlow, sans-serif" }}>
+                                style={{ fontSize: 12, padding: "8px 14px", background: "none", border: "1px solid var(--border)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
                                 Cancelar
                               </button>
                             </div>
@@ -720,7 +720,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
                         <button onClick={() => fixDiagIssue(item)}
                           style={{ background: "none", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171",
                             borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12,
-                            fontFamily: "Barlow, sans-serif", whiteSpace: "nowrap" }}>
+                            fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}>
                           🗑️ Eliminar
                         </button>
                       )}

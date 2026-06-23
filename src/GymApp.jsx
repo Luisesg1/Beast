@@ -1719,7 +1719,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                     width: "100%", background: "none", border: "none",
                     borderBottom: "1px solid var(--border)", padding: "9px 14px",
                     cursor: "pointer", textAlign: "left", color: "var(--text)",
-                    fontFamily: "Barlow, sans-serif", fontSize: 13,
+                    fontFamily: "Inter, sans-serif", fontSize: 13,
                     transition: "background 0.12s",
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
@@ -2088,7 +2088,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                       width: "100%", background: "none", border: "none",
                       borderBottom: "1px solid var(--border)", padding: "9px 14px",
                       cursor: "pointer", textAlign: "left", color: "var(--text)",
-                      fontFamily: "Barlow, sans-serif", fontSize: 13,
+                      fontFamily: "Inter, sans-serif", fontSize: 13,
                       transition: "background 0.12s",
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
@@ -3140,7 +3140,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 background: "transparent",
                 border: "1px solid var(--border)",
                 borderRadius: 8,
-                fontFamily: "Barlow, sans-serif",
+                fontFamily: "Inter, sans-serif",
                 fontSize: 13, fontWeight: 600,
                 color: "var(--text-muted)", cursor: "pointer",
               }}

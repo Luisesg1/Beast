@@ -302,7 +302,7 @@ export default function ShareCardModal({ session, user, unit, onClose }) {
             style={{
               width:"100%", background:"var(--input-bg)", border:"1px solid var(--border)",
               borderRadius:10, padding:"10px 12px", color:"var(--text)",
-              fontFamily:"Barlow, sans-serif", fontSize:13, lineHeight:1.5,
+              fontFamily:"Inter, sans-serif", fontSize:13, lineHeight:1.5,
               resize:"none", outline:"none", boxSizing:"border-box",
             }}
           />

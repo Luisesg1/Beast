@@ -951,7 +951,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                             }}
                             style={{ background: "none", border: "none", cursor: "pointer",
                               fontSize: 11, color: "rgba(96,165,250,0.6)", padding: "0 2px",
-                              fontFamily: "Barlow, sans-serif", fontWeight: 700 }}
+                              fontFamily: "Inter, sans-serif", fontWeight: 700 }}
                             title="Marcar como leída"
                           >✓ Leída</button>
                         </span>
@@ -1588,7 +1588,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                       }}
                                       style={{ background: "none", border: "1px solid rgba(96,165,250,0.3)", borderRadius: 4,
                                         color: "#60a5fa", fontSize: 10, fontWeight: 700, padding: "1px 7px",
-                                        cursor: "pointer", fontFamily: "Barlow, sans-serif" }}
+                                        cursor: "pointer", fontFamily: "Inter, sans-serif" }}
                                     >✓ Leída</button>
                                   ) : (
                                     <span style={{ fontSize: 10, color: "var(--text-muted)" }}>✓ Leída</span>

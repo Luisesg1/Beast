@@ -152,7 +152,7 @@ function ExerciseHistoryBadge({ sessions, exName, unit = "kg" }) {
           border: "1px solid rgba(223,255,0,0.18)",
           borderRadius: 8, padding: "5px 12px",
           fontSize: 11, color: "rgba(223,255,0,0.7)",
-          fontFamily: "Barlow, sans-serif", fontWeight: 600,
+          fontFamily: "Inter, sans-serif", fontWeight: 600,
         }}>
           💪 Primera vez
         </div>
@@ -207,7 +207,7 @@ function ExerciseHistoryBadge({ sessions, exName, unit = "kg" }) {
                   <span style={{
                     fontSize: 11, fontWeight: 600,
                     color: i === 0 ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.45)",
-                    fontFamily: "Barlow, sans-serif",
+                    fontFamily: "Inter, sans-serif",
                   }}>
                     {h.setsStr}
                   </span>
@@ -564,7 +564,7 @@ function LiveTrainMode({
           display: "flex", alignItems: "center", justifyContent: "center",
           border: "1px solid #222",
         }}>
-          <div style={{ color: "#444", fontSize: 13, fontFamily: "Barlow, sans-serif" }}>
+          <div style={{ color: "#444", fontSize: 13, fontFamily: "Inter, sans-serif" }}>
             Anuncio
           </div>
         </div>
@@ -782,7 +782,7 @@ function LiveTrainMode({
                 marginBottom:6,
               }}>
                 <span style={{ fontSize:16, flexShrink:0 }}>{ins.icon}</span>
-                <span style={{ fontSize:13, color: ins.icon === "🏆" || ins.icon === "✅" || ins.icon === "⚡" ? "#fff" : "#666", fontWeight:700, fontFamily:"Barlow, sans-serif" }}>{ins.text}</span>
+                <span style={{ fontSize:13, color: ins.icon === "🏆" || ins.icon === "✅" || ins.icon === "⚡" ? "#fff" : "#666", fontWeight:700, fontFamily:"Inter, sans-serif" }}>{ins.text}</span>
               </div>
             ))}
           </div>
@@ -873,7 +873,7 @@ function LiveTrainMode({
                 flex: 1, height: 44,
                 background: "none", border: "1px solid #222",
                 borderRadius: 4, cursor: "pointer",
-                color: "rgba(255,255,255,0.3)", fontFamily: "Barlow, sans-serif",
+                color: "rgba(255,255,255,0.3)", fontFamily: "Inter, sans-serif",
                 fontSize: 13, fontWeight: 700, letterSpacing: 0.5,
               }}
             >
@@ -942,7 +942,7 @@ function LiveTrainMode({
             style={{
               background: "var(--input-bg)", border: "1px solid var(--border)",
               color: "var(--text-muted)", borderRadius: 8, padding: "5px 10px",
-              fontSize: 12, cursor: "pointer", fontFamily: "Barlow, sans-serif",
+              fontSize: 12, cursor: "pointer", fontFamily: "Inter, sans-serif",
               fontWeight: 600, flexShrink: 0,
             }}
           >
@@ -1372,7 +1372,7 @@ function LiveTrainMode({
                         background: "var(--input-bg)",
                         border: `1px solid ${s.done ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
                         borderRadius: 8, padding: "8px", color: "var(--text)",
-                        fontFamily: "Barlow, sans-serif", fontSize: 16, fontWeight: 700,
+                        fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 700,
                         textAlign: "center", outline: "none", width: "100%",
                       }}
                     />
@@ -1384,7 +1384,7 @@ function LiveTrainMode({
                         background: "var(--input-bg)",
                         border: `1px solid ${s.done ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
                         borderRadius: 8, padding: "8px", color: "var(--text)",
-                        fontFamily: "Barlow, sans-serif", fontSize: 16, fontWeight: 700,
+                        fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 700,
                         textAlign: "center", outline: "none", width: "100%",
                       }}
                     />
@@ -1433,7 +1433,7 @@ function LiveTrainMode({
                   style={{
                     flex: 1, background: "none", border: "1px dashed var(--border)",
                     color: "var(--text-muted)", borderRadius: 10, padding: 9,
-                    cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 13,
+                    cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 13,
                   }}
                 >
                   + Añadir serie
@@ -1462,7 +1462,7 @@ function LiveTrainMode({
                       border: ex.notes ? "1px solid rgba(223,255,0,0.25)" : "1px dashed rgba(255,255,255,0.1)",
                       color: ex.notes ? "var(--accent)" : "var(--text-muted)",
                       borderRadius: 10, padding: "7px 14px",
-                      cursor: "pointer", fontFamily: "Barlow, sans-serif",
+                      cursor: "pointer", fontFamily: "Inter, sans-serif",
                       fontSize: 12, fontWeight: 600,
                       display: "flex", alignItems: "center", gap: 6,
                       width: "100%",
@@ -1505,7 +1505,7 @@ function LiveTrainMode({
                         width: "100%", background: "var(--input-bg)",
                         border: "1px solid var(--border)",
                         borderRadius: 8, padding: "8px 10px",
-                        color: "var(--text)", fontFamily: "Barlow, sans-serif",
+                        color: "var(--text)", fontFamily: "Inter, sans-serif",
                         fontSize: 13, lineHeight: 1.5,
                         outline: "none", resize: "none", boxSizing: "border-box",
                       }}
@@ -1577,7 +1577,7 @@ function LiveTrainMode({
                               borderRadius: 8, padding: "6px 14px", cursor: "pointer",
                               color: isDefault ? "var(--accent)" : "var(--text-muted)",
                               fontSize: 12, fontWeight: isDefault ? 800 : 600,
-                              fontFamily: "Barlow, sans-serif",
+                              fontFamily: "Inter, sans-serif",
                             }}>
                             {o.label}
                           </button>
@@ -1598,7 +1598,7 @@ function LiveTrainMode({
                       width: "100%", background: "none",
                       border: `1px solid ${ssColor}40`,
                       color: ssColor, borderRadius: 10, padding: "8px 12px",
-                      cursor: "pointer", fontFamily: "Barlow, sans-serif",
+                      cursor: "pointer", fontFamily: "Inter, sans-serif",
                       fontSize: 12, fontWeight: 600, display: "flex",
                       alignItems: "center", justifyContent: "center", gap: 6,
                     }}
@@ -1615,7 +1615,7 @@ function LiveTrainMode({
                           flex: 1, background: "none",
                           border: "1px dashed rgba(223,255,0,0.25)",
                           color: "var(--text-muted)", borderRadius: 10, padding: "8px 6px",
-                          cursor: "pointer", fontFamily: "Barlow, sans-serif",
+                          cursor: "pointer", fontFamily: "Inter, sans-serif",
                           fontSize: 11, fontWeight: 600, textAlign: "center",
                         }}
                       >
@@ -1630,7 +1630,7 @@ function LiveTrainMode({
                           border: `1px dashed ${getSupersetColor(exData[currentEx - 1].supersetGroup, exData)}60`,
                           color: getSupersetColor(exData[currentEx - 1].supersetGroup, exData),
                           borderRadius: 10, padding: "8px 6px",
-                          cursor: "pointer", fontFamily: "Barlow, sans-serif",
+                          cursor: "pointer", fontFamily: "Inter, sans-serif",
                           fontSize: 11, fontWeight: 600, textAlign: "center",
                         }}
                       >
@@ -1644,7 +1644,7 @@ function LiveTrainMode({
                           flex: 1, background: "none",
                           border: "1px dashed rgba(223,255,0,0.25)",
                           color: "var(--text-muted)", borderRadius: 10, padding: "8px 6px",
-                          cursor: "pointer", fontFamily: "Barlow, sans-serif",
+                          cursor: "pointer", fontFamily: "Inter, sans-serif",
                           fontSize: 11, fontWeight: 600, textAlign: "center",
                         }}
                       >
@@ -1659,7 +1659,7 @@ function LiveTrainMode({
                           border: `1px dashed ${getSupersetColor(exData[currentEx + 1].supersetGroup, exData)}60`,
                           color: getSupersetColor(exData[currentEx + 1].supersetGroup, exData),
                           borderRadius: 10, padding: "8px 6px",
-                          cursor: "pointer", fontFamily: "Barlow, sans-serif",
+                          cursor: "pointer", fontFamily: "Inter, sans-serif",
                           fontSize: 11, fontWeight: 600, textAlign: "center",
                         }}
                       >
@@ -1678,7 +1678,7 @@ function LiveTrainMode({
                     style={{
                       flex: 1, background: "var(--card)", border: "1px solid var(--border)",
                       color: "var(--text-muted)", borderRadius: 10, padding: 11,
-                      cursor: "pointer", fontFamily: "Barlow, sans-serif", fontSize: 13,
+                      cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 13,
                     }}
                   >
                     ← Anterior

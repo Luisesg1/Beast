@@ -357,7 +357,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
                   border: "1px solid rgba(255,255,255,0.1)",
                   background: "transparent", color: "rgba(255,255,255,0.4)",
                   fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  fontFamily: "Barlow, sans-serif",
+                  fontFamily: "Inter, sans-serif",
                 }}>
                 ← Atrás
               </button>
@@ -385,7 +385,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
                 background: "none", border: "none",
                 color: "rgba(255,255,255,0.2)", fontSize: 12,
                 cursor: "pointer", padding: 4,
-                fontFamily: "Barlow, sans-serif",
+                fontFamily: "Inter, sans-serif",
               }}>
               Omitir tutorial
             </button>

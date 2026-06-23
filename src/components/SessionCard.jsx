@@ -242,7 +242,7 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
                         style={{
                           background: "none", border: "none", padding: "2px 0 0 20px",
                           color: "rgba(223,255,0,0.5)", fontSize: 10, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "Barlow, sans-serif", letterSpacing: 1,
+                          cursor: "pointer", fontFamily: "Inter, sans-serif", letterSpacing: 1,
                         }}
                       >
                         {isExpanded ? "▲ ver menos" : "▼ ver más"}
