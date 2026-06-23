@@ -142,7 +142,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
           <div style={{ fontSize:10, fontWeight:600, letterSpacing:2, textTransform:"uppercase", color:"var(--accent)", marginBottom:8, fontFamily:"Inter, sans-serif" }}>
             {mainKicker}
           </div>
-          <div style={{ fontFamily:"Inter, sans-serif", fontSize:30, fontWeight:700, lineHeight:1, textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>
+          <div style={{ fontFamily:"Inter, sans-serif", fontSize:28, fontWeight:700, lineHeight:1.1, letterSpacing:-0.3, marginBottom:8 }}>
             {mainTitle}
           </div>
           <div style={{ display:"flex", gap:14, color:"var(--text-muted)", fontSize:13, fontWeight:500, marginBottom:16 }}>
@@ -157,7 +157,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
           ) : (
             <button
               onClick={mainAction}
-              style={{ width:"100%", background:"var(--accent)", border:"none", borderRadius:12, color:"#09090B", fontFamily:"Inter, sans-serif", fontWeight:700, fontSize:17, letterSpacing:1.5, textTransform:"uppercase", padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+              style={{ width:"100%", background:"var(--accent)", border:"none", borderRadius:12, color:"#09090B", fontFamily:"Inter, sans-serif", fontWeight:700, fontSize:16, letterSpacing:0, padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
             >
               <Dumbbell size={19} strokeWidth={2.5} /> {showCoach || showPlanned ? "Continuar entrenamiento" : "Empezar a entrenar"}
             </button>
@@ -240,7 +240,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
               <span style={{ width:38, height:38, borderRadius:10, background:"var(--accent-dim)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <Icon size={20} color="var(--accent)" strokeWidth={2.2} />
               </span>
-              <span style={{ fontFamily:"Inter, sans-serif", fontWeight:600, fontSize:16, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</span>
+              <span style={{ fontFamily:"Inter, sans-serif", fontWeight:600, fontSize:15 }}>{label}</span>
             </button>
           ))}
         </div>
@@ -253,7 +253,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
             <Trophy size={22} color="var(--accent)" />
           </span>
           <div style={{ flex:1 }}>
-            <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:700, lineHeight:1, textTransform:"uppercase" }}>Nivel {level}</div>
+            <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:700, lineHeight:1 }}>Nivel {level}</div>
             <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>{xpInLevel}/10 entrenos al siguiente nivel{newBadgesCount > 0 ? ` · ${newBadgesCount} logro${newBadgesCount>1?"s":""} nuevo${newBadgesCount>1?"s":""}` : ""}</div>
           </div>
           {newBadgesCount > 0 && <span style={{ background:"var(--accent)", color:"#09090B", fontWeight:700, fontSize:11, borderRadius:20, padding:"2px 9px" }}>{newBadgesCount} 🆕</span>}
@@ -302,7 +302,7 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
       <button onClick={onMuscleMapClick} style={{ ...CARD, padding:"14px 18px", cursor:"pointer", display:"flex", alignItems:"center", gap:14, textAlign:"left", width:"100%" }}>
         <span style={{ fontSize:24 }}>💪</span>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"Inter, sans-serif", fontSize:15, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Mapa muscular</div>
+          <div style={{ fontFamily:"Inter, sans-serif", fontSize:15, fontWeight:600 }}>Mapa muscular</div>
           <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>Volumen y recuperación por músculo</div>
         </div>
         <ChevronRight size={18} color="var(--text-muted)" />

@@ -1555,7 +1555,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             >
               <Dumbbell size={26} color="#09090B" strokeWidth={2.4} />
               <div>
-                <div style={{ fontFamily:"Inter, sans-serif", fontSize:19, fontWeight:700, color:"#09090B", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Entrenar</div>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:19, fontWeight:700, color:"#09090B", lineHeight:1 }}>Entrenar</div>
                 <div style={{ fontSize:11, color:"rgba(0,0,0,0.55)", marginTop:4 }}>En vivo · timer · series</div>
               </div>
             </button>
@@ -1565,7 +1565,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             >
               <ClipboardList size={26} color="var(--accent)" strokeWidth={2.2} />
               <div>
-                <div style={{ fontFamily:"Inter, sans-serif", fontSize:19, fontWeight:700, color:"var(--text)", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Registrar</div>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:19, fontWeight:700, color:"var(--text)", lineHeight:1 }}>Registrar</div>
                 <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>Ya entrenaste · guárdalo</div>
               </div>
             </button>
