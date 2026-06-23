@@ -17,6 +17,7 @@ import TemplatesModal from "./components/TemplatesModal";
 import { calc1RM, calcSessionVolume, detectNewPRs, getStreak, getPRs, getWeeklyChallenge, addShield } from "./utils/gymCalcs";
 import { track } from "./utils/analytics";
 import NavIcon from "./components/NavIcon";
+import BottomNav from "./components/BottomNav";
 import { Dumbbell, ClipboardList } from "lucide-react";
 import fireConfetti from "./utils/fireConfetti";
 import { GuestWall, EmailVerifyWall } from "./components/AuthWalls";
@@ -3151,6 +3152,18 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
 
       {/* ── COACH IA FLOTANTE DRAGGABLE ── */}
       {!liveActive && <DraggableAIButton onOpen={() => setShowAIChat(true)} avatar={<BruxAvatar size={36} />} />}
+
+      {/* ── BOTTOM NAVIGATION (móvil) ── */}
+      {!liveActive && (
+        <BottomNav
+          active={activeTab === "new" && sessionMode === null ? "home" : null}
+          onHome={() => { setActiveTab("new"); setSessionMode(null); }}
+          onProgress={() => setShowProgressPicker(true)}
+          onTrain={() => { if (isGuest && !canAdd) { setGuestLimitModal("live"); return; } setActiveTab("new"); setSessionMode(null); setWorkout(""); setShowNameModal(true); }}
+          onCommunity={() => setShowTeams(true)}
+          onProfile={() => setShowProfile(true)}
+        />
+      )}
       {showAIChat && (
         <AIChatModal
           onClose={() => setShowAIChat(false)}
