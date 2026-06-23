@@ -7,6 +7,7 @@ import BeastMascot from "./BeastMascot";
 import { MuscleBalance } from "./ProgressWidgets";
 import WeekComparison from "./WeekComparison";
 import { Dumbbell, ClipboardList, BookOpen, Sparkles, ChevronRight, Trophy, Calculator, FileText } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat, todayPlanned = "", plannedExCount = 0, onStartPlanned, embedded = false, onOneRM, onTemplates, loading = false }) {
   // Skeleton mientras cargan las sesiones desde Firestore (evita pantalla vacía).
@@ -98,7 +99,11 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
   const CARD = { background:"var(--card)", border:"1px solid var(--border)", borderRadius:16, boxShadow:"var(--shadow)" };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
       {/* ══ HEADER (oculto en modo embebido — el topbar ya saluda) ════════════ */}
       {!embedded && (
@@ -305,6 +310,6 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
 
       {/* ══ BRUX (motivación, ahora secundario) ═══════════════════════════════ */}
       <BeastMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
-    </div>
+    </motion.div>
   );
 }
