@@ -697,9 +697,10 @@ export function DraggableAIButton({ onOpen, avatar }) {
     const el = dragRef.current;
     if (!el) return;
 
-    // Posicion inicial
+    // Posición inicial — elevada para no competir con la barra inferior (~62px)
+    // ni con el botón de acción de la pantalla.
     const initX = window.innerWidth - 68;
-    const initY = window.innerHeight - 140;
+    const initY = window.innerHeight - 210;
     posRef.current = { x: initX, y: initY };
     el.style.left = initX + "px";
     el.style.top = initY + "px";
@@ -736,7 +737,7 @@ export function DraggableAIButton({ onOpen, avatar }) {
       }
       e.preventDefault();
       const x = Math.min(Math.max(t.clientX - offX, 0), window.innerWidth - 52);
-      const y = Math.min(Math.max(t.clientY - offY, 0), window.innerHeight - 52);
+      const y = Math.min(Math.max(t.clientY - offY, 0), window.innerHeight - 130);
       applyPos(x, y, false);
     }
 
