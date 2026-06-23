@@ -338,3 +338,21 @@ select.input option { background: #1a1a1a; color: var(--text); }
 @media (max-width: 768px) {
   .main-content { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
 }
+
+/* ── Microinteracciones ── */
+/* Feedback táctil: los botones se hunden levemente al pulsar. */
+button { transition: transform 0.12s ease, background 0.2s, border-color 0.2s, color 0.15s; }
+button:active { transform: scale(0.96); }
+/* Cards interactivas: realce al tocar. */
+.stat-card:active, .card:active { transform: scale(0.985); }
+/* Pulso sutil del FAB "Entrenar" para invitar a la acción principal. */
+@keyframes fabPulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(223,255,0,0.30); }
+  50%      { box-shadow: 0 8px 26px rgba(223,255,0,0.55); }
+}
+.bn-fab { animation: fabPulse 2.6s ease-in-out infinite; }
+/* Respeta a quien prefiere menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .bn-fab { animation: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
