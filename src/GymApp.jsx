@@ -960,7 +960,7 @@ useEffect(() => {
         <div className="sidebar-top">
           <div className="sidebar-logo">
             <span style={{ fontSize: 18, flexShrink: 0 }}>⚡</span>
-            <span className="logo-text" style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:900, letterSpacing:6, textTransform:"uppercase", color:"var(--text)" }}>BEAST</span>
+            <span className="logo-text" style={{ fontFamily:"'Barlow Condensed', sans-serif", fontSize:15, fontWeight:900, letterSpacing:6, textTransform:"uppercase", color:"var(--text)" }}>BEAST</span>
           </div>
         </div>
 
@@ -1141,7 +1141,7 @@ useEffect(() => {
               <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 18 }}>⚡</span>
-                  <span className="logo-text" style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:900, letterSpacing:6, textTransform:"uppercase", color:"var(--text)" }}>BEAST</span>
+                  <span className="logo-text" style={{ fontFamily:"'Barlow Condensed', sans-serif", fontSize:15, fontWeight:900, letterSpacing:6, textTransform:"uppercase", color:"var(--text)" }}>BEAST</span>
                 </div>
                 <button onClick={() => setMobileNavOpen(false)} style={{ background:"none", border:"none", color:"var(--text-muted)", fontSize:18, cursor:"pointer", padding:"4px 8px", lineHeight:1 }}>✕</button>
               </div>
@@ -1382,10 +1382,10 @@ useEffect(() => {
                 display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10
               }}>
                 <div>
-                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"rgba(223,255,0,0.6)", textTransform:"uppercase", marginBottom:4, fontFamily:"Barlow Condensed,sans-serif" }}>
+                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"rgba(223,255,0,0.6)", textTransform:"uppercase", marginBottom:4, fontFamily:"Inter, sans-serif" }}>
                     📋 Plantilla de hoy
                   </div>
-                  <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:800 }}>{tplHoy.name}</div>
+                  <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800 }}>{tplHoy.name}</div>
                   <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>
                     {(tplHoy.exercises||[]).length} ejercicios planificados para hoy
                   </div>
@@ -1424,7 +1424,7 @@ useEffect(() => {
               <div style={{background:doneToday?"rgba(34,197,94,0.07)":"var(--card)",border:`1px solid ${doneToday?"rgba(34,197,94,0.25)":"var(--border)"}`,borderRadius:6,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,letterSpacing:2,color:doneToday?"#22c55e":"#DFFF00",textTransform:"uppercase",marginBottom:4}}>{doneToday?"✅ Completada hoy":"📅 Hoy toca"}</div>
-                  <div style={{fontFamily:"Barlow Condensed, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"#DFFF00"}}>{name}</div>
+                  <div style={{fontFamily:"Inter, sans-serif",fontSize:20,fontWeight:800,color:doneToday?"#22c55e":"#DFFF00"}}>{name}</div>
                   {!doneToday&&planEx.length>0&&<div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{planEx.length} ejercicios planificados</div>}
                   {doneToday&&todaySess&&<div style={{fontSize:12,color:"#86efac",marginTop:3}}>{todaySess.exercises?.length||0} ejercicios · {todaySess.durationSecs?`${Math.round(todaySess.durationSecs/60)} min`:"registrada"}</div>}
                 </div>
@@ -1509,7 +1509,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 </div>
                 <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:14}}>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:"Barlow Condensed, sans-serif", fontSize:22,fontWeight:900,
+                    <div style={{fontFamily:"Inter, sans-serif", fontSize:22,fontWeight:900,
                       letterSpacing:1, textTransform:"uppercase", color:"var(--text)",marginBottom:6}}>
                       {todayRoutine.name || todayRoutine.routineName || "Entrenamiento"}
                     </div>
@@ -1538,7 +1538,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                     color:"#09090B", fontWeight:900, fontSize:13,
                     padding:"10px 16px", cursor:"pointer", flexShrink:0,
                     display:"flex",alignItems:"center",gap:5,
-                    letterSpacing:1, fontFamily:"Barlow Condensed, sans-serif",
+                    letterSpacing:1, fontFamily:"Inter, sans-serif",
                     textTransform:"uppercase", boxShadow:"0 0 16px rgba(223,255,0,0.3)",
                   }}>⚡ INICIAR</button>
                 </div>
@@ -1554,7 +1554,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             >
               <Dumbbell size={26} color="#09090B" strokeWidth={2.4} />
               <div>
-                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:19, fontWeight:700, color:"#09090B", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Entrenar</div>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:19, fontWeight:700, color:"#09090B", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Entrenar</div>
                 <div style={{ fontSize:11, color:"rgba(0,0,0,0.55)", marginTop:4 }}>En vivo · timer · series</div>
               </div>
             </button>
@@ -1564,7 +1564,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             >
               <ClipboardList size={26} color="var(--accent)" strokeWidth={2.2} />
               <div>
-                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:19, fontWeight:700, color:"var(--text)", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Registrar</div>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:19, fontWeight:700, color:"var(--text)", textTransform:"uppercase", letterSpacing:0.5, lineHeight:1 }}>Registrar</div>
                 <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>Ya entrenaste · guárdalo</div>
               </div>
             </button>
@@ -1616,7 +1616,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <button className="btn-ghost small" onClick={() => { setSessionMode(null); setCurrentExercises([]); setWorkout(""); }}>
               ← Volver
             </button>
-            <div style={{ flex: 1, fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 800, color: "var(--accent)" }}>
+            <div style={{ flex: 1, fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800, color: "var(--accent)" }}>
               ⚡ Configurar entrenamiento
             </div>
           </div>
@@ -1630,7 +1630,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 value={workout}
                 onChange={e => setWorkout(e.target.value.slice(0, 25).replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]/g, ""))}
                 className="input"
-                style={{ fontSize: 18, fontWeight: 700, fontFamily: "Barlow Condensed, sans-serif", flex: 1, padding: "12px 16px" }}
+                style={{ fontSize: 18, fontWeight: 700, fontFamily: "Inter, sans-serif", flex: 1, padding: "12px 16px" }}
                 autoFocus
               />
               <button className="btn-ghost" onClick={() => setShowPresets(v => !v)} title="Plantillas">📋</button>
@@ -1746,7 +1746,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
     <div style={{ display:"flex", gap:12, alignItems:"center" }}>
       <ExerciseGif exName={exName} size={72} />
       <div style={{ flex: 1 }}>
-        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
+        <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
         {!(customGifsMap[exName] || GIF_MAP[exName]) && (
           <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>⏳ GIF en camino — el admin lo agregará pronto</div>
         )}
@@ -1939,7 +1939,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 width: "100%",
                 background: "var(--accent)",
                 border: "none", color: "#09090B", borderRadius: 10, padding: "18px",
-                fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 900,
+                fontFamily: "Inter, sans-serif", fontSize: 24, fontWeight: 900,
                 letterSpacing: 2, cursor: "pointer",
                 boxShadow: "0 0 28px rgba(223,255,0,0.35)",
               }}
@@ -1952,7 +1952,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               style={{
                 width: "100%", background: "rgba(223,255,0,0.08)", border: "1px solid rgba(223,255,0,0.2)",
                 color: "var(--text-muted)", borderRadius: 10, padding: "18px",
-                fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700,
+                fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 700,
                 letterSpacing: 2, cursor: "pointer",
               }}
             >
@@ -1975,7 +1975,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               ← Volver
             </button>
             {editingId && <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>✏️ Editando sesión</span>}
-            <div style={{ flex: 1, fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 800, color: "#22c55e" }}>
+            <div style={{ flex: 1, fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800, color: "#22c55e" }}>
               📋 Registrar sesión
             </div>
           </div>
@@ -2001,7 +2001,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 value={workout}
                 onChange={e => setWorkout(e.target.value.slice(0, 25).replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]/g, ""))}
                 className="input"
-                style={{ fontSize: 18, fontWeight: 700, fontFamily: "Barlow Condensed, sans-serif", flex: 1, padding: "12px 16px" }}
+                style={{ fontSize: 18, fontWeight: 700, fontFamily: "Inter, sans-serif", flex: 1, padding: "12px 16px" }}
                 autoFocus
               />
               <button className="btn-ghost" onClick={() => setShowPresets(v => !v)} title="Plantillas">📋</button>
@@ -2114,7 +2114,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
     <div style={{ display:"flex", gap:12, alignItems:"center" }}>
       <ExerciseGif exName={exName} size={72} />
       <div style={{ flex: 1 }}>
-        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
+        <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
         {!(customGifsMap[exName] || GIF_MAP[exName]) && (
           <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>⏳ GIF en camino — el admin lo agregará pronto</div>
         )}
@@ -2301,7 +2301,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Hazte Pro para ver todo tu historial</div>
           </div>
         </div>
-        <span style={{ fontSize: 11, fontWeight: 800, color: "#DFFF00", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>PRO →</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "#DFFF00", fontFamily: "Inter, sans-serif", letterSpacing: 1 }}>PRO →</span>
       </div>
     )}
     {(() => {
@@ -2322,7 +2322,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <button onClick={() => setCalMonth(({ y, m }) => m === 0 ? { y: y-1, m: 11 } : { y, m: m-1 })}
               style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, padding: "0 8px" }}>‹</button>
-            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "var(--text)" }}>
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "var(--text)" }}>
               {monthName}
             </span>
             <button onClick={() => setCalMonth(({ y, m }) => m === 11 ? { y: y+1, m: 0 } : { y, m: m+1 })}
@@ -2913,7 +2913,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                                 <div style={{ fontSize:11, color:"var(--text-muted)" }}>{data.date}</div>
                               </div>
                               <div style={{ textAlign:"right", flexShrink:0 }}>
-                                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:900, color:"var(--accent)", lineHeight:1 }}>{data.weight}kg</div>
+                                <div style={{ fontFamily:"Inter, sans-serif", fontSize:18, fontWeight:900, color:"var(--accent)", lineHeight:1 }}>{data.weight}kg</div>
                                 <div style={{ fontSize:10, color:"var(--text-muted)" }}>1RM ~{data.rm}kg</div>
                               </div>
                             </div>
@@ -3002,7 +3002,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           >
             <div style={{ fontSize: 48, marginBottom: 12 }}>⏰</div>
             <div style={{
-              fontFamily: "'Barlow Condensed',sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 26, fontWeight: 900,
               color: "#DFFF00", letterSpacing: 2, marginBottom: 8,
             }}>
@@ -3021,7 +3021,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 background: "#DFFF00", color: "#000",
                 fontWeight: 900, fontSize: 16, border: "none",
                 cursor: "pointer",
-                fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
+                fontFamily: "'Inter', sans-serif", letterSpacing: 1,
                 marginBottom: 8,
               }}
             >
@@ -3050,7 +3050,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             onClick={e => e.stopPropagation()}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
               <div style={{ fontSize:40, marginBottom:8 }}>⚡</div>
-              <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:26, fontWeight:900, color:"#DFFF00", letterSpacing:2 }}>
+              <div style={{ fontFamily:"Inter, sans-serif", fontSize:26, fontWeight:900, color:"#DFFF00", letterSpacing:2 }}>
                 PLAN {user.plan.toUpperCase()}
               </div>
               <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>
@@ -3075,13 +3075,13 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             </div>
             <button
               onClick={() => { setShowPlanInfo(false); setShowPaywall(true); }}
-              style={{ width:"100%", padding:"13px 0", borderRadius:12, background:"#DFFF00", border:"none", fontFamily:"Barlow Condensed,sans-serif", fontSize:15, fontWeight:900, letterSpacing:2, color:"#09090B", cursor:"pointer", marginBottom:10 }}
+              style={{ width:"100%", padding:"13px 0", borderRadius:12, background:"#DFFF00", border:"none", fontFamily:"Inter, sans-serif", fontSize:15, fontWeight:900, letterSpacing:2, color:"#09090B", cursor:"pointer", marginBottom:10 }}
             >
               ⚡ VER PLANES
             </button>
             <button
               onClick={() => setShowPlanInfo(false)}
-              style={{ width:"100%", padding:"11px 0", borderRadius:12, background:"transparent", border:"1px solid rgba(255,255,255,0.1)", fontFamily:"Barlow Condensed,sans-serif", fontSize:14, fontWeight:700, letterSpacing:2, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}
+              style={{ width:"100%", padding:"11px 0", borderRadius:12, background:"transparent", border:"1px solid rgba(255,255,255,0.1)", fontFamily:"Inter, sans-serif", fontSize:14, fontWeight:700, letterSpacing:2, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}
             >
               CERRAR
             </button>
@@ -3108,7 +3108,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>💪</div>
             <div style={{
-              fontFamily: "Barlow Condensed, sans-serif",
+              fontFamily: "Inter, sans-serif",
               fontSize: 22, fontWeight: 900,
               letterSpacing: 1, marginBottom: 10,
             }}>¿Seguimos entrenando?</div>
@@ -3123,7 +3123,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               style={{
                 width: "100%", padding: "14px 0",
                 background: "#DFFF00", border: "none", borderRadius: 8,
-                fontFamily: "Barlow Condensed, sans-serif",
+                fontFamily: "Inter, sans-serif",
                 fontSize: 16, fontWeight: 900, letterSpacing: 2,
                 color: "#09090B", cursor: "pointer", marginBottom: 10,
                 textTransform: "uppercase",
@@ -3253,7 +3253,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div style={{ flex: 1, textAlign: "center" }}>
                   <div style={{ fontSize: 36, marginBottom: 6 }}>⚡</div>
-                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>
                     ¿QUÉ VAS A ENTRENAR HOY?
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>Dale un nombre o elige una plantilla</div>
@@ -3315,7 +3315,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                       onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--input-bg)"; }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                        <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
+                        <span style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
                           {tpl.isUser ? "📋 " : "⚡ "}{tpl.name}
                         </span>
                         <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700, letterSpacing: 1, flexShrink: 0 }}>
@@ -3391,7 +3391,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <div style={{ fontSize:10, fontWeight:800, letterSpacing:2, color:"#f59e0b", textTransform:"uppercase", marginBottom:3 }}>
               🏅 ¡Logro desbloqueado!
             </div>
-            <div style={{ fontSize:16, fontWeight:900, color:"#fff", fontFamily:"Barlow Condensed, sans-serif", letterSpacing:1 }}>
+            <div style={{ fontSize:16, fontWeight:900, color:"#fff", fontFamily:"Inter, sans-serif", letterSpacing:1 }}>
               {badgeToast.name}
             </div>
             <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", marginTop:2 }}>{badgeToast.desc}</div>
@@ -3424,7 +3424,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             <p style={{ margin:"0 0 24px", fontSize:15, color:"#f0f0f0", lineHeight:1.5, textAlign:"center", fontFamily:"'Barlow', sans-serif" }}>{confirmModal.message}</p>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={closeConfirm} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"1px solid rgba(255,255,255,0.08)", background:"transparent", color:"rgba(255,255,255,0.35)", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'Barlow', sans-serif" }}>Cancelar</button>
-              <button onClick={() => { confirmModal.onConfirm?.(); closeConfirm(); }} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", background:"#DFFF00", color:"#09090B", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"'Barlow Condensed', sans-serif", letterSpacing:1 }}>Confirmar</button>
+              <button onClick={() => { confirmModal.onConfirm?.(); closeConfirm(); }} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", background:"#DFFF00", color:"#09090B", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"'Inter', sans-serif", letterSpacing:1 }}>Confirmar</button>
             </div>
           </div>
         </div>

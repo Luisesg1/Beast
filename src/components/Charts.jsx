@@ -77,7 +77,7 @@ export function TrainingCalendar({ sessions, joinedAt }) {
       }}>
         <div style={{
           display:"flex", alignItems:"center", gap:8,
-          fontFamily:"Barlow Condensed, sans-serif",
+          fontFamily:"Inter, sans-serif",
           fontSize:13, fontWeight:900, letterSpacing:3,
           textTransform:"uppercase", color:"var(--accent)",
         }}>
@@ -244,15 +244,15 @@ export function WeeklyChart({ sessions }) {
       <div style={{display:"flex",gap:12,marginBottom:14}}>
         <div style={{flex:1,background:"var(--input-bg)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
           <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Total</div>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:"var(--accent)"}}>{metric==="vol"?`${(total/1000).toFixed(1)}t`:total}</div>
+          <div style={{fontFamily:"Inter, sans-serif",fontSize:20,fontWeight:800,color:"var(--accent)"}}>{metric==="vol"?`${(total/1000).toFixed(1)}t`:total}</div>
         </div>
         <div style={{flex:1,background:"var(--input-bg)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
           <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Promedio</div>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:"var(--text)"}}>{metric==="vol"?`${(Number(avg)/1000).toFixed(1)}t`:Number(avg).toFixed(1)}</div>
+          <div style={{fontFamily:"Inter, sans-serif",fontSize:20,fontWeight:800,color:"var(--text)"}}>{metric==="vol"?`${(Number(avg)/1000).toFixed(1)}t`:Number(avg).toFixed(1)}</div>
         </div>
         <div style={{flex:1,background:"var(--input-bg)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
           <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Mejor</div>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:"#22c55e"}}>{metric==="vol"?`${(maxVal/1000).toFixed(1)}t`:maxVal}</div>
+          <div style={{fontFamily:"Inter, sans-serif",fontSize:20,fontWeight:800,color:"#22c55e"}}>{metric==="vol"?`${(maxVal/1000).toFixed(1)}t`:maxVal}</div>
         </div>
       </div>
 

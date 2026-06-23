@@ -14,7 +14,7 @@ const thisWeek = new Set(sessions.filter(s => new Date(s.date+"T00:00:00") >= lu
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontSize:48, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color: pct>=1?"#22c55e":"var(--accent)" }}>
+          <div style={{ fontSize:48, fontWeight:800, fontFamily:"Inter, sans-serif", color: pct>=1?"#22c55e":"var(--accent)" }}>
             {thisWeek}<span style={{ fontSize:24, color:"var(--text-muted)" }}>/{target}</span>
           </div>
           <div style={{ fontSize:13, color:"var(--text-muted)", marginBottom:12 }}>sesiones esta semana</div>

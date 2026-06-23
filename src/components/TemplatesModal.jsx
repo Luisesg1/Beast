@@ -298,7 +298,7 @@ export default function TemplatesModal({ sessions, onLoad, onClose }) {
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
                 <ExerciseGif exName={newExercise} size={72} />
                 <div>
-                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 800 }}>{newExercise}</div>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800 }}>{newExercise}</div>
                   {newWeight && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 2 }}>📋 Pre-rellenado con tu último entreno</div>}
                 </div>
               </div>

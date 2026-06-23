@@ -146,7 +146,7 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
               <span style={{ fontSize:28 }}>🏆</span>
               <div>
                 <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"#f59e0b", textTransform:"uppercase" }}>Récord Personal</div>
-                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:900 }}>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:900 }}>
                   {prEntry.weight}kg × {prEntry.reps} reps
                   <span style={{ fontSize:14, color:"#f59e0b", marginLeft:10 }}>1RM ≈ {prEntry.rm}kg</span>
                 </div>
@@ -242,7 +242,7 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
               ["Mejora total", (() => { const f=vals[0],l=vals[vals.length-1]; const p=Math.round((l-f)/f*100); return `${p>0?"+":""}${p}%`; })(), vals[vals.length-1]>=vals[0]?"#22c55e":"#f97316"],
             ].map(([label,val,color]) => (
               <div key={label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
-                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800, color }}>{val}</div>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:18, fontWeight:800, color }}>{val}</div>
                 <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:2 }}>{label}</div>
               </div>
             ))}
@@ -261,12 +261,12 @@ export default function ProgressModal({ exName, sessions, onClose, onBack }) {
             return (
               <div style={{ background:"rgba(223,255,0,0.04)", border:"1px solid rgba(223,255,0,0.2)", borderRadius:10, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:14 }}>
                 <div style={{ textAlign:"center" }}>
-                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, color:"var(--accent)" }}>{rpeLast ?? rpeAvg}</div>
+                  <div style={{ fontFamily:"Inter, sans-serif", fontSize:24, fontWeight:900, color:"var(--accent)" }}>{rpeLast ?? rpeAvg}</div>
                   <div style={{ fontSize:9, color:"rgba(223,255,0,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>RPE última</div>
                 </div>
                 <div style={{ width:1, height:32, background:"var(--border)" }}/>
                 <div style={{ textAlign:"center" }}>
-                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:900, color:"rgba(223,255,0,0.6)" }}>{rpeAvg}</div>
+                  <div style={{ fontFamily:"Inter, sans-serif", fontSize:24, fontWeight:900, color:"rgba(223,255,0,0.6)" }}>{rpeAvg}</div>
                   <div style={{ fontSize:9, color:"rgba(223,255,0,0.4)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>RPE prom.</div>
                 </div>
                 {rpeTrend && <>

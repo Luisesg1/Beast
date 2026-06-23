@@ -146,7 +146,7 @@ const thisWeek = new Set(sessions.filter(s => new Date(s.date+"T00:00:00") >= lu
           return (
             <div>
               <div style={{ textAlign:"center", marginBottom:24 }}>
-                <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:64, fontWeight:900, color: done?"#22c55e":"var(--accent)", lineHeight:1 }}>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:64, fontWeight:900, color: done?"#22c55e":"var(--accent)", lineHeight:1 }}>
                   {thisWeek}<span style={{ fontSize:32, color:"var(--text-muted)" }}>/{target}</span>
                 </div>
                 <div style={{ fontSize:13, color:"var(--text-muted)", marginBottom:14 }}>sesiones esta semana</div>
@@ -160,7 +160,7 @@ const thisWeek = new Set(sessions.filter(s => new Date(s.date+"T00:00:00") >= lu
                 <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
                   {[2,3,4,5,6,7].map(n => (
                     <button key={n} onClick={() => onSaveGoal({ target: n })}
-                      style={{ width:48, height:48, borderRadius:12, border:"2px solid", borderColor:(weeklyGoal?.target||4)===n?"var(--accent)":"var(--border)", background:(weeklyGoal?.target||4)===n?"var(--accent)":"var(--input-bg)", color:(weeklyGoal?.target||4)===n?"white":"var(--text)", fontFamily:"Barlow Condensed,sans-serif", fontSize:22, fontWeight:800, cursor:"pointer", transition:"all 0.2s" }}>
+                      style={{ width:48, height:48, borderRadius:12, border:"2px solid", borderColor:(weeklyGoal?.target||4)===n?"var(--accent)":"var(--border)", background:(weeklyGoal?.target||4)===n?"var(--accent)":"var(--input-bg)", color:(weeklyGoal?.target||4)===n?"white":"var(--text)", fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:800, cursor:"pointer", transition:"all 0.2s" }}>
                       {n}
                     </button>
                   ))}

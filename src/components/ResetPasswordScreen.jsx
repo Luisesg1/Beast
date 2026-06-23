@@ -69,7 +69,7 @@ export default function ResetPasswordScreen({ oobCode }) {
         }
         .rp-icon img { width: 100%; height: 100%; object-fit: cover; }
         .rp-appname {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 26px; font-weight: 900;
           letter-spacing: 7px; color: white;
           text-transform: uppercase; line-height: 1;
@@ -79,7 +79,7 @@ export default function ResetPasswordScreen({ oobCode }) {
         }
         .rp-line { width: 20px; height: 2px; background: #DFFF00; border-radius: 1px; }
         .rp-slogan {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 11px; font-weight: 700; letter-spacing: 3px;
           color: rgba(255,255,255,0.5); text-transform: uppercase;
         }
@@ -100,7 +100,7 @@ export default function ResetPasswordScreen({ oobCode }) {
           position: relative; z-index: 1;
         }
         .rp-card-title {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 22px; font-weight: 900;
           letter-spacing: 2px; color: white;
           text-transform: uppercase; margin-bottom: 4px;
@@ -151,7 +151,7 @@ export default function ResetPasswordScreen({ oobCode }) {
           font-size: 13px; letter-spacing: 3px;
           padding: 15px; border-radius: 10px;
           border: none; cursor: pointer;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', sans-serif;
           text-transform: uppercase;
           transition: opacity 0.2s, transform 0.1s;
         }
@@ -159,7 +159,7 @@ export default function ResetPasswordScreen({ oobCode }) {
         .rp-btn:not(:disabled):active { transform: scale(0.98); }
         .rp-success-icon { font-size: 48px; margin-bottom: 14px; }
         .rp-success-title {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 22px; font-weight: 900;
           color: white; margin-bottom: 8px; letter-spacing: 1px;
         }
@@ -174,7 +174,7 @@ export default function ResetPasswordScreen({ oobCode }) {
           font-weight: 900; font-size: 13px; letter-spacing: 3px;
           padding: 15px; border-radius: 10px;
           text-decoration: none; text-align: center;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', sans-serif;
           text-transform: uppercase;
         }
       `}</style>

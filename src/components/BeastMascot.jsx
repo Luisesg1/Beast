@@ -323,7 +323,7 @@ export default function BeastMascot({ sessions, todayPlanned, streak, onStartSes
             <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, color: mood.color, textTransform: "uppercase" }}>BEAST · TU FAN</div>
             <div style={{ fontSize: 9, padding: "1px 6px", borderRadius: 10, background: `${mood.color}20`, color: mood.color, fontWeight: 700 }}>{mood.label}</div>
           </div>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 900, color: "var(--text)", lineHeight: 1.15, marginBottom: 3 }}>
+          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 20, fontWeight: 900, color: "var(--text)", lineHeight: 1.15, marginBottom: 3 }}>
             {DEBUG_MOODS ? `Mood: ${activeMood}` : ctx.title}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.55 }}>

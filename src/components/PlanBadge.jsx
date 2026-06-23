@@ -22,7 +22,7 @@ export default function PlanBadge({ style = {} }) {
       fontSize: 10, fontWeight: 900,
       padding: "3px 8px", borderRadius: 20,
       letterSpacing: 1.5,
-      fontFamily: "'Barlow Condensed', sans-serif",
+      fontFamily: "'Inter', sans-serif",
       ...style,
     }}>
       {s.icon && <span style={{ fontSize: 10 }}>{s.icon}</span>}

@@ -239,7 +239,7 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
         {/* Progreso global */}
         <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
           <div style={{ flex:"0 0 auto", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, padding:"10px 18px", textAlign:"center" }}>
-            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:30, fontWeight:800, color:"#f59e0b", lineHeight:1 }}>{totalEarned}</div>
+            <div style={{ fontFamily:"Inter, sans-serif", fontSize:30, fontWeight:800, color:"#f59e0b", lineHeight:1 }}>{totalEarned}</div>
             <div style={{ fontSize:10, color:"var(--text-muted)" }}>de {BADGE_DEFS.length} logros</div>
           </div>
           <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"10px 16px", display:"flex", flexDirection:"column", justifyContent:"center" }}>
@@ -347,7 +347,7 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
                 {b.icon}
               </div>
               <div style={{
-                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 900,
+                fontFamily: "Inter, sans-serif", fontWeight: 900,
                 fontSize: 22, letterSpacing: 1, marginBottom: 6,
                 color: isEarned ? "var(--text)" : "var(--text-muted)",
               }}>
@@ -394,7 +394,7 @@ export default function BadgesModal({ sessions, bodyStats, user, extras = {}, on
                 width: "100%", padding: "11px 0", borderRadius: 10,
                 background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)",
                 color: "var(--text-muted)", cursor: "pointer", fontSize: 13, fontWeight: 700,
-                fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1,
+                fontFamily: "Inter, sans-serif", letterSpacing: 1,
               }}>
                 Cerrar
               </button>

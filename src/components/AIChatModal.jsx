@@ -438,7 +438,7 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
               flexShrink: 0, boxShadow: "0 0 16px rgba(34,197,94,0.35)",
             }}><BruxAvatar size={34} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontWeight: 900, fontSize: 20, letterSpacing: 1, lineHeight: 1 }}>
+              <div style={{ fontFamily: "Inter, sans-serif", fontWeight: 900, fontSize: 20, letterSpacing: 1, lineHeight: 1 }}>
                 BRUX IA
               </div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -615,7 +615,7 @@ export default function AIChatModal({ onClose, sessions, bodyStats, user, isPro,
             border: "1px solid rgba(251,191,36,0.3)",
             borderRadius: 14, padding: "14px 16px", flexShrink: 0,
           }}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, color: "var(--text)", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, color: "var(--text)", fontFamily: "Inter, sans-serif", letterSpacing: 1, textTransform: "uppercase" }}>
               ⚡ Consultas agotadas por hoy
             </div>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, lineHeight: 1.5 }}>

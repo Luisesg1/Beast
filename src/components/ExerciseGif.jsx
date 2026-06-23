@@ -91,7 +91,7 @@ export default function ExerciseGif({ exName, size = 120 }) {
             />
             <div style={{
               color: "white", marginTop: 16,
-              fontFamily: "Barlow Condensed, sans-serif",
+              fontFamily: "Inter, sans-serif",
               fontSize: 28, fontWeight: 800, letterSpacing: 1,
             }}>
               {exName}

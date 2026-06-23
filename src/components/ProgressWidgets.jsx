@@ -137,7 +137,7 @@ export function ProgressPrediction({ sessions }) {
             { label:"Mejora total",val:`${pct>0?"+":""}${pct}%`, color:improved?"#22c55e":"#f87171" },
           ].map(s => (
             <div key={s.label} style={{ background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:16, fontWeight:800, color:s.color }}>{s.val}</div>
+              <div style={{ fontFamily:"Inter, sans-serif", fontSize:16, fontWeight:800, color:s.color }}>{s.val}</div>
               <div style={{ fontSize:9, color:"var(--text-muted)", marginTop:1 }}>{s.label}</div>
             </div>
           ))}
@@ -208,7 +208,7 @@ export function MuscleBalance({ sessions }) {
               <div key={g.name} style={{ flex:"1 1 140px", background:"var(--input-bg)", border:`1px solid ${colors[g.name]}33`, borderRadius:10, padding:"10px 12px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                   <span style={{ fontSize:13, fontWeight:700 }}>{g.name}</span>
-                  <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:18, fontWeight:800, color:colors[g.name] }}>{g.total}</span>
+                  <span style={{ fontFamily:"Inter, sans-serif", fontSize:18, fontWeight:800, color:colors[g.name] }}>{g.total}</span>
                 </div>
                 <div style={{ background:"var(--border)", borderRadius:4, height:5, overflow:"hidden" }}>
                   <div style={{ height:"100%", background:colors[g.name], width:`${(g.total/maxTotal)*100}%`, transition:"width 0.5s" }} />

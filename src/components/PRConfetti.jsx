@@ -65,7 +65,7 @@ export default function PRConfetti({ prs, user, onDone }) {
             <div style={{ fontSize:56, marginBottom:4, filter:"drop-shadow(0 0 20px rgba(223,255,0,0.5))" }}>🏆</div>
 
             <div style={{
-              fontFamily:"'Barlow Condensed',sans-serif",
+              fontFamily:"'Inter', sans-serif",
               fontSize:38, fontWeight:900, letterSpacing:2,
               color:"#DFFF00", textTransform:"uppercase",
               textShadow:"0 0 30px rgba(223,255,0,0.5)", marginBottom:4,
@@ -85,7 +85,7 @@ export default function PRConfetti({ prs, user, onDone }) {
                   display:"flex", justifyContent:"space-between", alignItems:"center",
                 }}>
                   <div style={{ textAlign:"left" }}>
-                    <div style={{ fontSize:15, fontWeight:800, color:"#fff", fontFamily:"'Barlow Condensed',sans-serif" }}>
+                    <div style={{ fontSize:15, fontWeight:800, color:"#fff", fontFamily:"'Inter', sans-serif" }}>
                       {pr.name}
                     </div>
                     <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:2 }}>
@@ -96,7 +96,7 @@ export default function PRConfetti({ prs, user, onDone }) {
                     background:"#DFFF00", color:"#000",
                     fontWeight:900, fontSize:16,
                     padding:"6px 14px", borderRadius:20,
-                    fontFamily:"'Barlow Condensed',sans-serif",
+                    fontFamily:"'Inter', sans-serif",
                     boxShadow:"0 0 16px rgba(223,255,0,0.4)",
                   }}>
                     {pr.weight} kg
@@ -109,7 +109,7 @@ export default function PRConfetti({ prs, user, onDone }) {
               <button onClick={() => setShowShare(true)} style={{
                 flex:2, padding:"13px 0", borderRadius:12,
                 background:"#DFFF00", border:"none",
-                fontFamily:"'Barlow Condensed',sans-serif",
+                fontFamily:"'Inter', sans-serif",
                 fontSize:15, fontWeight:900, color:"#000",
                 letterSpacing:1, cursor:"pointer",
                 boxShadow:"0 0 20px rgba(223,255,0,0.3)",
@@ -120,7 +120,7 @@ export default function PRConfetti({ prs, user, onDone }) {
                 flex:1, padding:"13px 0", borderRadius:12,
                 background:"rgba(255,255,255,0.06)",
                 border:"1px solid rgba(255,255,255,0.1)",
-                fontFamily:"'Barlow Condensed',sans-serif",
+                fontFamily:"'Inter', sans-serif",
                 fontSize:15, fontWeight:700, color:"rgba(255,255,255,0.5)",
                 cursor:"pointer",
               }}>

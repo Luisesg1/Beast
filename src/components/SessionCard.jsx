@@ -137,7 +137,7 @@ export default function SessionCard({ s, unit, onDelete, onEdit, onDuplicate, on
               onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") { setNameVal(s.workout||""); setEditingName(false); } }}
               onClick={e => e.stopPropagation()}
               style={{
-                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 800,
+                fontFamily: "Inter, sans-serif", fontWeight: 800,
                 fontSize: 15, letterSpacing: 0.5,
                 background: "var(--input-bg)", border: "1.5px solid var(--accent)",
                 color: "var(--text)", borderRadius: 8, padding: "3px 10px",

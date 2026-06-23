@@ -71,7 +71,7 @@ function GuestView({ onClose }) {
     <div style={{ textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
       <div style={{
-        fontFamily: "'Barlow Condensed',sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 24, fontWeight: 900, color: "#DFFF00",
         letterSpacing: 2, marginBottom: 8,
       }}>
@@ -88,7 +88,7 @@ function GuestView({ onClose }) {
           background: "#DFFF00", color: "#000",
           fontWeight: 900, fontSize: 16, border: "none",
           cursor: "pointer",
-          fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
+          fontFamily: "'Inter', sans-serif", letterSpacing: 1,
         }}
       >
         CREAR CUENTA GRATIS
@@ -140,7 +140,7 @@ function PlanView({ plan, onClose, onSwitchPlan, otherPlanLabel, prices }) {
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <div style={{ fontSize: 40, marginBottom: 8 }}>{plan.emoji}</div>
         <div style={{
-          fontFamily: "'Barlow Condensed',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 26, fontWeight: 900,
           color: plan.color, letterSpacing: 2,
         }}>
@@ -263,7 +263,7 @@ function PlanView({ plan, onClose, onSwitchPlan, otherPlanLabel, prices }) {
               background: loading ? `${plan.color}66` : plan.color,
               color: "#000", fontWeight: 900, fontSize: 16, border: "none",
               cursor: loading ? "not-allowed" : "pointer",
-              fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: 1,
+              fontFamily: "'Inter', sans-serif", letterSpacing: 1,
             }}
           >
             {loading ? "PROCESANDO..." : `HAZTE ${plan.id.toUpperCase()}`}

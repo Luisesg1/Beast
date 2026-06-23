@@ -194,7 +194,7 @@ export default function MuscleMapModal({ sessions, onClose }) {
         {/* Toggle Frente / Espalda */}
         <div style={{ display:"flex", marginBottom:16, borderRadius:12, overflow:"hidden", border:"1px solid var(--border)" }}>
           {[["front","👤 Frente"],["back","🔄 Espalda"]].map(([v,l]) => (
-            <button key={v} onClick={() => { setSide(v); setHover(null); }} style={{ flex:1, padding:"11px 0", fontSize:13, fontWeight:800, border:"none", background:side===v?"var(--accent)":"transparent", color:side===v?"#000":"var(--text-muted)", cursor:"pointer", transition:"all 0.2s", fontFamily:"Barlow Condensed, sans-serif", letterSpacing:1 }}>{l}</button>
+            <button key={v} onClick={() => { setSide(v); setHover(null); }} style={{ flex:1, padding:"11px 0", fontSize:13, fontWeight:800, border:"none", background:side===v?"var(--accent)":"transparent", color:side===v?"#000":"var(--text-muted)", cursor:"pointer", transition:"all 0.2s", fontFamily:"Inter, sans-serif", letterSpacing:1 }}>{l}</button>
           ))}
         </div>
 

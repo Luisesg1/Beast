@@ -67,8 +67,8 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
       }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ background:"rgba(223,255,0,0.15)", border:"1px solid rgba(223,255,0,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>PRO</span>
-            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
+            <span style={{ background:"rgba(223,255,0,0.15)", border:"1px solid rgba(223,255,0,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Inter, sans-serif" }}>PRO</span>
+            <span style={{ fontFamily:"Inter, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
           </div>
           <div style={{ fontSize:12, color:"var(--text-muted)" }}>Gráficos · Radar muscular · Metas · Alertas</div>
         </div>
@@ -89,8 +89,8 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
       }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"#22c55e", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>✅ {timeLeft ? timeLeft : "ACTIVO"}</span>
-            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
+            <span style={{ background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"#22c55e", letterSpacing:2, fontFamily:"Inter, sans-serif" }}>✅ {timeLeft ? timeLeft : "ACTIVO"}</span>
+            <span style={{ fontFamily:"Inter, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
           </div>
           <div style={{ fontSize:12, color:"var(--text-muted)" }}>Toca para ver tus gráficos</div>
         </div>
@@ -110,8 +110,8 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ background:"rgba(223,255,0,0.15)", border:"1px solid rgba(223,255,0,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Barlow Condensed, sans-serif" }}>PRO</span>
-            <span style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
+            <span style={{ background:"rgba(223,255,0,0.15)", border:"1px solid rgba(223,255,0,0.3)", borderRadius:6, padding:"1px 7px", fontSize:10, fontWeight:800, color:"var(--accent)", letterSpacing:2, fontFamily:"Inter, sans-serif" }}>PRO</span>
+            <span style={{ fontFamily:"Inter, sans-serif", fontSize:17, fontWeight:800 }}>Estadísticas Avanzadas</span>
           </div>
           <div style={{ fontSize:12, color:"var(--text-muted)" }}>Gráficos · Radar muscular · Metas · Alertas</div>
         </div>
@@ -123,7 +123,7 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
         <button onClick={onProClick} style={{
           flex: 2, padding:"10px 0", borderRadius:10,
           background:"#DFFF00", border:"none",
-          fontFamily:"Barlow Condensed, sans-serif",
+          fontFamily:"Inter, sans-serif",
           fontSize:13, fontWeight:900, color:"#000",
           letterSpacing:1, cursor:"pointer",
         }}>
@@ -135,7 +135,7 @@ export default function StatsBanner({ isPro, onProClick, onUnlocked, onVideoUnlo
           flex: 2, padding:"10px 0", borderRadius:10,
           background:"rgba(255,255,255,0.06)",
           border:"1px solid rgba(255,255,255,0.15)",
-          fontFamily:"Barlow Condensed, sans-serif",
+          fontFamily:"Inter, sans-serif",
           fontSize:13, fontWeight:700,
           color:"rgba(255,255,255,0.7)",
           cursor: loading ? "wait" : "pointer",

@@ -53,7 +53,7 @@ export default function ProGate({ required = "pro", children, inline = false, la
           }}>
             <span style={{ fontSize: 28 }}>🔒</span>
             <span style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 13, fontWeight: 700,
               color: "rgba(255,255,255,0.7)",
               letterSpacing: 1, textTransform: "uppercase",
@@ -65,7 +65,7 @@ export default function ProGate({ required = "pro", children, inline = false, la
               fontSize: 11, fontWeight: 900,
               padding: "4px 12px", borderRadius: 20,
               letterSpacing: 1,
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Inter', sans-serif",
             }}>
               HAZTE PRO
             </span>

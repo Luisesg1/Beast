@@ -768,7 +768,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
         {!coachProfile && (
           <div style={{ textAlign: "center", padding: "30px 0" }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>🏋️</div>
-            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Activar modo Coach</div>
+            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Activar modo Coach</div>
             <p style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 24, lineHeight: 1.6 }}>
               Como coach podrás crear rutinas, asignarlas a tus atletas<br/>y ver su progreso, PRs e historial completo.
             </p>
@@ -798,7 +798,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   padding:"8px 4px", border:"none", cursor:"pointer", borderRadius:8,
                   background: tab===id ? "var(--accent)" : "transparent",
                   color: tab===id ? "#000" : "var(--text-muted)",
-                  fontFamily:"Barlow Condensed, sans-serif",
+                  fontFamily:"Inter, sans-serif",
                   fontWeight: tab===id ? 900 : 600,
                   fontSize:10, letterSpacing:0.5, textTransform:"uppercase",
                   transition:"all 0.15s",
@@ -819,7 +819,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   ].map(s => (
                     <div key={s.label} style={{ flex: "1 1 120px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px", textAlign: "center" }}>
                       <div style={{ fontSize: 28 }}>{s.icon}</div>
-                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 800, color: "var(--accent)" }}>{s.value}</div>
+                      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 32, fontWeight: 800, color: "var(--accent)" }}>{s.value}</div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.label}</div>
                     </div>
                   ))}
@@ -857,7 +857,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                         ].map(s => (
                           <div key={s.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 6px", textAlign: "center" }}>
                             <div style={{ fontSize: 14 }}>{s.icon}</div>
-                            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</div>
+                            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</div>
                             <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>{s.label}</div>
                           </div>
                         ))}
@@ -972,7 +972,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                     <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, maxWidth: 480, width: "100%", maxHeight: "80vh", overflowY: "auto" }}
                       onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>{previewRoutine.name}</div>
+                        <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 800 }}>{previewRoutine.name}</div>
                         <button onClick={() => setPreviewRoutine(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20 }}>✕</button>
                       </div>
                       {previewRoutine.notes && (
@@ -1060,7 +1060,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
             {tab === "editor" && (
               <div>
                 <button className="btn-ghost small" style={{ marginBottom: 16 }} onClick={() => setTab("routines")}>← Volver</button>
-                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
                   {editingRoutine ? "✏️ Editar rutina" : "➕ Nueva rutina"}
                 </div>
                 <div className="field" style={{ marginBottom: 12 }}>
@@ -1148,7 +1148,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                         border: `1px ${pendingSsGroup ? "solid" : "dashed"} ${pendingSsGroup ? "#a78bfa" : "rgba(255,255,255,0.2)"}`,
                         color: pendingSsGroup ? "#a78bfa" : "var(--text-muted)",
                         borderRadius: 8, padding: "6px 12px", cursor: "pointer",
-                        fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, fontWeight: 800,
+                        fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 800,
                         letterSpacing: 1, display: "flex", alignItems: "center", gap: 6,
                       }}
                     >
@@ -1334,7 +1334,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                                       alignSelf: "flex-end", padding: "4px 14px", borderRadius: 7,
                                       background: "var(--accent)", color: "#000", border: "none",
                                       fontWeight: 800, fontSize: 12, cursor: "pointer",
-                                      fontFamily: "Barlow Condensed, sans-serif",
+                                      fontFamily: "Inter, sans-serif",
                                     }}
                                   >✓ Confirmar</button>
                                 </div>
@@ -1464,7 +1464,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                   <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: "white" }}>{selectedAthlete.name?.[0]?.toUpperCase()}</div>
                   <div>
-                    <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800 }}>{selectedAthlete.name}</div>
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 800 }}>{selectedAthlete.name}</div>
                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedAthlete.email}</div>
                   </div>
                 </div>
@@ -1483,7 +1483,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                       ].map(s => (
                         <div key={s.label} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
                           <div style={{ fontSize: 22 }}>{s.icon}</div>
-                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, fontWeight: 800, color: "var(--accent)" }}>{s.value}</div>
+                          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 24, fontWeight: 800, color: "var(--accent)" }}>{s.value}</div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.label}</div>
                         </div>
                       ))}

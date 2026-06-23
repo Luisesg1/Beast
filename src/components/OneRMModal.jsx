@@ -33,7 +33,7 @@ export default function OneRMModal({ onClose }) {
           <div>
             <div style={{ background: "var(--accent-dim)", border: "1px solid var(--accent)", borderRadius: 12, padding: "16px", textAlign: "center", marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>1RM Estimado</div>
-              <div style={{ fontSize: 40, fontWeight: 800, fontFamily: "Barlow Condensed, sans-serif", color: "var(--text)" }}>{result} kg</div>
+              <div style={{ fontSize: 40, fontWeight: 800, fontFamily: "Inter, sans-serif", color: "var(--text)" }}>{result} kg</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
               {percentages.map(p => {

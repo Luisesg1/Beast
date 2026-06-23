@@ -222,7 +222,7 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
                     return (
                       <div key={f.key} style={{ background:"var(--card)", border:`1px solid ${f.color}40`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
                         <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:2 }}>{f.label}</div>
-                        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800, color:isNaN(val)?"var(--text-muted)":f.color }}>
+                        <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800, color:isNaN(val)?"var(--text-muted)":f.color }}>
                           {isNaN(val) ? "—" : `${val}${f.unit}`}
                         </div>
                         {delta !== null && (
@@ -354,15 +354,15 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
             <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
               <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
                 <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3 }}>Peso</div>
-                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:"var(--accent)" }}>{currentWeight} kg</div>
+                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Inter, sans-serif", color:"var(--accent)" }}>{currentWeight} kg</div>
               </div>
               <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
                 <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3, display:"flex", alignItems:"center", justifyContent:"center" }}>IMC<InfoPill title="¿Qué es el IMC?" color="#3b82f6" lines={["El IMC relaciona peso y estatura para estimar si estás en un rango saludable.","📊 Fórmula: peso (kg) ÷ estatura² (m)","🔵 < 18.5 → Bajo peso","🟢 18.5–24.9 → Normal","🟠 25–29.9 → Sobrepeso","🔴 ≥ 30 → Obesidad","⚠️ No distingue músculo de grasa — atletas pueden tener IMC alto sin sobrepeso."]} /></div>
-                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:bmiFeedback?.color }}>{bmi}</div>
+                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Inter, sans-serif", color:bmiFeedback?.color }}>{bmi}</div>
               </div>
               <div style={{ flex:1, background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:10, padding:"10px", textAlign:"center" }}>
                 <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:3 }}>Estado</div>
-                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Barlow Condensed, sans-serif", color:bmiFeedback?.color }}>{bmiFeedback?.label||"—"}</div>
+                <div style={{ fontSize:15, fontWeight:800, fontFamily:"Inter, sans-serif", color:bmiFeedback?.color }}>{bmiFeedback?.label||"—"}</div>
               </div>
             </div>
           )}
@@ -374,15 +374,15 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
               </div>
               <div style={{ display:"flex", gap:12 }}>
                 <div style={{ flex:1, textAlign:"center" }}>
-                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:28, fontWeight:800, color:gc.color }}>{targetKcal}</div>
+                  <div style={{ fontFamily:"Inter, sans-serif", fontSize:28, fontWeight:800, color:gc.color }}>{targetKcal}</div>
                   <div style={{ fontSize:11, color:"var(--text-muted)" }}>kcal/día</div>
                 </div>
                 <div style={{ flex:1, textAlign:"center" }}>
-                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:28, fontWeight:800, color:"var(--text)" }}>{targetProtein}g</div>
+                  <div style={{ fontFamily:"Inter, sans-serif", fontSize:28, fontWeight:800, color:"var(--text)" }}>{targetProtein}g</div>
                   <div style={{ fontSize:11, color:"var(--text-muted)" }}>proteína/día</div>
                 </div>
                 <div style={{ flex:1, textAlign:"center" }}>
-                  <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:28, fontWeight:800, color:"var(--text)" }}>{tdee}</div>
+                  <div style={{ fontFamily:"Inter, sans-serif", fontSize:28, fontWeight:800, color:"var(--text)" }}>{tdee}</div>
                   <div style={{ fontSize:11, color:"var(--text-muted)", display:"flex", alignItems:"center", justifyContent:"center", gap:2 }}>TDEE base<InfoPill title="¿Qué es el TDEE?" color="#f59e0b" lines={["TDEE es el total de calorías que quemas en un día, incluyendo ejercicio y actividad diaria.","📉 Déficit: Come menos que tu TDEE para perder grasa.","⚖️ Mantenimiento: Come igual para mantener el peso.","📈 Volumen: Come más para ganar músculo.","Calculado con la fórmula Mifflin-St Jeor (peso, estatura, edad, actividad)."]} /></div>
                 </div>
               </div>
@@ -409,7 +409,7 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
                   ["En 90 días",   `${prediction.pred90} kg`, "var(--text)"],
                 ].map(([l,v,c]) => (
                   <div key={l} style={{ flex:1, textAlign:"center" }}>
-                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800, color:c }}>{v}</div>
+                    <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800, color:c }}>{v}</div>
                     <div style={{ fontSize:10, color:"var(--text-muted)" }}>{l}</div>
                   </div>
                 ))}
@@ -459,20 +459,20 @@ export default function BodyStatsModal({ stats, onSave, onClose, uid, isGuest, i
                     <label style={{ fontSize:11, color:"var(--text-muted)", display:"block", marginBottom:4 }}>Tu meta de peso (kg)</label>
                     <input className="input" type="number" inputMode="decimal" placeholder={String(suggestedGoal)} value={goalWeight}
                       onChange={e => setGoalWeight(e.target.value)}
-                      style={{ width:"100%", textAlign:"center", fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800 }}
+                      style={{ width:"100%", textAlign:"center", fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800 }}
                     />
                     <div style={{ fontSize:10, color:"var(--text-muted)", textAlign:"center", marginTop:3 }}>Rango válido: 20–300 kg</div>
                   </div>
                   <div style={{ textAlign:"center", minWidth:90 }}>
                     <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:2 }}>Diferencia</div>
-                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:800, color: totalToLose > 0 ? "#22c55e" : totalToLose < 0 ? "#f97316" : "#a855f7" }}>
+                    <div style={{ fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:800, color: totalToLose > 0 ? "#22c55e" : totalToLose < 0 ? "#f97316" : "#a855f7" }}>
                       {totalToLose > 0 ? "-" : totalToLose < 0 ? "+" : ""}{Math.abs(Math.round(totalToLose*10)/10)} kg
                     </div>
                   </div>
                   {weeksNeeded != null && weeksNeeded < 200 && (
                     <div style={{ textAlign:"center", minWidth:90 }}>
                       <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:2 }}>Estimado</div>
-                      <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:800, color:"var(--accent)" }}>{weeksNeeded}sem</div>
+                      <div style={{ fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:800, color:"var(--accent)" }}>{weeksNeeded}sem</div>
                     </div>
                   )}
                 </div>

@@ -151,7 +151,7 @@ export default function UserProfileModal({ user, sessions, bodyStats, onOpenBody
         </div>
         <div style={{textAlign:"center",marginBottom:20}}>
           <AvatarEditor user={user} onPhotoUpdate={(url) => { onPhotoUpdate && onPhotoUpdate(url); }} />
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:800}}>{user.name}</div>
+          <div style={{fontFamily:"Inter, sans-serif",fontSize:22,fontWeight:800}}>{user.name}</div>
           <div style={{fontSize:12,color:"var(--text-muted)"}}>{user.email}</div>
         </div>
 
@@ -170,7 +170,7 @@ export default function UserProfileModal({ user, sessions, bodyStats, onOpenBody
           ].map((s)=>(
             <div key={s.label} style={{background:"var(--input-bg)",border:"1px solid var(--border)",borderRadius:12,padding:"10px 6px",textAlign:"center"}}>
               <div style={{fontSize:20}}>{s.icon}</div>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:800,color:s.color||"var(--accent)"}}>{s.value}</div>
+              <div style={{fontFamily:"Inter, sans-serif",fontSize:20,fontWeight:800,color:s.color||"var(--accent)"}}>{s.value}</div>
               <div style={{fontSize:10,color:"var(--text-muted)"}}>{s.label}</div>
             </div>
           ))}

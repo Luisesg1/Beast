@@ -454,7 +454,7 @@ function LoginScreen({ initialTab }) {
         {/* Giant slogan */}
         <div>
           <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: "clamp(56px, 7.5vw, 96px)",
             fontWeight: 900,
             lineHeight: 0.88,
@@ -466,7 +466,7 @@ function LoginScreen({ initialTab }) {
             {slogan.top}
           </div>
           <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: "clamp(56px, 7.5vw, 96px)",
             fontWeight: 900,
             lineHeight: 0.88,
@@ -485,7 +485,7 @@ function LoginScreen({ initialTab }) {
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, marginBottom: 16 }}>
             <div style={{ width: 44, height: 3, background: "#DFFF00", borderRadius: 2, flexShrink: 0 }} />
             <span style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 14, fontWeight: 700, letterSpacing: 2,
               color: "rgba(255,255,255,0.3)", textTransform: "uppercase",
             }}>ENTRENA CADA MALDITO DÍA</span>
@@ -509,7 +509,7 @@ function LoginScreen({ initialTab }) {
             {[["∞", "Ejercicios"], ["100%", "Gratis"], ["🏆", "Tus PRs"]].map(([val, lbl]) => (
               <div key={lbl}>
                 <div style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontSize: 22, fontWeight: 900, color: "#DFFF00",
                 }}>{val}</div>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: 2, textTransform: "uppercase" }}>{lbl}</div>
@@ -581,7 +581,7 @@ function LoginScreen({ initialTab }) {
           }}>
             <div style={{ width: 20, height: 2, background: "#DFFF00", borderRadius: 1 }} />
             <span style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 12, fontWeight: 700, letterSpacing: 3,
               color: "rgba(255,255,255,0.6)", textTransform: "uppercase",
             }}>{slogan.top} {slogan.bottom}</span>
@@ -637,7 +637,7 @@ function LoginScreen({ initialTab }) {
                 ← VOLVER
               </button>
               <div style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: 36, fontWeight: 900, color: "white", textTransform: "uppercase",
                 letterSpacing: 1, lineHeight: 1,
               }}>RECUPERAR<br/><span style={{ color: "#DFFF00" }}>CONTRASEÑA</span></div>
@@ -787,7 +787,7 @@ function LoginScreen({ initialTab }) {
               border: "none",
               borderRadius: 4,
               color: loading ? "rgba(255,255,255,0.3)" : "#09090B",
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 16,
               fontWeight: 900,
               letterSpacing: 3,

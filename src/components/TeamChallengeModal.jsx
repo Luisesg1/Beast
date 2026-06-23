@@ -152,7 +152,7 @@ export default function TeamChallengeModal({ user, sessions, onClose, onChalleng
                       <div style={{ fontWeight:700, fontSize:15 }}>{challenge.emoji} {challenge.title}</div>
                       <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>{challenge.desc}</div>
                     </div>
-                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:900, color: done?"#22c55e":"var(--accent)", marginLeft:12, flexShrink:0 }}>{Math.round(pct)}%</div>
+                    <div style={{ fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:900, color: done?"#22c55e":"var(--accent)", marginLeft:12, flexShrink:0 }}>{Math.round(pct)}%</div>
                   </div>
                   <div style={{ background:"var(--border)", borderRadius:20, height:7, overflow:"hidden" }}>
                     <div style={{ height:"100%", background: done?"#22c55e":"var(--accent)", width:`${pct}%`, borderRadius:20, transition:"width 0.6s ease" }}/>
@@ -165,10 +165,10 @@ export default function TeamChallengeModal({ user, sessions, onClose, onChalleng
             <div style={{ background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:12, padding:"16px", marginBottom:16, textAlign:"center" }}>
               <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"var(--accent)", textTransform:"uppercase", marginBottom:12 }}>Tu semana actual</div>
               <div style={{ display:"flex", justifyContent:"center", gap:24 }}>
-                <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900 }}>{myWeekSessions}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>sesiones</div></div>
+                <div><div style={{ fontFamily:"Inter, sans-serif", fontSize:32, fontWeight:900 }}>{myWeekSessions}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>sesiones</div></div>
                 <div style={{ width:1, background:"var(--border)" }}/>
-                <div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900 }}>{myWeekVol}t</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>volumen</div></div>
-                {myRank > 0 && <><div style={{ width:1, background:"var(--border)" }}/><div><div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:32, fontWeight:900, color:"#f59e0b" }}>#{myRank}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>ranking</div></div></>}
+                <div><div style={{ fontFamily:"Inter, sans-serif", fontSize:32, fontWeight:900 }}>{myWeekVol}t</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>volumen</div></div>
+                {myRank > 0 && <><div style={{ width:1, background:"var(--border)" }}/><div><div style={{ fontFamily:"Inter, sans-serif", fontSize:32, fontWeight:900, color:"#f59e0b" }}>#{myRank}</div><div style={{ fontSize:11, color:"var(--text-muted)" }}>ranking</div></div></>}
               </div>
             </div>
 
@@ -190,7 +190,7 @@ export default function TeamChallengeModal({ user, sessions, onClose, onChalleng
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:700, fontSize:13 }}>{m.name} {isMe&&<span style={{ fontSize:10, color:"var(--accent)" }}>(tú)</span>}</div>
                     </div>
-                    <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:20, fontWeight:800, color:i===0?"#f59e0b":"var(--text)" }}>{val}</div>
+                    <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800, color:i===0?"#f59e0b":"var(--text)" }}>{val}</div>
                   </div>
                   <div style={{ background:"var(--border)", borderRadius:4, height:5, overflow:"hidden" }}>
                     <div style={{ height:"100%", background:i===0?"#f59e0b":i===1?"#94a3b8":isMe?"var(--accent)":"#64748b", width:`${pct}%`, transition:"width 0.6s ease", borderRadius:4 }} />

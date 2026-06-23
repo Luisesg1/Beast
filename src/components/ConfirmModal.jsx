@@ -33,7 +33,7 @@ export function useConfirm() {
           </button>
           <button
             onClick={() => { state.onConfirm?.(); close(); }}
-            style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", background:"#DFFF00", color:"#09090B", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"'Barlow Condensed', sans-serif", letterSpacing:1 }}
+            style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", background:"#DFFF00", color:"#09090B", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"'Inter', sans-serif", letterSpacing:1 }}
           >
             Confirmar
           </button>

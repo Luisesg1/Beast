@@ -596,7 +596,7 @@ Instrucciones:
               Cancelar
             </button>
             <button onClick={confirmUpload} disabled={uploading}
-              style={{ flex: 2, background: "var(--accent)", border: "none", borderRadius: 10, padding: "10px 0", color: "#09090B", cursor: uploading ? "default" : "pointer", fontWeight: 900, fontSize: 13, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, opacity: uploading ? 0.7 : 1 }}>
+              style={{ flex: 2, background: "var(--accent)", border: "none", borderRadius: 10, padding: "10px 0", color: "#09090B", cursor: uploading ? "default" : "pointer", fontWeight: 900, fontSize: 13, fontFamily: "Inter, sans-serif", letterSpacing: 1, opacity: uploading ? 0.7 : 1 }}>
               {uploading ? "Guardando..." : "✓ Guardar foto"}
             </button>
           </div>
@@ -609,14 +609,14 @@ Instrucciones:
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div>
               <div style={{
-                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 900,
+                fontFamily: "Inter, sans-serif", fontWeight: 900,
                 fontSize: 26, letterSpacing: 3, color: "var(--text)",
                 textTransform: "uppercase", lineHeight: 1,
               }}>
                 Progreso
               </div>
               <div style={{
-                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 500,
+                fontFamily: "Inter, sans-serif", fontWeight: 500,
                 fontSize: 13, letterSpacing: 4, color: "var(--accent)",
                 textTransform: "uppercase", marginTop: 2, opacity: 0.85,
               }}>
@@ -628,7 +628,7 @@ Instrucciones:
                 display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
               }}>
                 <span style={{
-                  fontFamily: "Barlow Condensed, sans-serif", fontWeight: 800,
+                  fontFamily: "Inter, sans-serif", fontWeight: 800,
                   fontSize: 20, color: "var(--accent)", lineHeight: 1,
                 }}>
                   {photos.length}
@@ -647,7 +647,7 @@ Instrucciones:
               style={{
                 flex: 1, background: "var(--input-bg)", border: "2px dashed var(--border)",
                 borderRadius: 12, padding: "13px 0", color: "var(--accent)", cursor: "pointer",
-                fontFamily: "Barlow Condensed, sans-serif", fontWeight: 800, fontSize: 15,
+                fontFamily: "Inter, sans-serif", fontWeight: 800, fontSize: 15,
                 letterSpacing: 1, transition: "all 0.2s",
               }}
             >
@@ -662,7 +662,7 @@ Instrucciones:
                   border: compareMode ? "none" : "1px solid rgba(223,255,0,0.3)",
                   background: compareMode ? "var(--accent)" : "rgba(223,255,0,0.06)",
                   color: compareMode ? "#09090B" : "var(--accent)",
-                  cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
+                  cursor: "pointer", fontFamily: "Inter, sans-serif",
                   fontWeight: 800, fontSize: 13, letterSpacing: 1,
                   transition: "all 0.2s",
                 }}
@@ -717,7 +717,7 @@ Instrucciones:
                 <button onClick={analyzePhotos} style={{
                   width: "100%", background: "var(--accent)", border: "none",
                   borderRadius: 10, padding: "12px 0", color: "#09090B",
-                  cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif",
+                  cursor: "pointer", fontFamily: "Inter, sans-serif",
                   fontWeight: 900, fontSize: 15, letterSpacing: 2,
                 }}>
                   ⚡ Analizar con IA
@@ -760,7 +760,7 @@ Instrucciones:
           {analysis && (
             <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 10, padding: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 900, color: "#22c55e", letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>Progreso Físico</span>
+                <span style={{ fontSize: 11, fontWeight: 900, color: "#22c55e", letterSpacing: 1.5, fontFamily: "Inter, sans-serif" }}>Progreso Físico</span>
                 <span style={{ background: "rgba(34,197,94,0.2)", color: "#22c55e", fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4, letterSpacing: 1 }}>ANÁLISIS IA</span>
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)" }}>{analysis}</div>
@@ -771,7 +771,7 @@ Instrucciones:
                 borderRadius: 10, padding: "11px 0",
                 color: "var(--accent)",
                 cursor: "pointer", fontSize: 14, fontWeight: 800,
-                fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1,
+                fontFamily: "Inter, sans-serif", letterSpacing: 1,
                 transition: "all 0.2s",
               }}>
                 ⚡ Nuevo análisis
@@ -793,7 +793,7 @@ Instrucciones:
               ? `Llevas ${userStats.totalSessions} sesiones entrenadas — ya es hora de capturar cómo se ve ese trabajo`
               : "Agrega tu primera foto y deja que Progreso Físico trackee tu evolución"}
           </div>
-          <span style={{ background: "rgba(223,255,0,0.08)", border: "1px solid rgba(223,255,0,0.25)", color: "var(--accent)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, fontFamily: "Barlow Condensed, sans-serif" }}>
+          <span style={{ background: "rgba(223,255,0,0.08)", border: "1px solid rgba(223,255,0,0.25)", color: "var(--accent)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, fontFamily: "Inter, sans-serif" }}>
             Progreso Físico · ANÁLISIS IA
           </span>
         </div>

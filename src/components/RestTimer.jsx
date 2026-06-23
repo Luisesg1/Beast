@@ -81,7 +81,7 @@ export function RestTimer({ onClose }) {
           <circle cx={cx} cy={cy} r={r} fill="none" stroke={done ? "#22c55e" : "var(--accent)"} strokeWidth={6}
             strokeDasharray={circumference} strokeDashoffset={circumference * (1 - pct)}
             strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`} style={{ transition: "stroke-dashoffset 1s linear" }} />
-          <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--text)" fontSize={22} fontWeight={800} fontFamily="Barlow Condensed, sans-serif">
+          <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--text)" fontSize={22} fontWeight={800} fontFamily="Inter, sans-serif">
             {done ? "✓" : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`}
           </text>
           <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text-muted)" fontSize={10}>{done ? "Listo!" : "restante"}</text>
@@ -144,7 +144,7 @@ export function RestTimerFloating({ timer, setTimer }) {
         />
         <text x={cx} y={cy + 5} textAnchor="middle"
           fill="var(--text)" fontSize={done ? 9 : 11}
-          fontWeight={800} fontFamily="Barlow Condensed, sans-serif">
+          fontWeight={800} fontFamily="Inter, sans-serif">
           {done ? "¡LISTO!" : fmt(remaining)}
         </text>
       </svg>

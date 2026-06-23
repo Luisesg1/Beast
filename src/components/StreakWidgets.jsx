@@ -93,16 +93,16 @@ export function StreakBanner({ sessions }) {
       <div style={{ display:"flex", alignItems:"center", gap:14 }}>
         <div style={{ fontSize:36, lineHeight:1, filter:`drop-shadow(0 0 8px ${color}80)` }}>🔥</div>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:10, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:1 }}>{msg}</div>
+          <div style={{ fontFamily:"Inter, sans-serif", fontSize:10, fontWeight:800, color, letterSpacing:2, textTransform:"uppercase", marginBottom:1 }}>{msg}</div>
           <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
-            <span style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:38, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
+            <span style={{ fontFamily:"Inter, sans-serif", fontSize:38, fontWeight:900, color, lineHeight:1 }}>{streak}</span>
             <span style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>semanas seguidas</span>
           </div>
         </div>
         {nextMilestone && (
           <div style={{ textAlign:"center", flexShrink:0 }}>
             <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, marginBottom:4 }}>Próximo hito</div>
-            <div style={{ fontFamily:"Barlow Condensed,sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}sem</div>
+            <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:900, color, lineHeight:1 }}>{nextMilestone}sem</div>
             <div style={{ fontSize:9, color:"var(--text-muted)" }}>faltan {nextMilestone-streak}</div>
           </div>
         )}

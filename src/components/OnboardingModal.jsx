@@ -128,7 +128,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
                     cursor: "pointer", transition: "all 0.2s",
                     boxShadow: sel ? `0 0 16px ${colors[n]}30` : "none",
                   }}>
-                  <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 34, fontWeight: 900, color: sel ? colors[n] : "rgba(255,255,255,0.3)", lineHeight: 1 }}>{n}</span>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 34, fontWeight: 900, color: sel ? colors[n] : "rgba(255,255,255,0.3)", lineHeight: 1 }}>{n}</span>
                   <span style={{ fontSize: 9, fontWeight: 700, color: sel ? colors[n] : "rgba(255,255,255,0.3)", letterSpacing: 0.5 }}>{labels[n]}</span>
                 </button>
               );
@@ -159,7 +159,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
               { weeks: 12, label: "Tres meses", color: "#f97316" },
             ].map(m => (
               <div key={m.weeks} style={{ background: `${m.color}08`, border: `1px solid ${m.color}25`, borderRadius: 12, padding: "14px 8px", textAlign: "center" }}>
-                <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 32, fontWeight: 900, color: m.color, lineHeight: 1 }}>{m.weeks}</div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 32, fontWeight: 900, color: m.color, lineHeight: 1 }}>{m.weeks}</div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: m.color, marginBottom: 4 }}>sem</div>
                 <div style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.4 }}>{m.label}</div>
               </div>
@@ -184,12 +184,12 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
             <div style={{ background: "rgba(223,255,0,0.06)", border: "1px solid rgba(223,255,0,0.2)", borderRadius: 12, padding: 14 }}>
               <div style={{ fontSize: 24, marginBottom: 6 }}>⚡</div>
-              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 800, fontSize: 14, color: "#DFFF00", marginBottom: 4, letterSpacing: 1 }}>EN VIVO</div>
+              <div style={{ fontFamily: "Inter, sans-serif", fontWeight: 800, fontSize: 14, color: "#DFFF00", marginBottom: 4, letterSpacing: 1 }}>EN VIVO</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.6 }}>Timer automático, marca series mientras entrenas, PRs al instante.</div>
             </div>
             <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 12, padding: 14 }}>
               <div style={{ fontSize: 24, marginBottom: 6 }}>📋</div>
-              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 800, fontSize: 14, color: "#22c55e", marginBottom: 4, letterSpacing: 1 }}>REGISTRAR</div>
+              <div style={{ fontFamily: "Inter, sans-serif", fontWeight: 800, fontSize: 14, color: "#22c55e", marginBottom: 4, letterSpacing: 1 }}>REGISTRAR</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.6 }}>Completa los datos después de entrenar con calma.</div>
             </div>
           </div>
@@ -211,7 +211,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
         <div style={{ marginTop: 16 }}>
           <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 14, padding: "16px 14px", marginBottom: 12, textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📸</div>
-            <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 16, fontWeight: 800, color: "#a855f7", letterSpacing: 1, marginBottom: 6 }}>TU TRANSFORMACIÓN</div>
+            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 800, color: "#a855f7", letterSpacing: 1, marginBottom: 6 }}>TU TRANSFORMACIÓN</div>
             <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>Sube fotos de frente, perfil y espalda. Beast las organiza por fecha para que veas tu progreso real.</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -337,7 +337,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
               }}>{current.emoji}</div>
             )}
             <div style={{
-              fontFamily: "Barlow Condensed, sans-serif",
+              fontFamily: "Inter, sans-serif",
               fontSize: 24, fontWeight: 900,
               color: "white", marginBottom: 8,
               letterSpacing: 0.5, lineHeight: 1.1,
@@ -367,7 +367,7 @@ export default function OnboardingModal({ user, onComplete, onSetGoal }) {
               style={{
                 flex: 2, padding: "13px 0", borderRadius: 10, border: "none",
                 background: "#DFFF00", color: "#09090B",
-                fontFamily: "Barlow Condensed, sans-serif",
+                fontFamily: "Inter, sans-serif",
                 fontWeight: 900, fontSize: 15, letterSpacing: 1,
                 cursor: "pointer", textTransform: "uppercase",
                 boxShadow: "0 0 20px rgba(223,255,0,0.2)",

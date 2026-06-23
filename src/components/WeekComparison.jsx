@@ -59,7 +59,7 @@ export default function WeekComparison({ sessions }) {
           return (
             <div key={m.label} style={{ background: "var(--input-bg)", border: `1px solid ${same ? "var(--border)" : better ? "rgba(34,197,94,0.3)" : "rgba(249,115,22,0.3)"}`, borderRadius: 12, padding: "12px 10px", textAlign: "center" }}>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{m.label}</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 900, color }}>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 26, fontWeight: 900, color }}>
                 {m.fmt(m.this)}
               </div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>

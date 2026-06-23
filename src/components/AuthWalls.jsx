@@ -8,7 +8,7 @@ export function GuestWall({ onClose, feature = "esta función" }) {
   return (
     <div style={{ textAlign:"center", padding:"20px 0" }}>
       <div style={{ fontSize:52, marginBottom:12 }}>🔒</div>
-      <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:800, marginBottom:8 }}>Cuenta requerida</div>
+      <div style={{ fontFamily:"Inter, sans-serif", fontSize:24, fontWeight:800, marginBottom:8 }}>Cuenta requerida</div>
       <p style={{ fontSize:14, color:"var(--text-muted)", marginBottom:20, lineHeight:1.6 }}>
         Para usar {feature} necesitas una cuenta registrada.<br/>
         Así tu historial queda guardado permanentemente.
@@ -40,7 +40,7 @@ export function EmailVerifyWall({ user, children }) {
   return (
     <div style={{ padding: "32px 20px", textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>✉️</div>
-      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
+      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
         Verifica tu email
       </div>
       <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 20, maxWidth: 320, margin: "0 auto 20px" }}>

@@ -389,7 +389,7 @@ function AdminExercisesModal({ onClose, user, setGif = () => {} }) {
               </div>
               {newExError && <div style={{ fontSize: 12, color: "#ef4444" }}>{newExError}</div>}
               <button onClick={createExercise} disabled={savingNew}
-                style={{ background: "var(--accent)", border: "none", borderRadius: 10, padding: "12px", cursor: savingNew ? "not-allowed" : "pointer", fontWeight: 900, fontSize: 14, color: "#000", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase", opacity: savingNew ? 0.6 : 1 }}>
+                style={{ background: "var(--accent)", border: "none", borderRadius: 10, padding: "12px", cursor: savingNew ? "not-allowed" : "pointer", fontWeight: 900, fontSize: 14, color: "#000", fontFamily: "Inter, sans-serif", letterSpacing: 1, textTransform: "uppercase", opacity: savingNew ? 0.6 : 1 }}>
                 {savingNew ? "⏳ Guardando..." : "💾 Crear ejercicio"}
               </button>
             </div>

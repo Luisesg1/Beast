@@ -107,7 +107,7 @@ function RadarChart({ data }) {
       {points.map((p, i) => (
         <text key={i} x={p.lx} y={p.ly} textAnchor="middle" dominantBaseline="middle"
           fill={p.pct > 0 ? "#DFFF00" : "rgba(255,255,255,0.3)"}
-          fontSize="9" fontWeight="700" fontFamily="Barlow Condensed, sans-serif">
+          fontSize="9" fontWeight="700" fontFamily="Inter, sans-serif">
           {p.label}
           {p.pct > 0 && <tspan x={p.lx} dy="10" fill="rgba(255,255,255,0.5)" fontSize="8" fontWeight="400">{p.pct}%</tspan>}
         </text>
@@ -175,7 +175,7 @@ function ConsistencyMap({ sessions }) {
       <div style={{ display: "flex", gap: 3, alignItems: "flex-start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 3, marginRight: 4, marginTop: 0 }}>
           {DIAS.map(d => (
-            <div key={d} style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", width: 10, height: 10, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Barlow Condensed, sans-serif" }}>{d}</div>
+            <div key={d} style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", width: 10, height: 10, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif" }}>{d}</div>
           ))}
         </div>
         <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", overflowX: "auto" }}>
@@ -268,7 +268,7 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
   if (!isPro) return (
     <div style={{ textAlign: "center", padding: "32px 16px" }}>
       <div style={{ fontSize: 40, marginBottom: 16 }}>🎯</div>
-      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Metas de Progreso</div>
+      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Metas de Progreso</div>
       <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 24, lineHeight: 1.6 }}>
         Define metas de fuerza por ejercicio,<br />sigue tu progreso y recibe alertas<br />cuando las alcances.
       </div>
@@ -297,7 +297,7 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
           <div key={g.id} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${done ? "rgba(223,255,0,0.4)" : "rgba(255,255,255,0.08)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <div>
-                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 800 }}>{g.exercise}</div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 800 }}>{g.exercise}</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
                   Meta: <strong style={{ color: done ? "#DFFF00" : "rgba(255,255,255,0.7)" }}>{g.target} {g.unit} 1RM</strong>
                   {" · "}Actual: <strong style={{ color: "#DFFF00" }}>{g.current} {g.unit}</strong>
@@ -342,16 +342,16 @@ function GoalsSection({ sessions, uid, onPickExercise, isPro = false }) {
                 border: "1px solid rgba(223,255,0,0.35)",
                 color: "#DFFF00",
                 borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer",
-                minWidth: 52, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1
+                minWidth: 52, fontFamily: "Inter, sans-serif", letterSpacing: 1
               }}>{form.unit}</button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={addGoal} style={{ flex: 1, background: "#DFFF00", color: "#000", border: "none", borderRadius: 8, padding: "10px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>GUARDAR</button>
+            <button onClick={addGoal} style={{ flex: 1, background: "#DFFF00", color: "#000", border: "none", borderRadius: 8, padding: "10px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Inter, sans-serif", letterSpacing: 1 }}>GUARDAR</button>
             <button onClick={() => setAdding(false)} style={{ flex: 1, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancelar</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ width: "100%", background: "rgba(223,255,0,0.07)", border: "1px dashed rgba(223,255,0,0.3)", borderRadius: 12, padding: "12px", color: "#DFFF00", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1 }}>
+        <button onClick={() => setAdding(true)} style={{ width: "100%", background: "rgba(223,255,0,0.07)", border: "1px dashed rgba(223,255,0,0.3)", borderRadius: 12, padding: "12px", color: "#DFFF00", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "Inter, sans-serif", letterSpacing: 1 }}>
           + AGREGAR META
         </button>
       )}
@@ -423,7 +423,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
       <div className="overlay" onClick={onClose}>
         <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 340, textAlign: "center", padding: "32px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 900, color: "#DFFF00", letterSpacing: 2, marginBottom: 6 }}>
+          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 900, color: "#DFFF00", letterSpacing: 2, marginBottom: 6 }}>
             ESTADÍSTICAS PRO
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 24, lineHeight: 1.6 }}>
@@ -438,7 +438,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
               border: "1px solid rgba(223,255,0,0.4)",
               color: watchingAd ? "rgba(255,255,255,0.4)" : "#DFFF00",
               fontWeight: 800, fontSize: 15, cursor: watchingAd ? "not-allowed" : "pointer",
-              fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1,
+              fontFamily: "Inter, sans-serif", letterSpacing: 1,
             }}
           >
             {watchingAd ? "⏳ Cargando video..." : `▶ Ver video — acceso ${UNLOCK_HOURS}h gratis`}
@@ -498,7 +498,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
         <div className="modal-header" style={{ borderBottom: "1px solid rgba(223,255,0,0.15)", paddingBottom: 14, marginBottom: 0 }}>
           <div>
             <h3 className="modal-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ background: "rgba(223,255,0,0.12)", border: "1px solid rgba(223,255,0,0.3)", borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 800, color: "#DFFF00", letterSpacing: 2, fontFamily: "Barlow Condensed, sans-serif" }}>PRO</span>
+              <span style={{ background: "rgba(223,255,0,0.12)", border: "1px solid rgba(223,255,0,0.3)", borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 800, color: "#DFFF00", letterSpacing: 2, fontFamily: "Inter, sans-serif" }}>PRO</span>
               Estadísticas Avanzadas
             </h3>
             {!isPro && unlockUntil && timeLeft && (
@@ -519,7 +519,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
           ].map(s => (
             <div key={s.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
               <div style={{ fontSize: 18, marginBottom: 2 }}>{s.icon}</div>
-              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 800, color: "#DFFF00" }}>{s.value}</div>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800, color: "#DFFF00" }}>{s.value}</div>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>{s.label}</div>
             </div>
           ))}
@@ -532,7 +532,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
               flex: 1, background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? "#DFFF00" : "transparent"}`,
               color: tab === t.id ? "#DFFF00" : "rgba(255,255,255,0.35)",
               padding: "8px 2px 10px", cursor: "pointer", fontSize: 9, fontWeight: 800,
-              letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "Barlow Condensed, sans-serif",
+              letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "Inter, sans-serif",
               transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 3
             }}>
               <span style={{ fontSize: 16 }}>{t.icon}</span>
@@ -617,7 +617,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                     { label: "Progreso", value: `${lineData[lineData.length - 1]?.value - lineData[0]?.value > 0 ? "+" : ""}${lineData[lineData.length - 1]?.value - lineData[0]?.value} kg` },
                   ].map(s => (
                     <div key={s.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 800, color: "#DFFF00" }}>{s.value}</div>
+                      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 20, fontWeight: 800, color: "#DFFF00" }}>{s.value}</div>
                       <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{s.label}</div>
                     </div>
                   ))}
@@ -716,7 +716,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                         <div key={m.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px" }}>
                           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 8 }}>{m.label}</div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 32, fontWeight: 900, color: "#DFFF00", lineHeight: 1 }}>{m.fmt(m.this)}</span>
+                            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 32, fontWeight: 900, color: "#DFFF00", lineHeight: 1 }}>{m.fmt(m.this)}</span>
                             {!neutral && (
                               <span style={{ fontSize: 13, fontWeight: 800, color }}>{up ? "▲" : "▼"} {m.isPercent ? `${Math.abs(m.diff)}%` : Math.abs(m.diff)}</span>
                             )}
@@ -784,7 +784,7 @@ function StatsProModal({ sessions, bodyStats, user, onClose, onPickExercise, isP
                 {stagnation.map((s, i) => (
                   <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 800 }}>{s.name}</div>
+                      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 800 }}>{s.name}</div>
                       <div style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.3)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "#f97316", fontWeight: 700 }}>ESTANCADO</div>
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>

@@ -216,7 +216,7 @@ export default function TeamsModal({ user, sessions, onClose, initialJoinCode })
             {user.isGuest ? (
               <div style={{ textAlign:"center", padding:"20px 0" }}>
                 <div style={{ fontSize:52, marginBottom:12 }}>🔒</div>
-                <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:24, fontWeight:800, marginBottom:8 }}>Cuenta requerida</div>
+                <div style={{ fontFamily:"Inter, sans-serif", fontSize:24, fontWeight:800, marginBottom:8 }}>Cuenta requerida</div>
                 <p style={{ fontSize:14, color:"var(--text-muted)", marginBottom:20, lineHeight:1.6 }}>
                   Para crear o unirte a un GymTeam necesitas una cuenta registrada.
                 </p>
@@ -341,7 +341,7 @@ export default function TeamsModal({ user, sessions, onClose, initialJoinCode })
             </div>
 
             <div style={{ background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:14, padding:"14px 18px", marginBottom:16 }}>
-              <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800 }}>{activeTeam.name}</div>
+              <div style={{ fontFamily:"Inter, sans-serif", fontSize:26, fontWeight:800 }}>{activeTeam.name}</div>
               <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:4 }}>
                 Código para invitar:{" "}
                 <span style={{ background:"var(--accent-dim)", color:"var(--accent)", fontFamily:"monospace", fontWeight:800, letterSpacing:3, padding:"2px 10px", borderRadius:6, fontSize:14 }}>{activeTeam.code}</span>
@@ -361,7 +361,7 @@ export default function TeamsModal({ user, sessions, onClose, initialJoinCode })
                         {weeklyChamp.name?.[0]?.toUpperCase()||"?"}
                       </div>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:800 }}>
+                        <div style={{ fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:800 }}>
                           {weeklyChamp.name}
                           {weeklyChamp.email === user.email && <span style={{ fontSize:12, color:"#f59e0b", marginLeft:8 }}>¡Eres tú! 🔥</span>}
                         </div>
@@ -373,7 +373,7 @@ export default function TeamsModal({ user, sessions, onClose, initialJoinCode })
                           <div style={{ fontSize:13, color:"#fbbf24" }}>{weeklyChamp.thisWeekSessions||0} sesiones esta semana 💪</div>
                         )}
                       </div>
-                      <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:36, fontWeight:900, color:"#f59e0b", flexShrink:0 }}>
+                      <div style={{ fontFamily:"Inter, sans-serif", fontSize:36, fontWeight:900, color:"#f59e0b", flexShrink:0 }}>
                         {(weeklyChamp.weeklyProgress||0) > 0 ? `+${weeklyChamp.weeklyProgress}%` : `${weeklyChamp.thisWeekSessions||0} 🏋️`}
                       </div>
                     </div>
@@ -436,7 +436,7 @@ export default function TeamsModal({ user, sessions, onClose, initialJoinCode })
                                 {m.sessions} ses · {m.volume}t · {m.prs} PRs · {m.streak}sem
                               </div>
                             </div>
-                            <div style={{ fontFamily:"Barlow Condensed, sans-serif", fontSize:22, fontWeight:800, color: i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#b45309":isMe?"var(--accent)":"var(--text)", flexShrink:0 }}>{val}</div>
+                            <div style={{ fontFamily:"Inter, sans-serif", fontSize:22, fontWeight:800, color: i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#b45309":isMe?"var(--accent)":"var(--text)", flexShrink:0 }}>{val}</div>
                           </div>
                           <div style={{ background:"var(--border)", borderRadius:4, height:4, overflow:"hidden" }}>
                             <div style={{ height:"100%", background:barColor, width:`${barPct}%`, borderRadius:4, transition:"width 0.6s ease" }} />

@@ -186,7 +186,7 @@ function StreakModal({ sessions, user, weeklyTarget = 3, onClose, onStartSession
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color, textTransform: "uppercase", marginBottom: 4 }}>
             {streak >= 90 ? "¡IMPARABLE!" : streak >= 30 ? "¡EN LLAMAS!" : streak >= 7 ? "¡Semana perfecta!" : "¡Sigue así!"}
           </div>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 72, fontWeight: 900, color, lineHeight: 1, filter: `drop-shadow(0 0 20px ${color}60)` }}>
+          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 72, fontWeight: 900, color, lineHeight: 1, filter: `drop-shadow(0 0 20px ${color}60)` }}>
             {streak}
           </div>
           <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 12 }}>semanas seguidas</div>
@@ -219,7 +219,7 @@ function StreakModal({ sessions, user, weeklyTarget = 3, onClose, onStartSession
             { label: "Días activos", value: totalActiveDays, color: "#3b82f6" },
           ].map(s => (
             <div key={s.label} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: s.color }}>{s.value}</div>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 26, fontWeight: 900, color: s.color }}>{s.value}</div>
               <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{s.label}</div>
             </div>
           ))}
@@ -311,7 +311,7 @@ function StreakModal({ sessions, user, weeklyTarget = 3, onClose, onStartSession
                       <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: m.isMe ? color : "var(--text)" }}>
                         {m.name} {m.isMe && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)" }}>(tú)</span>}
                       </div>
-                      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: mColor }}>
+                      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 900, color: mColor }}>
                         {m.streak}sem
                       </div>
                     </div>

@@ -26,7 +26,7 @@ function ExerciseLibraryItem({ ex, onSelect, onClose }) {
                 💪
               </div>
             )}
-            <div style={{ color:"white", fontFamily:"Barlow Condensed, sans-serif", fontSize:26, fontWeight:800, marginBottom:4 }}>{ex.name}</div>
+            <div style={{ color:"white", fontFamily:"Inter, sans-serif", fontSize:26, fontWeight:800, marginBottom:4 }}>{ex.name}</div>
             <div style={{ color:"rgba(255,255,255,0.4)", fontSize:12, marginBottom:20 }}>{ex.muscle} · {ex.equipment}</div>
             {typeof onSelect === "function" && (
               <button
@@ -35,7 +35,7 @@ function ExerciseLibraryItem({ ex, onSelect, onClose }) {
                   width:"100%", padding:"13px 0", borderRadius:12,
                   background:"var(--accent)", color:"#000",
                   fontWeight:900, fontSize:15, border:"none", cursor:"pointer",
-                  fontFamily:"Barlow Condensed, sans-serif", letterSpacing:1,
+                  fontFamily:"Inter, sans-serif", letterSpacing:1,
                 }}
               >
                 + AGREGAR AL ENTRENO
