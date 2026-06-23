@@ -283,6 +283,8 @@ input[type="date"].input { color-scheme: dark; }
 .upgrade-banner { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); color: #f87171; border-radius: 6px; padding: 12px 18px; font-size: 13px; margin-bottom: 16px; }
 .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--elevated); border: 1px solid var(--border); color: var(--text); padding: 13px 22px; border-radius: 12px; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; z-index: 9999; white-space: nowrap; box-shadow: 0 8px 28px rgba(0,0,0,0.5); animation: toastIn 0.3s ease; }
 @media (min-width: 769px) { .toast { bottom: 28px; } }
+/* En móvil el toast sube por encima de la barra inferior (62px) para no quedar tapado. */
+@media (max-width: 768px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); max-width: calc(100% - 32px); white-space: normal; text-align: center; } }
 @media (max-width: 768px) { .history-sidebar { display: none !important; } }
 
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
@@ -313,7 +315,7 @@ select.input option { background: #1a1a1a; color: var(--text); }
   box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
 }
 .bn-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px; background: none; border: none; color: var(--text-muted);
   cursor: pointer; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
   transition: color 0.15s; padding: 6px 0;
@@ -321,7 +323,7 @@ select.input option { background: #1a1a1a; color: var(--text); }
 .bn-btn.active { color: var(--accent); font-weight: 600; }
 .bn-btn:active { transform: scale(0.92); }
 .bn-fab-wrap {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   gap: 4px; background: none; border: none; cursor: pointer; padding: 0;
   font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; color: var(--accent);
 }
