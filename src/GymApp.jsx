@@ -1574,6 +1574,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           {/* ══ HOME UNIFICADO — Dashboard premium embebido ══════════════════ */}
           <Dashboard
             embedded
+            loading={sessionsLoading && !user.isGuest}
             onOneRM={() => setShowOneRM(true)}
             onTemplates={() => setShowTemplates(true)}
             sessions={sessions} bodyStats={bodyStats} weeklyGoal={weeklyGoal}

@@ -8,7 +8,21 @@ import { MuscleBalance } from "./ProgressWidgets";
 import WeekComparison from "./WeekComparison";
 import { Dumbbell, ClipboardList, BookOpen, Sparkles, ChevronRight, Trophy, Calculator, FileText } from "lucide-react";
 
-export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat, todayPlanned = "", plannedExCount = 0, onStartPlanned, embedded = false, onOneRM, onTemplates }) {
+export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick, onBadgesClick, onStartSession, onRegisterSession, onGoHome, onInsightsClick, onStatsProClick, onStatsUnlockedClick, coachRoutines = [], onOpenCoach, onStartCoachRoutine, user, showCompletedBanner = false, isPro = false, newBadgesCount = 0, onMuscleMapClick, onOpenStreak, onLibrary, onAIChat, todayPlanned = "", plannedExCount = 0, onStartPlanned, embedded = false, onOneRM, onTemplates, loading = false }) {
+  // Skeleton mientras cargan las sesiones desde Firestore (evita pantalla vacía).
+  if (loading) {
+    const box = (h, w = "100%", r = 14) => <div className="skeleton" style={{ height: h, width: w, borderRadius: r }} />;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {box(110)}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{box(70)}{box(70)}</div>
+        {box(120)}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{box(64)}{box(64)}{box(64)}{box(64)}</div>
+        {box(80)}
+      </div>
+    );
+  }
+
   // ── Stats ──────────────────────────────────────────────────────────────────
   const weeklyTarget = weeklyGoal?.target || 3;
   const streak = getStreak(sessions, weeklyTarget);
