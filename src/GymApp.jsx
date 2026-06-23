@@ -2835,6 +2835,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           onOpenTutorial={() => { setShowProfile(false); setShowOnboarding(true); }}
           onClose={() => setShowProfile(false)}
           onPhotoUpdate={(url) => updateUser({ photoURL: url })}
+          onUpgrade={() => { setShowProfile(false); setShowPaywall(true); }}
         />
       )}
       {showProgressPicker && (() => {

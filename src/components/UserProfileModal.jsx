@@ -1,9 +1,74 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { getPRs, getStreak } from "../utils/gymCalcs";
 import { compressImage } from "../utils/imageUtils";
 import { BADGE_DEFS } from "./BadgesModal";
+import { Purchases } from "@revenuecat/purchases-capacitor";
+import { Capacitor } from "@capacitor/core";
+
+const ANDROID_PACKAGE = "com.beast.gymtracker";
+const PLAN_LABELS = { free: "Gratuito", pro: "BEAST PRO", coach: "BEAST COACH", gym: "BEAST GYM" };
+
+// Abre la pantalla de suscripciones de Google Play (única forma de cancelar).
+function openManageSubscription() {
+  const url = `https://play.google.com/store/account/subscriptions?package=${ANDROID_PACKAGE}`;
+  try { window.open(url, "_system"); } catch { window.open(url, "_blank"); }
+}
+
+// Sección de suscripción: plan actual, estado de renovación y gestión.
+function SubscriptionSection({ user, onUpgrade }) {
+  const [sub, setSub] = useState(null); // { expirationDate, willRenew }
+  const isPaid = ["pro", "coach", "gym"].includes(user.plan);
+
+  useEffect(() => {
+    if (!isPaid || !Capacitor.isNativePlatform()) return;
+    (async () => {
+      try {
+        const { customerInfo } = await Purchases.getCustomerInfo();
+        const active = Object.values(customerInfo?.entitlements?.active || {})[0];
+        if (active) setSub({ expirationDate: active.expirationDate, willRenew: active.willRenew });
+      } catch (e) { console.warn("[subscription] getCustomerInfo:", e?.message); }
+    })();
+  }, [isPaid]);
+
+  const renewDate = sub?.expirationDate
+    ? new Date(sub.expirationDate).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  return (
+    <div style={{ marginTop: 16, padding: "14px 16px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isPaid ? 10 : 0 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase" }}>Suscripción</span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: isPaid ? "var(--accent)" : "var(--text-muted)" }}>{PLAN_LABELS[user.plan] || "Gratuito"}</span>
+      </div>
+
+      {isPaid ? (
+        <>
+          {sub && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, lineHeight: 1.5 }}>
+              {sub.willRenew
+                ? <>Se renueva automáticamente{renewDate ? ` el ${renewDate}` : ""}.</>
+                : <>Cancelada · activa hasta{renewDate ? ` el ${renewDate}` : " el fin del período"}. No se renovará.</>}
+            </div>
+          )}
+          <button className="btn-ghost" style={{ width: "100%" }} onClick={openManageSubscription}>
+            ⚙️ Gestionar o cancelar en Google Play
+          </button>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.45 }}>
+            Cancelar detiene las próximas renovaciones. El período ya pagado sigue activo y no se reembolsa automáticamente.
+          </div>
+        </>
+      ) : (
+        onUpgrade && (
+          <button className="btn-primary" style={{ width: "100%", marginTop: 10 }} onClick={onUpgrade}>
+            Hazte PRO
+          </button>
+        )
+      )}
+    </div>
+  );
+}
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const AVATAR_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -57,7 +122,7 @@ function AvatarEditor({ user, onPhotoUpdate }) {
   );
 }
 
-export default function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onOpenTutorial, onClose, onPhotoUpdate }) {
+export default function UserProfileModal({ user, sessions, bodyStats, onOpenBodyStats, onOpenTutorial, onClose, onPhotoUpdate, onUpgrade }) {
   const prs = getPRs(sessions);
   const streak = getStreak(sessions);
   const [selectedBadge, setSelectedBadge] = useState(null);
@@ -151,6 +216,8 @@ export default function UserProfileModal({ user, sessions, bodyStats, onOpenBody
             </div>
           )}
         </>}
+        <SubscriptionSection user={user} onUpgrade={onUpgrade} />
+
         <button className="btn-ghost" style={{width:"100%",marginTop:16}} onClick={onOpenBodyStats}>⚖️ Actualizar Peso & Estatura IA</button>
         <button className="btn-ghost" style={{width:"100%",marginTop:8}} onClick={onOpenTutorial}>💡 Ver tutorial</button>
       </div>
