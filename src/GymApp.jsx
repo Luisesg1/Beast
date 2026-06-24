@@ -946,6 +946,16 @@ useEffect(() => {
     [sessions, weeklyGoal]
   );
 
+  // Cachear un resumen para la card motivacional del splash (próximo arranque).
+  useEffect(() => {
+    if (sessionsLoading) return;
+    try {
+      localStorage.setItem("gym_splash_stats", JSON.stringify({
+        sessions: sessions.length, streak: currentStreak, plan: user.plan,
+      }));
+    } catch {}
+  }, [sessions.length, currentStreak, user.plan, sessionsLoading]);
+
   function openBadgesModal() {
     setShowBadges(true);
     // El BadgesModal maneja internamente el marcado de vistos
@@ -968,83 +978,63 @@ useEffect(() => {
         {todayPlanned&&(()=>{const ts=todayStr();const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"0 12px 12px",padding:"10px 12px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(223,255,0,0.15)"}`,borderRadius:4}}><div style={{fontSize:9,fontWeight:800,letterSpacing:3,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",letterSpacing:1,textTransform:"uppercase"}}>{todayPlanned}</div></div>);})()}
 
         <nav className="sidebar-nav">
-  {NAV.map(item => (
-    <button key={item.id} className={`nav-item ${activeTab === item.id ? "active" : ""}`}
-      style={item.id === "new" ? {
-        background: "#DFFF00", color: "#09090B", fontWeight: 900,
-        letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
-        borderRadius: 4, fontSize: 12, boxShadow: "0 0 16px rgba(223,255,0,0.2)",
-      } : {}}
-      onClick={() => navClick(item.id)}>
-      <span className="nav-icon"><NavIcon e={item.icon} /></span>
-      <span className="nav-label">{item.label}</span>
-    </button>
-  ))}
-
   {[
-      { label: "RUTINAS", items: [
+      { title: "Inicio", items: [
+        { icon: "⚡", label: "Inicio", tab: "new" },
+        { icon: "📋", label: "Historial", tab: "history" },
+      ]},
+      { title: "Rutinas", items: [
         { icon: "📅", label: "Planificador", action: () => openPlanner("plan") },
         { icon: "📄", label: "Plantillas", action: () => setShowTemplates(true) },
       ]},
-      { label: "COMUNIDAD", items: [
+      { title: "Comunidad", items: [
         { icon: "👥", label: "GymTeams", action: () => setShowTeams(true) },
         { icon: "🏁", label: "Reto semanal", action: () => setShowChallenge(true) },
         { icon: "🤝", label: "Mi Coach", action: () => setShowAthleteCoach(true) },
         ...(user.isCoach ? [{ icon: "🌟", label: "Panel Coach", action: () => setShowCoach(true) }] : []),
       ]},
-      { label: "PROGRESO", items: [
+      { title: "Progreso", items: [
         { icon: "📈", label: "Evolución", action: () => setShowProgressPicker(true) },
         { icon: "⚖️", label: "Peso & Estatura", action: () => setShowBodyStats(true) },
         ...(user.isAdmin ? [{ icon: "⚙️", label: "Ejercicios custom", action: () => setShowAdminExercises(true) }] : []),
+        { icon: "🏅", label: "Logros", action: () => openBadgesModal(), badge: newBadgesCount },
+        { icon: "📸", label: "Análisis IA", action: () => setShowPhotoProgress(true) },
       ]},
-    ].map(group => (
-      <div key={group.label}>
-        <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", letterSpacing: 4, padding: "16px 12px 4px", textTransform: "uppercase", opacity: 0.5 }}>
-          {group.label}
+    ].map(group => {
+      const isActiveCard = group.items.some(it => it.tab && activeTab === it.tab);
+      return (
+        <div key={group.title} className="nav-section">
+          <div className="nav-section-title">{group.title}</div>
+          <div className={`nav-card${isActiveCard ? " active-card" : ""}`}>
+            {group.items.map(item => {
+              const active = item.tab && activeTab === item.tab;
+              return (
+                <button
+                  key={item.label}
+                  className={`nav-item${active ? " active" : ""}`}
+                  onClick={item.tab ? () => navClick(item.tab) : item.action}
+                >
+                  <span className="nav-icon"><NavIcon e={item.icon} /></span>
+                  <span className="nav-label">{item.label}</span>
+                  {item.badge > 0 && <span className="nav-badge">{item.badge}</span>}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {group.items.map(item => (
-          <button key={item.label} className="nav-item" onClick={item.action}>
-            <span className="nav-icon"><NavIcon e={item.icon} /></span>
-            <span className="nav-label">{item.label}</span>
-          </button>
-        ))}
-        {group.label === "PROGRESO" && (
-          <>
-            <button className="nav-item" onClick={() => openBadgesModal()} style={{ position:"relative" }}>
-              <span className="nav-icon"><NavIcon e="🏅" /></span>
-              <span className="nav-label">Logros</span>
-              {newBadgesCount > 0 && (
-                <span style={{
-                  position:"absolute", top:6, left:28,
-                  background:"#ef4444", color:"#fff",
-                  borderRadius:"50%", width:16, height:16,
-                  fontSize:10, fontWeight:900,
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  boxShadow:"0 0 0 2px var(--bg)",
-                  animation:"pulse 1.5s infinite",
-                }}>{newBadgesCount}</span>
-              )}
-            </button>
-            <button className="nav-item" onClick={() => setShowPhotoProgress(true)}>
-              <span className="nav-icon"><NavIcon e="📸" /></span>
-              <span className="nav-label">Análisis IA</span>
-            </button>
-          </>
-        )}
-      </div>
-    ))}
-
+      );
+    })}
         </nav>
-        <div className="sidebar-bottom" style={{ paddingBottom: 70 }}>
+        <div className="sidebar-bottom" style={{ paddingBottom: 24 }}>
           {/* Offline indicator */}
           {!isOnline && (
-            <div style={{ margin:"0 8px 8px", padding:"7px 12px", background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:8, fontSize:11, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ margin:"0 0 4px", padding:"7px 12px", background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:8, fontSize:11, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>
               📵 Sin conexión — modo offline
             </div>
           )}
           {/* Install PWA */}
           {installPrompt && (
-            <button className="nav-item" style={{ marginBottom:2, color:"#22c55e" }} onClick={async () => {
+            <button className="nav-item" style={{ color:"#22c55e" }} onClick={async () => {
               installPrompt.prompt();
               const { outcome } = await installPrompt.userChoice;
               if (outcome === "accepted") setInstallPrompt(null);
@@ -1054,52 +1044,42 @@ useEffect(() => {
             </button>
           )}
 
-
-          {/* Suscripción */}
-          {!isPro ? (
-            <button
-              className="nav-item"
-              style={{
-                marginBottom: 8, marginTop: 4,
-                background: "rgba(223,255,0,0.08)",
-                border: "1px solid rgba(223,255,0,0.25)",
-                borderRadius: 8,
-              }}
-              onClick={() => setShowPaywall(true)}
-            >
+          {/* Upsell — solo para no-PRO (no es el rol, es CTA) */}
+          {!isPro && !isGuest && (
+            <button className="upsell-btn" onClick={() => setShowPaywall(true)}>
               <span className="nav-icon"><NavIcon e="⚡" /></span>
-              <span className="nav-label" style={{ color: "#DFFF00", fontWeight: 800 }}>HAZTE PRO</span>
-            </button>
-          ) : (
-            <button
-              className="nav-item"
-              style={{
-                marginBottom: 8, marginTop: 4,
-                background: "rgba(223,255,0,0.05)",
-                border: "1px solid rgba(223,255,0,0.15)",
-                borderRadius: 8,
-                cursor: "default",
-              }}
-            >
-              <span className="nav-icon"><NavIcon e="⚡" /></span>
-              <span className="nav-label" style={{ color: "#DFFF00", fontWeight: 800 }}>
-                BEAST {user.plan?.toUpperCase()} ✓
-              </span>
+              <span>Hazte PRO</span>
             </button>
           )}
 
-          <div className="user-card">
-            <div className="user-avatar" style={{cursor:"pointer", overflow:"hidden", padding:0, borderRadius:4}} onClick={() => setShowProfile(true)}>
-  {user.photoURL
-    ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:0}} referrerPolicy="no-referrer" />
-    : user.name?.[0]?.toUpperCase() || "U"}
-</div>
-            <div style={{ minWidth: 0 }}>
-              <div className="user-name">{user.name}</div>
-              {!isGuest && <span style={{ fontSize:11, color:"var(--accent)", fontWeight:700 }}></span>}
-            </div>
-          </div>
-          <button className="nav-item" onClick={() => askConfirm("¿Seguro que quieres salir?", logout)}>
+          {/* Tarjeta única de usuario (footer de identidad) */}
+          {(() => {
+            const role = user.isCoach
+              ? { label: "BEAST COACH", cls: "role-coach", check: true }
+              : isPro
+              ? { label: "BEAST PRO", cls: "role-pro", check: true }
+              : { label: "BEAST FREE", cls: "role-free", check: false };
+            return (
+              <button className="user-card-footer" onClick={() => setShowProfile(true)}>
+                <div className="user-avatar">
+                  {user.photoURL
+                    ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover"}} referrerPolicy="no-referrer" />
+                    : user.name?.[0]?.toUpperCase() || "U"}
+                </div>
+                <div className="user-card-info">
+                  <div className="user-name">{user.name}</div>
+                  {!isGuest && (
+                    <span className={`role-badge ${role.cls}`}>
+                      {role.label}{role.check ? " ✓" : ""}
+                    </span>
+                  )}
+                </div>
+                <span className="user-card-chevron">›</span>
+              </button>
+            );
+          })()}
+
+          <button className="logout-item" onClick={() => askConfirm("¿Seguro que quieres salir?", logout)}>
             <span className="nav-icon"><NavIcon e="🚪" /></span>
             <span className="nav-label">Salir</span>
           </button>
