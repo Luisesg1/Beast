@@ -55,7 +55,7 @@ function BruxAvatar({ size = 32 }) {
 
 function SplashScreen() {
     // Partículas amarillas que flotan hacia arriba (energía). Generadas una sola vez.
-    const _particles = useMemo(() => Array.from({ length: 16 }, (_, i) => ({
+    const _particles = useMemo(() => Array.from({ length: 10 }, (_, i) => ({
       id: i,
       left: `${(i * 6.1 + (i % 3) * 4) % 100}%`,
       size: 2 + (i % 3),
@@ -104,11 +104,35 @@ function SplashScreen() {
           }
           /* Destello que acompaña la entrada del relámpago */
           .bs-flash {
-            position: absolute; left: 50%; top: 0; width: 220px; height: 220px;
-            transform: translate(-50%, -40%) scale(0.4);
+            position: absolute; left: 50%; top: 50%; width: 260px; height: 260px;
+            transform: translate(-50%, -50%) scale(0.4); z-index: 1;
             background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(223,255,0,0.4) 30%, rgba(223,255,0,0) 65%);
             border-radius: 50%; opacity: 0; pointer-events: none;
-            animation: bsFlash 0.5s ease-out 0.75s forwards;
+            animation: bsFlash 0.55s ease-out 0.55s forwards;
+          }
+          /* Personaje oficial — protagonista */
+          .bs-char-wrap { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+          .bs-char {
+            width: clamp(124px, 40vw, 196px); height: auto; position: relative; z-index: 2; border-radius: 30px;
+            filter: drop-shadow(0 0 24px rgba(223,255,0,0.55)) drop-shadow(0 8px 16px rgba(0,0,0,0.6));
+            opacity: 0; transform: scale(0.6);
+            animation: bsCharIn 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.35s forwards, bsCharPulse 2.8s ease-in-out 1.2s infinite;
+            -webkit-user-select: none; user-select: none;
+          }
+          .bs-char-halo {
+            position: absolute; left: 50%; top: 50%; width: 330px; height: 330px;
+            transform: translate(-50%,-50%) scale(0.5); z-index: 0; pointer-events: none; opacity: 0;
+            background: radial-gradient(circle, rgba(223,255,0,0.30) 0%, rgba(52,211,153,0.12) 36%, rgba(223,255,0,0) 66%);
+            animation: bsGlowIn 0.9s ease 0.4s forwards, bsGlowPulse 2.8s ease-in-out 1.3s infinite;
+          }
+          /* Líneas de energía radiales detrás del personaje */
+          .bs-speed {
+            position: absolute; left: 50%; top: 50%; width: 380px; height: 380px;
+            transform: translate(-50%,-50%); z-index: 0; pointer-events: none; opacity: 0;
+            background: repeating-conic-gradient(from 0deg, rgba(223,255,0,0.12) 0deg 1.4deg, rgba(223,255,0,0) 1.4deg 16deg);
+            -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0) 40%, #000 52%, rgba(0,0,0,0) 74%);
+            mask-image: radial-gradient(circle, rgba(0,0,0,0) 40%, #000 52%, rgba(0,0,0,0) 74%);
+            animation: bsSpeedIn 0.8s ease 0.6s forwards, bsSpin 22s linear 1s infinite;
           }
           /* Wordmark BEAST con textura industrial sutil */
           .bs-title {
@@ -117,7 +141,7 @@ function SplashScreen() {
             letter-spacing: clamp(4px, 2.2vw, 10px); text-transform: uppercase;
             color: #FFFFFF; text-align: center; white-space: nowrap; margin: 0;
             position: relative;
-            text-shadow: 0 0 1px rgba(255,255,255,0.4);
+            text-shadow: 0 0 1px rgba(255,255,255,0.4), 0 0 22px rgba(223,255,0,0.28), 0 0 48px rgba(223,255,0,0.12);
             -webkit-text-stroke: 0.4px rgba(255,255,255,0.15);
           }
           /* Capa de textura industrial (rayado fino) recortada al texto */
@@ -143,13 +167,12 @@ function SplashScreen() {
             opacity: 0; animation: bsSubGlow 0.9s ease 1.5s forwards;
           }
           /* Barra de progreso */
-          .bs-loader { position: absolute; bottom: clamp(48px, 12vh, 96px); left: 50%; transform: translateX(-50%);
-            width: min(78vw, 320px); z-index: 10; text-align: center;
+          .bs-loader { position: relative; width: min(74vw, 300px); margin-top: 30px; text-align: center;
             opacity: 0; animation: bsFadeIn 0.5s ease 1.7s forwards; }
           .bs-loader-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-            font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #A1A1AA; margin-bottom: 12px; }
-          .bs-track { position: relative; height: 4px; border-radius: 4px; background: #111827; overflow: hidden; }
-          .bs-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 4px;
+            font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #A1A1AA; margin-top: 13px; }
+          .bs-track { position: relative; height: 8px; border-radius: 8px; background: #111827; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+          .bs-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 8px;
             background: linear-gradient(90deg, rgba(223,255,0,0.6), #DFFF00);
             box-shadow: 0 0 12px rgba(223,255,0,0.7);
             animation: bsBarFill 1s cubic-bezier(0.4,0,0.2,1) 1.75s forwards; }
@@ -189,13 +212,19 @@ function SplashScreen() {
           @keyframes bsFadeIn { to { opacity: 1; } }
           @keyframes bsBarFill { to { width: 100%; } }
           @keyframes bsSheen { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
+          @keyframes bsCharIn { to { opacity: 1; transform: scale(1); } }
+          @keyframes bsCharPulse {
+            0%,100% { filter: drop-shadow(0 0 24px rgba(223,255,0,0.55)) drop-shadow(0 8px 16px rgba(0,0,0,0.6)); }
+            50%     { filter: drop-shadow(0 0 38px rgba(223,255,0,0.9)) drop-shadow(0 8px 16px rgba(0,0,0,0.6)); }
+          }
+          @keyframes bsSpeedIn { to { opacity: 1; } }
+          @keyframes bsSpin { to { transform: translate(-50%,-50%) rotate(360deg); } }
 
           @media (prefers-reduced-motion: reduce) {
-            .bs-glow, .bs-particles, .bs-flash { animation: none; }
-            .bs-glow { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+            .bs-glow, .bs-particles, .bs-flash, .bs-speed { animation: none; }
+            .bs-glow, .bs-char-halo { opacity: 1; transform: translate(-50%,-50%) scale(1); animation: none; }
             .bs-particle { display: none; }
-            .bs-bolt, .bs-title-wrap, .bs-sub, .bs-loader { opacity: 1; transform: none; animation: none; }
-            .bs-rule { width: clamp(40px, 12vw, 64px); animation: none; }
+            .bs-char, .bs-title-wrap, .bs-sub, .bs-loader { opacity: 1; transform: none; animation: none; }
             .bs-fill { width: 100%; animation: none; }
             .bs-fill::after { animation: none; }
           }
@@ -213,21 +242,23 @@ function SplashScreen() {
         </div>
 
         <div className="bs-stack">
-          <div className="bs-flash" />
-          <svg className="bs-bolt" viewBox="0 0 48 64" fill="none" aria-hidden="true">
-            <path d="M28 2 L8 36 H22 L18 62 L42 24 H26 L28 2 Z"
-              fill="#DFFF00" stroke="#FFFFFF" strokeWidth="1" strokeLinejoin="round" />
-          </svg>
+          {/* Personaje oficial — protagonista, con líneas de energía y halo */}
+          <div className="bs-char-wrap">
+            <div className="bs-speed" />
+            <div className="bs-char-halo" />
+            <div className="bs-flash" />
+            <img className="bs-char" src="/icons/icon-512.webp" alt="BEAST" draggable="false" />
+          </div>
+
           <div className="bs-title-wrap">
             <h1 className="bs-title">BEAST</h1>
           </div>
-          <div className="bs-rule" />
           <div className="bs-sub">Modo Bestia Activado</div>
-        </div>
 
-        <div className="bs-loader">
-          <div className="bs-loader-label">Cargando tu experiencia</div>
-          <div className="bs-track"><div className="bs-fill" /></div>
+          <div className="bs-loader">
+            <div className="bs-track"><div className="bs-fill" /></div>
+            <div className="bs-loader-label">Cargando tu experiencia</div>
+          </div>
         </div>
 
         <div className="bs-vignette" />
