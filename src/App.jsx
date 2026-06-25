@@ -75,7 +75,7 @@ function SplashScreen() {
     useEffect(() => {
       let p = 0;
       const id = setInterval(() => {
-        p = Math.min(100, p + Math.random() * 7 + 5);
+        p = Math.min(100, p + Math.random() * 3 + 2);
         setProgress(Math.round(p));
         if (p >= 100) clearInterval(id);
       }, 120);
@@ -339,7 +339,7 @@ export default function App() {
     return null;
   })();
 
-  useEffect(() => { const t = setTimeout(() => setSplashDone(true), 2600); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setSplashDone(true), 4000); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("gym_dark");
