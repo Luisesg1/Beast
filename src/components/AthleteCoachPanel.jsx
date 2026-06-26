@@ -101,6 +101,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
   const [joinMsg, setJoinMsg] = useState("");
   const [joining, setJoining] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState(null);
+  const [previewRoutine, setPreviewRoutine] = useState(null);
   const [pendingInitialDocId] = useState(initialRoutine?._docId || null);
   const [newRoutineCount, setNewRoutineCount] = useState(0);
   const [selectedCoach, setSelectedCoach] = useState(null);
@@ -203,6 +204,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
         ExerciseGif={ExerciseGif}
         coachMode={true}
         coachComments={coachComments}
+        coachName={coaches.find(c => c.coachUid === activeWorkout.coachUid)?.coachName || "tu Coach"}
         onBack={() => setActiveWorkout(null)}
         onSaveSession={async (exercises, elapsed) => {
           const newSession = {
@@ -241,6 +243,70 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
           setActiveWorkout(null);
         }}
       />
+    );
+  }
+
+  // ── Pantalla de preparación de la rutina del Coach ──
+  if (previewRoutine) {
+    const r = previewRoutine;
+    const cName = coaches.find(c => c.coachUid === r.coachUid)?.coachName || "tu Coach";
+    const exs = r.exercises || [];
+    const totalSeries = exs.reduce((a, ex) => a + (ex.sets?.length || parseInt(ex.series) || 1), 0);
+    const estMin = Math.max(5, Math.round(totalSeries * 3.5));
+    const chipStyle = { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "var(--text)", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 8, padding: "4px 10px" };
+    const fmtSug = (ex) => {
+      const series = ex.sets?.length || parseInt(ex.series) || null;
+      const reps = ex.reps ?? ex.sets?.[0]?.reps;
+      const w = parseFloat(ex.weight ?? ex.sets?.[0]?.weight) || 0;
+      const sxr = series && reps ? `${series} × ${reps}` : reps ? `× ${reps}` : "";
+      const wStr = w > 0 ? `${w}kg sugeridos` : "";
+      return [sxr, wStr].filter(Boolean).join(" · ");
+    };
+    return (
+      <div className="overlay" onClick={() => setPreviewRoutine(null)}>
+        <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <button className="btn-ghost small" onClick={() => setPreviewRoutine(null)}>← Volver</button>
+          </div>
+
+          {/* Tarjeta de preparación */}
+          <div style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.3)", borderLeft: "3px solid #3b82f6", borderRadius: 16, padding: "16px 18px", marginBottom: 16 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 900, letterSpacing: 1.5, textTransform: "uppercase", color: "#60a5fa", marginBottom: 8 }}>🏆 Rutina Coach</div>
+            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 26, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5, lineHeight: 1 }}>{r.name}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Asignada por <b style={{ color: "#60a5fa" }}>{cName}</b></div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+              {r.week && <span style={chipStyle}>📅 Semana {r.week}{r.totalWeeks ? ` / ${r.totalWeeks}` : ""}</span>}
+              {r.goal && <span style={chipStyle}>🎯 {r.goal}</span>}
+              <span style={chipStyle}>🏋️ {exs.length} ejercicios</span>
+              <span style={chipStyle}>⏱ ~{estMin} min</span>
+            </div>
+            {r.notes && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: 12, lineHeight: 1.5 }}>💬 {r.notes}</div>}
+          </div>
+
+          {/* Lista de ejercicios */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {exs.map(ex => (
+              <div key={ex.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "8px 12px" }}>
+                <ExerciseGif exName={ex.name} size={48} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 700 }}>{ex.name}</div>
+                  {fmtSug(ex) && <div style={{ fontSize: 11, color: "#60a5fa", fontWeight: 600, marginTop: 2 }}>{fmtSug(ex)}</div>}
+                  {ex.comment && <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", marginTop: 3, display: "flex", gap: 5 }}><span style={{ flexShrink: 0 }}>💬</span><span>{ex.comment}</span></div>}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA sticky */}
+          <div style={{ position: "sticky", bottom: 0, padding: "12px 0 calc(6px + env(safe-area-inset-bottom, 0px))", background: "linear-gradient(to top, var(--surface, #141414) 78%, transparent)" }}>
+            <button onClick={() => { setActiveWorkout(previewRoutine); setPreviewRoutine(null); }}
+              style={{ width: "100%", background: "var(--accent)", border: "none", color: "#09090B", borderRadius: 12, padding: "16px", fontFamily: "Inter, sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: 1, cursor: "pointer", textTransform: "uppercase", boxShadow: "0 0 24px rgba(223,255,0,0.3)" }}>
+              🚀 Iniciar entrenamiento
+            </button>
+          </div>
+        </div>
+        {confirmModal}
+      </div>
     );
   }
 
@@ -356,7 +422,7 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                     {isCompleted ? (
                       <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                         <span style={{ fontSize:11, color:"#22c55e", fontWeight:700 }}>✅ Completada</span>
-                        <button className="btn-ghost small" onClick={() => setActiveWorkout(r)}>↺ Repetir</button>
+                        <button className="btn-ghost small" onClick={() => setPreviewRoutine(r)}>↺ Repetir</button>
                       </div>
                     ) : (
                       <button className="btn-primary" style={{ fontSize:14, padding:"8px 16px",
@@ -364,10 +430,10 @@ function AthleteCoachPanel({ user, onClose, initialRoutine = null, ExerciseGif, 
                         onClick={() => {
                           if (!isToday && r.dayOfWeek >= 0) {
                             const hoy = DAYS_ES[todayDow];
-                            askConfirm(`Esta rutina es para el ${dayLabel}. Hoy es ${hoy}. ¿Iniciar igual?`, () => setActiveWorkout(r));
+                            askConfirm(`Esta rutina es para el ${dayLabel}. Hoy es ${hoy}. ¿Abrir igual?`, () => setPreviewRoutine(r));
                             return;
                           }
-                          setActiveWorkout(r);
+                          setPreviewRoutine(r);
                         }}>▶ Iniciar</button>
                     )}
                   </div>

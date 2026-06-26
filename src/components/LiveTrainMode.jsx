@@ -222,12 +222,28 @@ function ExerciseHistoryBadge({ sessions, exName, unit = "kg" }) {
 }
 
 function LiveTrainMode({
-  exercises, workout, date, notes, unit, sessions,
+  exercises, workout, date, notes, unit, sessions, userName,
   onSaveSession, onBack,
   floatTimer, setFloatTimer,
   ExerciseGif,
   onShowPaywall,
+  coachMode = false, coachComments = {}, coachName,
 }) {
+  // Mapa de valores sugeridos por el coach (referencia fija aunque el atleta edite)
+  const coachSugByName = {};
+  if (coachMode) (exercises || []).forEach(ex => {
+    coachSugByName[ex.name] = {
+      weight: ex.weight ?? ex.sets?.[0]?.weight ?? "",
+      reps: ex.reps ?? ex.sets?.[0]?.reps ?? "",
+      series: ex.series || ex.sets?.length || 3,
+    };
+  });
+  const fmtCoachSug = (s) => {
+    if (!s) return null;
+    const w = parseFloat(s.weight) || 0;
+    const wStr = w > 0 ? `${w}${unit || "kg"}` : "PC";
+    return `${wStr} × ${s.reps || "—"} × ${s.series}`;
+  };
   const { isFree } = usePlan();
   const { confirm: askConfirm, modal: confirmModal } = useConfirm();
   const [showAdOverlay, setShowAdOverlay] = useState(false);
@@ -318,6 +334,7 @@ function LiveTrainMode({
   const totalSets = exData.reduce((a, e) => a + e.sets.length, 0);
   const doneSets  = exData.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
   const pct = totalSets > 0 ? doneSets / totalSets : 0;
+  const doneEx = exData.filter(e => e.sets.length > 0 && e.sets.every(s => s.done)).length;
 
   function toggleSet(exIdx, setIdx) {
     const wasDone = exData[exIdx].sets[setIdx].done;
@@ -676,6 +693,20 @@ function LiveTrainMode({
             0%   { transform:translateY(-10px) rotate(0deg); opacity:1; }
             100% { transform:translateY(90px) rotate(400deg); opacity:0; }
           }
+          @keyframes checkBurst {
+            0%   { transform:scale(0) rotate(-30deg); opacity:0; }
+            55%  { transform:scale(1.25) rotate(8deg); opacity:1; }
+            100% { transform:scale(1) rotate(0deg); opacity:1; }
+          }
+          @keyframes ringPulse {
+            0%   { transform:scale(0.4); opacity:0.9; }
+            100% { transform:scale(2.6); opacity:0; }
+          }
+          @keyframes rayBurst {
+            0%   { transform:rotate(var(--ang)) translateY(0) scaleY(0); opacity:0; }
+            35%  { opacity:1; }
+            100% { transform:rotate(var(--ang)) translateY(-74px) scaleY(1); opacity:0; }
+          }
         `}</style>
 
         {/* Glow de fondo */}
@@ -696,12 +727,43 @@ function LiveTrainMode({
           ))}
         </div>
 
-        {/* Mascota */}
-        <div style={{ textAlign:"center", marginBottom:8, position:"relative", zIndex:1 }}>
-          <div style={{ animation:"mascotBounce 1.3s ease-out 0.1s both", display:"inline-block" }}>
+        {/* Mascota — celebración épica */}
+        <div style={{ textAlign:"center", marginBottom:8, position:"relative", zIndex:1, height:220, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {/* Anillos expansivos */}
+          {[0, 0.35, 0.7].map((d, i) => (
+            <div key={i} style={{
+              position:"absolute", width:180, height:180, borderRadius:"50%",
+              border:"2px solid rgba(223,255,0,0.5)",
+              animation:`ringPulse 1.4s ease-out ${0.15 + d}s both`,
+              pointerEvents:"none",
+            }} />
+          ))}
+          {/* Rayos de luz que estallan hacia afuera */}
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={`ray${i}`} style={{
+              position:"absolute", width:3, height:26, borderRadius:3,
+              background:"linear-gradient(to top, transparent, #DFFF00)",
+              "--ang": `${i * 30}deg`,
+              transformOrigin:"center bottom",
+              animation:`rayBurst 0.9s ease-out ${0.2 + (i % 3) * 0.06}s both`,
+              pointerEvents:"none",
+            }} />
+          ))}
+          <div style={{ animation:"mascotBounce 1.3s ease-out 0.1s both", display:"inline-block", position:"relative", zIndex:2 }}>
             <img src={getBeastMood(completionPct, sessionAvgRpe, newPRs)} alt="Beast"
               style={{ width:200, height:200, objectFit:"contain",
-                filter:"drop-shadow(0 0 40px rgba(223,255,0,0.65)) drop-shadow(0 8px 20px rgba(0,0,0,0.9))" }} />
+                filter:"drop-shadow(0 0 48px rgba(223,255,0,0.75)) drop-shadow(0 8px 20px rgba(0,0,0,0.9))" }} />
+            {/* Check gigante */}
+            <div style={{
+              position:"absolute", bottom:6, right:-2,
+              width:62, height:62, borderRadius:"50%",
+              background:"#22c55e", border:"3px solid #09090B",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:34, color:"#fff", fontWeight:900,
+              boxShadow:"0 0 24px rgba(34,197,94,0.7)",
+              animation:"checkBurst 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.5s both",
+              zIndex:3,
+            }}>✓</div>
           </div>
         </div>
 
@@ -728,6 +790,17 @@ function LiveTrainMode({
           <div style={{ display:"inline-block", background:"rgba(223,255,0,0.15)", border:"1px solid rgba(223,255,0,0.5)", padding:"5px 18px", borderRadius:4 }}>
             <span style={{ fontFamily:"Inter, sans-serif", fontSize:14, color:"var(--accent)", letterSpacing:4, fontWeight:800, textTransform:"uppercase" }}>{workout}</span>
           </div>
+          {coachMode && (
+            <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:12, background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.5)", borderRadius:6, padding:"5px 14px" }}>
+              <span style={{ fontFamily:"Inter, sans-serif", fontSize:13, color:"#22c55e", letterSpacing:1, fontWeight:800, textTransform:"uppercase" }}>✅ Rutina completada{coachName ? ` · ${coachName}` : ""}</span>
+            </div>
+          )}
+          {userName && (
+            <div style={{ fontSize:15, color:"rgba(255,255,255,0.85)", fontWeight:600, marginTop:12, lineHeight:1.4 }}>
+              Excelente trabajo, <b style={{ color:"var(--accent)" }}>{String(userName).split(" ")[0]}</b>.<br/>
+              <span style={{ color:"var(--text-muted)", fontSize:13 }}>Hoy eres más fuerte que ayer.</span>
+            </div>
+          )}
         </div>
 
         {/* Stats 3-col */}
@@ -835,7 +908,7 @@ function LiveTrainMode({
                 boxShadow: "0 4px 24px rgba(223,255,0,0.35)",
               }}
             >
-              GUARDAR SESIÓN
+              {coachMode ? "📤 ENVIAR RESULTADOS AL COACH" : "GUARDAR SESIÓN"}
             </button>
           </div>
 
@@ -888,6 +961,17 @@ function LiveTrainMode({
   // ── PANTALLA PRINCIPAL DE ENTRENAMIENTO ─────────────────────────────────────
   return (
     <>
+      <style>{`
+        @keyframes checkPop {
+          0%   { transform: scale(0.6); }
+          55%  { transform: scale(1.22); }
+          100% { transform: scale(1.05); }
+        }
+        @keyframes rowFlash {
+          0%   { background: rgba(34,197,94,0.28); }
+          100% { background: rgba(34,197,94,0.05); }
+        }
+      `}</style>
 <div style={{ position: "fixed", inset: 0, background: "var(--bg)", display: "flex", flexDirection: "column", zIndex: 400, overflowY: "auto", paddingBottom: 70 }}>      {/* ── Sticky header ── */}
       <div style={{
         background: "var(--surface)", borderBottom: "1px solid var(--border)",
@@ -924,8 +1008,13 @@ function LiveTrainMode({
               </span>
             )}
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {doneSets}/{totalSets} series completadas
+          <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span>{doneSets}/{totalSets} series completadas</span>
+            {coachMode && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", color: "#3b82f6", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.4)", borderRadius: 5, padding: "1px 6px" }}>
+                🏆 Rutina Coach
+              </span>
+            )}
           </div>
         </div>
 
@@ -953,14 +1042,24 @@ function LiveTrainMode({
 
       {/* Spacer para el header fixed */}
       <div style={{ height: "calc(57px + env(safe-area-inset-top, 0px))", flexShrink: 0 }} />
-      {/* Progress bar */}
-      <div style={{ height: 4, background: "var(--border)", flexShrink: 0 }}>
-        <div style={{
-          height: "100%",
-          background: "linear-gradient(90deg, var(--accent), #22c55e)",
-          width: `${pct * 100}%`,
-          transition: "width 0.4s ease", borderRadius: 2,
-        }} />
+      {/* Progress bar + indicador de ejercicios */}
+      <div style={{ flexShrink: 0, padding: "0 16px", background: "var(--surface)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0 5px" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>
+            {doneEx} de {exData.length} ejercicios
+          </span>
+          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 900, color: "var(--accent)", letterSpacing: 0.5 }}>
+            {Math.round(pct * 100)}%
+          </span>
+        </div>
+        <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
+          <div style={{
+            height: "100%",
+            background: "linear-gradient(90deg, var(--accent), #22c55e)",
+            width: `${pct * 100}%`,
+            transition: "width 0.4s ease", borderRadius: 3,
+          }} />
+        </div>
       </div>
 
       {/* Exercise tabs */}
@@ -1132,6 +1231,27 @@ function LiveTrainMode({
                   />
 
               </div>
+
+              {/* ── SUGERIDO POR EL COACH ── */}
+              {coachMode && (coachSugByName[ex.name] || coachComments[ex.name]) && (
+                <div style={{
+                  background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.3)",
+                  borderLeft: "3px solid #3b82f6", borderRadius: 10, padding: "10px 14px", marginBottom: 14,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: "#60a5fa", textTransform: "uppercase" }}>🏆 Sugerido por Coach</span>
+                    {coachSugByName[ex.name] && fmtCoachSug(coachSugByName[ex.name]) && (
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", fontFamily: "Inter, sans-serif" }}>{fmtCoachSug(coachSugByName[ex.name])}</span>
+                    )}
+                  </div>
+                  {coachComments[ex.name] && (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: 6, display: "flex", gap: 6, lineHeight: 1.4 }}>
+                      <span style={{ flexShrink: 0 }}>💬</span>
+                      <span>{coachComments[ex.name]}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── CALENTAMIENTO SUGERIDO ── */}
               {(() => {
@@ -1356,6 +1476,7 @@ function LiveTrainMode({
                     background: s.done ? "rgba(34,197,94,0.05)" : "transparent",
                     borderBottom: j < ex.sets.length - 1 ? "1px solid var(--border)" : "none",
                     transition: "background 0.25s",
+                    animation: s.done ? "rowFlash 0.5s ease" : "none",
                   }}>
                     <div style={{
                       textAlign: "center", fontWeight: 800, fontSize: 14,
@@ -1416,8 +1537,11 @@ function LiveTrainMode({
                         background: s.done ? "#22c55e" : "var(--input-bg)",
                         border: `2px solid ${s.done ? "#22c55e" : "var(--border)"}`,
                         borderRadius: 10, cursor: "pointer", fontSize: 18,
+                        color: s.done ? "#fff" : "var(--text-muted)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "all 0.2s", transform: s.done ? "scale(1.05)" : "scale(1)",
+                        transition: "all 0.2s",
+                        transform: s.done ? "scale(1.05)" : "scale(1)",
+                        animation: s.done ? "checkPop 0.32s ease" : "none",
                       }}
                     >
                       {s.done ? "✓" : "○"}

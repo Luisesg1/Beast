@@ -374,6 +374,9 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   const [editingRoutine, setEditingRoutine] = useState(null);
   const [routineName, setRoutineName] = useState("");
   const [routineNotes, setRoutineNotes] = useState("");
+  const [routineGoal, setRoutineGoal] = useState("");
+  const [routineWeek, setRoutineWeek] = useState("");
+  const [routineTotalWeeks, setRoutineTotalWeeks] = useState("");
   const [routineExercises, setRoutineExercises] = useState([]);
   const [rExName, setRExName] = useState("");
   const [rExMuscle, setRExMuscle] = useState("Todos");
@@ -503,6 +506,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   function startNewRoutine() {
     setEditingRoutine(null);
     setRoutineName(""); setRoutineNotes(""); setRoutineExercises([]);
+    setRoutineGoal(""); setRoutineWeek(""); setRoutineTotalWeeks("");
     setRExName(""); setRExWeight(""); setRExReps(""); setRExSets([]); setRExComment("");
     setTab("editor");
   }
@@ -510,6 +514,7 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
   function startEditRoutine(r) {
     setEditingRoutine(r);
     setRoutineName(r.name || ""); setRoutineNotes(r.notes || "");
+    setRoutineGoal(r.goal || ""); setRoutineWeek(r.week != null ? String(r.week) : ""); setRoutineTotalWeeks(r.totalWeeks != null ? String(r.totalWeeks) : "");
     setRoutineExercises(r.exercises || []);
     setTab("editor");
   }
@@ -551,6 +556,9 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
     const routine = {
       id: editingRoutine?.id || null,
       name: routineName, notes: routineNotes,
+      goal: routineGoal.trim() || null,
+      week: routineWeek ? Math.max(1, parseInt(routineWeek) || 0) : null,
+      totalWeeks: routineTotalWeeks ? Math.max(1, parseInt(routineTotalWeeks) || 0) : null,
       exercises: routineExercises, createdAt: editingRoutine?.createdAt || todayStr(),
     };
     const id = await saveCoachRoutine(user.uid, routine);
@@ -1072,6 +1080,22 @@ const [athleteRoutinesMap, setAthleteRoutinesMap] = useState({});
                   <textarea className="input textarea" placeholder="Indicaciones para el atleta..." value={routineNotes} onChange={e => setRoutineNotes(e.target.value)} maxLength={500} />
                   <div style={{ fontSize: 11, textAlign: "right", marginTop: 4, color: routineNotes.length >= 500 ? "#ef4444" : routineNotes.length >= 420 ? "#f97316" : "rgba(255,255,255,0.3)" }}>
                     {routineNotes.length}/500
+                  </div>
+                </div>
+
+                {/* Objetivo + progreso del bloque (opcional) — se muestran en la tarjeta del atleta */}
+                <div className="field" style={{ marginBottom: 12 }}>
+                  <label className="field-label">Objetivo (opcional)</label>
+                  <input className="input" placeholder="Fuerza, Hipertrofia, Resistencia..." value={routineGoal} onChange={e => setRoutineGoal(e.target.value.slice(0, 30))} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                  <div className="field">
+                    <label className="field-label">Semana actual (opcional)</label>
+                    <input className="input" inputMode="numeric" placeholder="4" value={routineWeek} onChange={e => setRoutineWeek(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Total de semanas (opcional)</label>
+                    <input className="input" inputMode="numeric" placeholder="8" value={routineTotalWeeks} onChange={e => setRoutineTotalWeeks(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} />
                   </div>
                 </div>
 

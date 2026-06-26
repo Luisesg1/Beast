@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useContext, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { useTheme } from "./App";
 import CoachModal, { getAthleteRoutines } from "./components/CoachModal";
 import AthleteCoachPanel from "./components/AthleteCoachPanel";
 import { AuthCtx, useAuth } from "./components/AuthContext";
-import InsightsModal, { generateInsights, getProgressionSuggestion } from "./components/InsightsModal";
+import InsightsModal, { getProgressionSuggestion } from "./components/InsightsModal";
 import StatsProModal from "./components/StatsProModal";
 import PhotoProgressModal from "./components/PhotoProgressModal";
 import PaywallModal from "./components/PaywallModal";
@@ -12,9 +12,9 @@ import PRConfetti from "./components/PRConfetti";
 import StatsBanner from "./components/StatsBanner";
 import { Sparkline, TrainingCalendar, WeeklyChart } from "./components/Charts";
 import AIChatModal, { DraggableAIButton } from "./components/AIChatModal";
-import ExerciseGif, { CustomGifCtx, useCustomGifs } from "./components/ExerciseGif";
+import ExerciseGif, { CustomGifCtx } from "./components/ExerciseGif";
 import TemplatesModal from "./components/TemplatesModal";
-import { calc1RM, calcSessionVolume, detectNewPRs, getStreak, getPRs, getWeeklyChallenge, addShield } from "./utils/gymCalcs";
+import { calc1RM, detectNewPRs, getStreak, getPRs, addShield } from "./utils/gymCalcs";
 import { track } from "./utils/analytics";
 import NavIcon from "./components/NavIcon";
 import BottomNav from "./components/BottomNav";
@@ -25,7 +25,7 @@ import WeeklyGoalModal from "./components/WeeklyGoalModal";
 import { RestTimer, RestTimerFloating } from "./components/RestTimer";
 import OneRMModal from "./components/OneRMModal";
 import InfoPill from "./components/InfoPill";
-import BadgesModal, { BADGE_DEFS, getNewBadgesCount } from "./components/BadgesModal";
+import BadgesModal, { BADGE_DEFS } from "./components/BadgesModal";
 import ShareCardModal from "./components/ShareCardModal";
 import OnboardingModal from "./components/OnboardingModal";
 import { DAYS_ES, ACCENT_COLORS, PRESETS, MUSCLE_GROUPS } from "./utils/constants";
@@ -36,7 +36,7 @@ import WeeklyPlannerModal from "./components/WeeklyPlannerModal";
 import TeamChallengeModal, { WEEKLY_CHALLENGES } from "./components/TeamChallengeModal";
 import UserProfileModal from "./components/UserProfileModal";
 import TeamsModal from "./components/TeamsModal";
-import BeastMascot, { BeastAvatar, getBeastContext } from "./components/BeastMascot";
+import BeastMascot, { BeastAvatar } from "./components/BeastMascot";
 import { MuscleBalance } from "./components/ProgressWidgets";
 import ProgressModal from "./components/ProgressModal";
 import ExerciseLibrary from "./components/ExerciseLibrary";
@@ -44,16 +44,14 @@ import GIF_MAP from './assets/gif/gifMap.js';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { initAdMob, showBanner, removeBanner } from "./useAdMob";
-import { configureRevenueCat, checkProStatusStandalone, registerAppResumeListener } from "./useBilling";
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { doc, getDoc, setDoc, collection, getDocs, getDocsFromServer, deleteDoc, query, where, updateDoc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
 import { EXERCISE_DB, MUSCLES, registerCustomExercise } from "./exerciseDb";
-import { uid, fmtDate, fmtDateLong, todayStr, lettersOnly, workoutInput, numDot, numWeight, numReps, numBodyW, numHeight, numAge, store, load, firebaseErrMsg } from "./utils/helpers";
+import { uid, fmtDateLong, todayStr, numDot, numWeight, numReps, store, load } from "./utils/helpers";
 import { getSupersetColor } from "./utils/supersets";
-import { compressImage } from "./utils/imageUtils";
-import { joinCoachByCode, getMyCoaches, getFullRoutine, unassignRoutineFromAthlete, markRoutineCompleted, saveBodyStatsToDB, saveMeasuresToDB, loadMeasuresFromDB, saveCustomExercise, loadCustomExercises, updateCustomExerciseGif, updateCustomExerciseMeta, deleteCustomExercise, teamsGet, teamsSet, loadSessions, saveSessions } from "./utils/firebaseService";
+import { getFullRoutine, saveBodyStatsToDB, loadCustomExercises, loadSessions, saveSessions } from "./utils/firebaseService";
 import Dashboard from "./components/Dashboard";
 import SessionCard from "./components/SessionCard";
 
@@ -63,6 +61,118 @@ const StreakModal         = lazy(() => import("./components/StreakModal"));
 const MuscleMapModal      = lazy(() => import("./components/MuscleMapModal"));
 
 const LIVE_DRAFT_KEY = "gym_live_draft";
+
+// Stepper visual reutilizable: − [valor] +  (también editable por teclado)
+function Stepper({ label, value, onChange, step = 1, min = 0, max = 999, allowDecimal = false, accent = "var(--accent)" }) {
+  const cur = (() => { const n = parseFloat(value); return isNaN(n) ? 0 : n; })();
+  const clampStr = (v) => { v = Math.max(min, Math.min(max, v)); return allowDecimal ? String(Math.round(v * 100) / 100) : String(Math.round(v)); };
+  const btn = {
+    width: 36, height: 38, flexShrink: 0, border: "none", background: "transparent",
+    color: accent, fontSize: 22, fontWeight: 800, cursor: "pointer", lineHeight: 1,
+    display: "flex", alignItems: "center", justifyContent: "center",
+  };
+  return (
+    <div>
+      {label && <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 5, textAlign: "center" }}>{label}</div>}
+      <div style={{ display: "flex", alignItems: "center", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+        <button type="button" onClick={() => onChange(clampStr(cur - step))} style={btn}>−</button>
+        <input
+          value={value ?? ""}
+          placeholder="0"
+          inputMode={allowDecimal ? "decimal" : "numeric"}
+          onChange={e => onChange(e.target.value.replace(allowDecimal ? /[^0-9.]/g : /[^0-9]/g, ""))}
+          style={{ flex: 1, width: "100%", minWidth: 0, background: "none", border: "none", outline: "none", textAlign: "center", color: "var(--text)", fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800, padding: "8px 0" }}
+        />
+        <button type="button" onClick={() => onChange(clampStr(cur + step))} style={btn}>+</button>
+      </div>
+    </div>
+  );
+}
+
+// Dificultad inferida por equipo (la DB no tiene campo dificultad)
+const EQUIP_DIFF = {
+  "Máquina":   { label: "Principiante", color: "#22c55e" },
+  "Polea":     { label: "Principiante", color: "#22c55e" },
+  "Mancuernas":{ label: "Intermedio",   color: "#f59e0b" },
+  "Cuerpo":    { label: "Intermedio",   color: "#f59e0b" },
+  "Barra":     { label: "Avanzado",     color: "#ef4444" },
+};
+const diffFor = (eq) => EQUIP_DIFF[eq] || { label: "Intermedio", color: "#f59e0b" };
+
+// Selector de ejercicios premium: categorías horizontales + tarjetas con agregado directo
+function ExercisePicker({ ExerciseGif, onAdd, onAddCustom, addedNames = [], accent = "var(--accent)" }) {
+  const [muscle, setMuscle] = useState("Todos");
+  const [search, setSearch] = useState("");
+  const filtered = (muscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === muscle))
+    .filter(e => !search || e.name.toLowerCase().includes(search.toLowerCase()));
+  const noMatch = search.trim() && !EXERCISE_DB.find(e => e.name.toLowerCase() === search.trim().toLowerCase());
+  return (
+    <div>
+      {/* Buscador premium */}
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 15, pointerEvents: "none" }}>🔍</span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Press banca, sentadilla, dominadas…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "13px 14px 13px 42px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 15, fontFamily: "Inter, sans-serif", outline: "none" }}
+        />
+      </div>
+      {/* Categorías horizontales scrollable */}
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 12, scrollbarWidth: "none" }}>
+        {["Todos", ...MUSCLES].map(m => (
+          <button key={m} onClick={() => setMuscle(m)} style={{
+            flexShrink: 0, padding: "7px 16px", borderRadius: 20, cursor: "pointer",
+            background: muscle === m ? accent : "var(--input-bg)",
+            border: `1px solid ${muscle === m ? accent : "var(--border)"}`,
+            color: muscle === m ? "#09090B" : "var(--text-muted)",
+            fontSize: 13, fontWeight: 700, fontFamily: "Inter, sans-serif", whiteSpace: "nowrap",
+          }}>{m}</button>
+        ))}
+      </div>
+      {/* Tarjetas de ejercicio */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto", marginBottom: 4 }}>
+        {filtered.slice(0, 40).map(ex => {
+          const d = diffFor(ex.equipment);
+          const added = addedNames.includes(ex.name);
+          return (
+            <div key={ex.name} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "8px 10px" }}>
+              <ExerciseGif exName={ex.name} size={48} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, color: accent, fontWeight: 700 }}>{ex.muscle}</span>
+                  {ex.equipment && <span style={{ fontSize: 9, color: "var(--text-muted)", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 5, padding: "1px 6px", fontWeight: 600 }}>{ex.equipment}</span>}
+                  <span style={{ fontSize: 9, color: d.color, fontWeight: 700, display: "flex", alignItems: "center", gap: 3 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: d.color, display: "inline-block" }} />{d.label}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => onAdd(ex.name)} title="Agregar al entrenamiento" style={{
+                flexShrink: 0, width: 38, height: 38, borderRadius: 10, cursor: "pointer",
+                background: added ? "rgba(34,197,94,0.15)" : accent,
+                border: added ? "1px solid #22c55e" : "none",
+                color: added ? "#22c55e" : "#09090B", fontSize: 20, fontWeight: 900, lineHeight: 1,
+              }}>{added ? "✓" : "＋"}</button>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && !noMatch && (
+          <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: 13, padding: 20 }}>Sin resultados</div>
+        )}
+        {noMatch && (
+          <button onClick={() => onAddCustom(search.trim())} style={{
+            display: "flex", alignItems: "center", gap: 10, width: "100%",
+            background: "var(--accent-dim)", border: `1px dashed ${accent}`, borderRadius: 12,
+            padding: "12px 14px", cursor: "pointer", color: accent, fontWeight: 700, fontSize: 14, fontFamily: "Inter, sans-serif",
+          }}>
+            <span style={{ fontSize: 18 }}>＋</span> Crear y agregar "{search.trim()}"
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function BruxAvatar({ size = 32 }) {
   return (
@@ -221,17 +331,6 @@ export default function GymApp({ showPaywallAfterExpiry, setShowPaywallAfterExpi
   const [workout, setWorkout] = useState("");
   const [notes, setNotes] = useState("");
   const [currentExercises, setCurrentExercises] = useState([]);
-  const [exName, setExName] = useState("");
-  const [exMuscle, setExMuscle] = useState("Todos");
-  const [exSearch, setExSearch] = useState("");
-  const [exSearchFocus, setExSearchFocus] = useState(false);
-  const [exCustom, setExCustom] = useState("");
-  const [exCustomMuscle, setExCustomMuscle] = useState("");
-  const [exWeight, setExWeight] = useState("");
-  const [exReps, setExReps] = useState("");
-  const [exSets, setExSets] = useState([]);
-  const [exSeriesCount, setExSeriesCount] = useState("3");
-  const [exNote, setExNote] = useState("");
   const [editingId, setEditingId] = useState(null);
 
   const [filterPeriod, setFilterPeriod] = useState("");
@@ -247,8 +346,6 @@ export default function GymApp({ showPaywallAfterExpiry, setShowPaywallAfterExpi
   const [filterWorkout, setFilterWorkout] = useState("");
   const [showPresets, setShowPresets] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSugg, setShowSugg] = useState(false);
   const [progressEx, setProgressEx] = useState(null);
   const [showProgressPicker, setShowProgressPicker] = useState(false);
   const [pickerMuscle, setPickerMuscle] = useState("__records__");
@@ -695,10 +792,7 @@ useEffect(() => {
     return () => document.removeEventListener("click", handle);
   }, []);
 
-  const allExNames = [...new Set(sessions.flatMap(s => (s.exercises || []).map(e => e.name)))];
   const isGuest = user.isGuest;
-  const isCoachPlan = ["coach","gym"].includes(user.plan);
-  const isGym  = user.plan === "gym";
   const GUEST_MAX = 1;
   const canAdd = isGuest ? sessions.length < GUEST_MAX : true;
   const canExport = !isGuest;
@@ -718,35 +812,27 @@ useEffect(() => {
     ? (typeof weeklyPlan.weekly?.[todayDow] === "string" ? weeklyPlan.weekly?.[todayDow] : weeklyPlan.weekly?.[todayDow]?.name) || ""
     : weeklyPlan.cycle?.[weeklyPlan.cyclePos]?.name || "";
 
-  function handleExName(v) {
-    const val = lettersOnly(v);
-    setExName(val);
-    if (val.length > 1) {
-      const s = allExNames.filter(n => n.toLowerCase().startsWith(val.toLowerCase()));
-      setSuggestions(s); setShowSugg(s.length > 0);
-    } else setShowSugg(false);
+  // Agregar ejercicio directamente (sin formulario) — prellena con la sugerencia de progresión si existe
+  function addExerciseDirect(name) {
+    if (!name) return;
+    if (!EXERCISE_DB.find(e => e.name === name)) registerCustomExercise(name, "");
+    const sug = getProgressionSuggestion(name, sessions);
+    setCurrentExercises(prev => [...prev, {
+      id: uid(), name, sets: [],
+      weight: sug ? String(sug.sugWeight) : "",
+      reps:   sug ? String(sug.sugReps)   : "",
+      series: sug ? String(sug.lastSeries || 3) : "3",
+    }]);
+    showToast(`✅ ${name} agregado`);
   }
 
-  function addSet() {
-    if (!exReps) return;
-    setExSets(prev => [...prev, { id: uid(), weight: exWeight, reps: exReps }]);
-    setExWeight(""); setExReps("");
-  }
-
-  async function addExercise() {
-    const finalName = exName;
-    if (!finalName) { showToast("⚠️ Selecciona un ejercicio"); return; }
-    if (!exWeight) { showToast("⚠️ Ingresa el peso"); return; }
-    if (!exReps) { showToast("⚠️ Ingresa las repeticiones"); return; }
-    const count = parseInt(exSeriesCount);
-    if (!exSeriesCount || isNaN(count) || count < 1 || count > 20) { showToast("⚠️ Series debe ser entre 1 y 20"); return; }
-    const sets = Array.from({ length: count }, () => ({ id: uid(), weight: exWeight, reps: exReps }));
-    // Si el ejercicio no existe en la DB, registrarlo localmente para esta sesión
-    if (!EXERCISE_DB.find(e => e.name === finalName)) {
-      registerCustomExercise(finalName, "");
-    }
-    setCurrentExercises(prev => [...prev, { id: uid(), name: finalName, sets, weight: exWeight, reps: exReps, note: exNote }]);
-    setExName(""); setExCustom(""); setExCustomMuscle(""); setExWeight(""); setExReps(""); setExSets([]); setExSeriesCount("3"); setExNote(""); setShowSugg(false);
+  async function addCustomExerciseDirect(name) {
+    if (!name) return;
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
+    try {
+      await setDoc(doc(db, "custom_exercises", id), { name, muscle: "", equipment: "Personalizado", machine: false, gifUrl: "", status: "pending", suggestedBy: user?.uid || "anon", suggestedAt: todayStr() }, { merge: true });
+    } catch (e) { console.error(e); }
+    addExerciseDirect(name);
   }
 
   function applyPreset(name) {
@@ -792,7 +878,7 @@ useEffect(() => {
     if (!date || !workout) { showToast("⚠️ Falta el nombre del entrenamiento"); return false; }
     if (currentExercises.length === 0) { showToast("⚠️ Agrega al menos un ejercicio"); return false; }
     if (isGuest && !editingId && sessions.length >= GUEST_MAX) { setGuestLimitModal("register"); return false; }
-    if (!canAdd && !editingId) { showToast("⚠️ Límite de 5 sesiones en plan Free"); setShowPlans(true); return false; }
+    if (!canAdd && !editingId) { showToast("⚠️ Límite de 5 sesiones en plan Free"); setShowPaywall(true); return false; }
     const workoutName = workout.trim().split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
     if (editingId) {
       setSessions(prev => prev.map(s => s.id === editingId ? { ...s, date, workout: workoutName, notes, exercises: currentExercises } : s));
@@ -835,15 +921,12 @@ useEffect(() => {
         setWeeklyPlan(p => ({ ...p, cyclePos: nextPos }));
       }
     }
-    setDate(todayStr()); setWorkout(""); setNotes(""); setCurrentExercises([]); setExSets([]);
+    setDate(todayStr()); setWorkout(""); setNotes(""); setCurrentExercises([]);
     setSessionMode(null); setLiveActive(false);
     setActiveTab("history");
   }
 
   function startEdit(s) {
-    // Limpiar todo el estado del formulario antes de cargar
-    setExName(""); setExMuscle("Todos"); setExWeight(""); setExReps("");
-    setExSets([]); setExSeriesCount("3"); setExNote("");
     // Cargar datos de la sesión a editar
     setEditingId(s.id); setDate(s.date); setWorkout(s.workout); setNotes(s.notes || "");
     setCurrentExercises((s.exercises || []).map(e => ({ ...e })));
@@ -936,7 +1019,6 @@ useEffect(() => {
     () => BADGE_DEFS.filter(b => b.check(sessions, prsForBadge, user, badgeExtras)).map(b => b.id),
     [sessions, prsForBadge, user, badgeExtras]
   );
-  const earnedBadges = earnedBadgeIds.length;
   const newBadgesCount = useMemo(
     () => earnedBadgeIds.filter(id => !seenBadges.includes(id)).length,
     [earnedBadgeIds, seenBadges]
@@ -1286,6 +1368,7 @@ useEffect(() => {
         date={date}
         notes={notes}
         unit={unit}
+        userName={user?.name}
         sessions={sessions}
         floatTimer={floatTimer}
         setFloatTimer={setFloatTimer}
@@ -1624,6 +1707,54 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             )}
           </div>
 
+          {/* ── Resumen visual de preparación ── */}
+          {currentExercises.length > 0 && (() => {
+            const muscleByName = EXERCISE_DB.reduce((m, e) => { m[e.name] = e.muscle; return m; }, {});
+            const exCount = currentExercises.length;
+            const totalSeries = currentExercises.reduce((a, ex) => a + (parseInt(ex.series) || ex.sets?.length || 3), 0);
+            const volume = currentExercises.reduce((a, ex) => {
+              const w = parseFloat(ex.weight ?? ex.sets?.[0]?.weight) || 0;
+              const r = parseFloat(ex.reps ?? ex.sets?.[0]?.reps) || 0;
+              const s = parseInt(ex.series) || ex.sets?.length || 3;
+              return a + w * r * s;
+            }, 0);
+            const estMin = Math.max(5, Math.round(totalSeries * 3.5));
+            const muscleCount = {};
+            currentExercises.forEach(ex => { const m = muscleByName[ex.name]; if (m) muscleCount[m] = (muscleCount[m] || 0) + 1; });
+            const topMuscles = Object.entries(muscleCount).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([m]) => m);
+            const stats = [
+              { icon: "🏋️", label: "Ejercicios", value: exCount },
+              { icon: "📊", label: "Series", value: totalSeries },
+              { icon: "🔥", label: "Volumen", value: volume > 0 ? (volume >= 1000 ? `${(volume / 1000).toFixed(1)}t` : `${Math.round(volume)}kg`) : "—" },
+              { icon: "⏱", label: "Tiempo est.", value: `~${estMin}m` },
+            ];
+            return (
+              <div style={{
+                background: "var(--card)", border: "1px solid rgba(223,255,0,0.18)",
+                borderRadius: 16, padding: "14px 16px", marginBottom: 20,
+                boxShadow: "0 0 20px rgba(223,255,0,0.06)",
+              }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: topMuscles.length ? 12 : 0 }}>
+                  {stats.map(s => (
+                    <div key={s.label} style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 15, marginBottom: 2 }}>{s.icon}</div>
+                      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 20, fontWeight: 900, color: "var(--text)", lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontSize: 8, color: "var(--text-muted)", letterSpacing: 1, textTransform: "uppercase", fontWeight: 700, marginTop: 3 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {topMuscles.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "var(--text-muted)", textTransform: "uppercase" }}>💪 Músculos</span>
+                    {topMuscles.map(m => (
+                      <span key={m} style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", background: "var(--accent-dim)", border: "1px solid rgba(223,255,0,0.25)", borderRadius: 6, padding: "2px 9px" }}>{m}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Fecha + notas */}
           <div className="card">
             <div className="card-label">Info de la sesión</div>
@@ -1641,155 +1772,12 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           {/* Agregar ejercicios (mismo bloque que el modo register) */}
           <div className="card">
             <div className="card-label">Ejercicios</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 10 }}>
-              {["Todos", ...MUSCLES].map(m => (
-                <button key={m} className={`muscle-chip ${exMuscle === m ? "active" : ""}`}
-                  onClick={() => { setExMuscle(m); setExName(""); setExSearch(""); }}>
-                  {m}
-                </button>
-              ))}
-            </div>
-            <div className="field" style={{ marginBottom: 10 }}>
-  <label className="field-label">Ejercicio</label>
-  {(() => {
-    const filteredEx = (exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle))
-      .filter(e => !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase()));
-    return (
-      <div style={{ position: "relative" }}>
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ position: "absolute", left: 12, color: "var(--text-muted)", fontSize: 15, pointerEvents: "none", zIndex: 1 }}>
-            {exSearchFocus ? "🔍" : "▾"}
-          </span>
-          <input
-            className="input"
-            style={{ paddingLeft: 36, flex: 1, color: exName && !exSearchFocus ? "var(--text)" : undefined, fontWeight: exName && !exSearchFocus ? 600 : 400 }}
-            placeholder="— Selecciona o escribe uno nuevo — el GIF llegará pronto ✨"
-            value={exSearchFocus ? exSearch : (exName || "")}
-            onChange={e => { setExSearch(e.target.value); setExName(""); }}
-            onFocus={() => { setExSearchFocus(true); setExSearch(""); }}
-            onBlur={() => setTimeout(() => { setExSearchFocus(false); }, 150)}
-          />
-          {exSearch.trim() && !filteredEx.find(ex => ex.name.toLowerCase() === exSearch.trim().toLowerCase()) && (
-            <button
-              onMouseDown={async () => {
-                const name = exSearch.trim();
-                if (!name) return;
-                setExName(name); setExSearch(""); setExSearchFocus(false);
-                const id = name.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
-                try { const { setDoc, doc } = await import("firebase/firestore"); await setDoc(doc(db, "custom_exercises", id), { name, muscle: "", equipment: "Personalizado", machine: false, gifUrl: "", status: "pending", suggestedBy: user?.uid || "anon", suggestedAt: todayStr() }, { merge: true }); } catch(e) { console.error(e); }
-                showToast("✅ Ejercicio agregado — el GIF llegará pronto");
-              }}
-              title="Agregar este ejercicio"
-              style={{ background: "var(--accent)", border: "none", borderRadius: 8, padding: "0 14px", cursor: "pointer", color: "#000", fontWeight: 800, fontSize: 18, flexShrink: 0, height: 42 }}
-            >➕</button>
-          )}
-        </div>
-        {(exSearchFocus || exSearch) && (
-          <div style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
-            zIndex: 50, boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-          }}>
-            <div style={{ maxHeight: 220, overflowY: "auto" }}>
-              {filteredEx.slice(0, 30).map(ex => (
-                <button key={ex.name}
-                  onMouseDown={() => { setExName(ex.name); setExSearch(""); setExSearchFocus(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    width: "100%", background: "none", border: "none",
-                    borderBottom: "1px solid var(--border)", padding: "9px 14px",
-                    cursor: "pointer", textAlign: "left", color: "var(--text)",
-                    fontFamily: "Inter, sans-serif", fontSize: 13,
-                    transition: "background 0.12s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "none"}
-                >
-                  <span style={{ flex: 1 }}>{ex.name}</span>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>{ex.muscle}</span>
-                </button>
-              ))}
-            </div>
-            {exSearch.trim() && !filteredEx.find(ex => ex.name.toLowerCase() === exSearch.trim().toLowerCase()) && (
-              <div style={{ borderTop: "1px solid var(--border)", padding: "8px 14px", fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>
-                Presiona ➕ para agregar <b style={{color:"var(--accent)"}}>"{exSearch.trim()}"</b>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  })()}
-</div>
-
-{exName ? (
-  <div style={{ margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16, display:"flex", flexDirection:"column", gap:12 }}>
-    {/* GIF + nombre arriba */}
-    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-      <ExerciseGif exName={exName} size={72} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
-        {!(customGifsMap[exName] || GIF_MAP[exName]) && (
-          <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>⏳ GIF en camino — el admin lo agregará pronto</div>
-        )}
-      </div>
-      <button onClick={() => { setExName(""); setExSearch(""); }}
-        style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:14, flexShrink:0 }}>✕</button>
-    </div>
-    {/* Sugerencias a ancho completo */}
-    {(() => {
-      const sug = getProgressionSuggestion(exName, sessions);
-      if (!sug) return null;
-      return (
-        <div onClick={() => { setExWeight(String(sug.sugWeight)); setExReps(String(sug.sugReps)); setExSeriesCount(String(sug.lastSeries)); }}
-          style={{ display:"flex", alignItems:"center", gap:8, background:`${sug.color}15`, border:`1px solid ${sug.color}40`, borderRadius:8, padding:"7px 10px", cursor:"pointer" }}>
-          <span style={{ fontSize:15 }}>{sug.icon}</span>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:sug.color }}>{sug.sugWeight}kg × {sug.sugReps} reps</div>
-            <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sug.reason}</div>
-          </div>
-          <span style={{ fontSize:10, color:sug.color, fontWeight:700, flexShrink:0 }}>Aplicar →</span>
-        </div>
-      );
-    })()}
-    {/* Inputs a ancho completo */}
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-      <div className="field">
-        <label className="field-label">Peso ({unit})</label>
-        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
-      </div>
-      <div className="field">
-        <label className="field-label">Reps</label>
-        <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
-      </div>
-      <div className="field">
-        <label className="field-label">Series</label>
-        <input placeholder="3" value={exSeriesCount} onChange={e => { const n = parseInt(e.target.value.replace(/[^0-9]/g, "")); setExSeriesCount(isNaN(n) ? "" : String(Math.min(n, 20))); }} className="input" />
-      </div>
-    </div>
-    {exWeight && exReps && (
-      <div style={{ fontSize:12, color:"var(--text-muted)" }}>
-        1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
-      </div>
-    )}
-  </div>
-) : (
-  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-    <div className="field">
-      <label className="field-label">Peso ({unit})</label>
-      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
-    </div>
-    <div className="field">
-      <label className="field-label">Reps</label>
-      <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
-    </div>
-    <div className="field">
-      <label className="field-label">Series</label>
-      <input placeholder="3" value={exSeriesCount} onChange={e => { const n = parseInt(e.target.value.replace(/[^0-9]/g, "")); setExSeriesCount(isNaN(n) ? "" : String(Math.min(n, 20))); }} className="input" />
-    </div>
-  </div>
-)}          
-            <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
+            <ExercisePicker
+              ExerciseGif={ExerciseGif}
+              addedNames={currentExercises.map(e => e.name)}
+              onAdd={addExerciseDirect}
+              onAddCustom={addCustomExerciseDirect}
+            />
 
             {currentExercises.length > 0 && (
               <div className="ex-list" style={{ marginTop: 10 }}>
@@ -1874,29 +1862,17 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                             onClick={() => setCurrentExercises(p => p.filter(e => e.id !== ex.id))}>✕</button>
                         </div>
 
-                        {/* Inputs peso / reps / series */}
+                        {/* Steppers peso / reps / series */}
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "8px 12px" }}>
-                          <div>
-                            <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>PESO (kg)</label>
-                            <input className="input" type="number" inputMode="decimal" placeholder="0"
-                              value={ex.weight || ex.sets?.[0]?.weight || ""}
-                              onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, weight: e.target.value }))}
-                              style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>REPS</label>
-                            <input className="input" type="number" inputMode="decimal" placeholder="0"
-                              value={ex.reps || ex.sets?.[0]?.reps || ""}
-                              onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, reps: e.target.value }))}
-                              style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, display: "block", marginBottom: 3 }}>SERIES</label>
-                            <input className="input" type="number" inputMode="decimal" placeholder="3"
-                              value={ex.series || ex.sets?.length || "3"}
-                              onChange={e => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, series: e.target.value }))}
-                              style={{ textAlign: "center", fontSize: 14, fontWeight: 700, padding: "6px 4px" }} />
-                          </div>
+                          <Stepper label={`Peso (${unit})`} step={2.5} max={500} allowDecimal
+                            value={ex.weight || ex.sets?.[0]?.weight || ""}
+                            onChange={v => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, weight: v }))} />
+                          <Stepper label="Reps" step={1} max={100}
+                            value={ex.reps || ex.sets?.[0]?.reps || ""}
+                            onChange={v => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, reps: v }))} />
+                          <Stepper label="Series" step={1} min={1} max={20}
+                            value={ex.series || ex.sets?.length || "3"}
+                            onChange={v => setCurrentExercises(p => p.map(x => x.id !== ex.id ? x : { ...x, series: v }))} />
                         </div>
                       </div>
                     </div>
@@ -1906,7 +1882,12 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             )}
           </div>
 
-          {/* Botón INICIAR */}
+          {/* Botón INICIAR — sticky */}
+          <div style={{
+            position: "sticky", bottom: 0, marginTop: 8,
+            paddingTop: 12, paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
+            background: "linear-gradient(to top, var(--bg) 72%, transparent)", zIndex: 30,
+          }}>
           {currentExercises.length > 0 ? (
             <button
               onClick={() => {
@@ -1941,6 +1922,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               ⚡ INICIAR ENTRENAMIENTO
             </button>
           )}
+          </div>
         </div>
       )}
 
@@ -1950,15 +1932,28 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
       {/* ╚══════════════════════════════════╝ */}
       {sessionMode === "register" && (
         <div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
             <button className="btn-ghost small" onClick={() => {
               setSessionMode(null); setCurrentExercises([]); setWorkout(""); setEditingId(null);
             }}>
               ← Volver
             </button>
-            {editingId && <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>✏️ Editando sesión</span>}
-            <div style={{ flex: 1, fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800, color: "#22c55e" }}>
+            {editingId && <span style={{ fontSize: 12, color: "#3b82f6", fontWeight: 700 }}>✏️ Editando sesión</span>}
+            <div style={{ flex: 1, fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 800, color: "#3b82f6" }}>
               📋 Registrar sesión
+            </div>
+          </div>
+
+          {/* Banner de modo — azul histórico (vs amarillo del modo en vivo) */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
+            background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.3)",
+            borderLeft: "3px solid #3b82f6", borderRadius: 10, padding: "10px 14px",
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🗓️</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: "#60a5fa", textTransform: "uppercase" }}>Modo registro</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Estás guardando una sesión que ya entrenaste.</div>
             </div>
           </div>
 
@@ -1976,7 +1971,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           )}
           {/* Nombre del entrenamiento — prominente arriba */}
           <div style={{ position: "relative" }} ref={presetRef}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--accent)", textTransform: "uppercase", marginBottom: 8 }}>¿Qué entrenaste hoy?</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "#60a5fa", textTransform: "uppercase", marginBottom: 8 }}>¿Qué entrenaste hoy?</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
               <input
                 placeholder="Push Day, Piernas, Full Body…"
@@ -2010,141 +2005,13 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
 
           <div className="card">
   <div className="card-label">Ejercicios de la sesión</div>
-  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6, marginBottom: 10 }}>
-    {["Todos", ...MUSCLES].map(m => (
-      <button key={m} className={`muscle-chip ${exMuscle === m ? "active" : ""}`}
-        onClick={() => { setExMuscle(m); setExName(""); setExSearch(""); }}>
-        {m}
-      </button>
-    ))}
-  </div>
-  <div className="field" style={{ marginBottom: 10 }}>
-    <label className="field-label">Ejercicio</label>
-    {(() => {
-      const filteredEx = (exMuscle === "Todos" ? EXERCISE_DB : EXERCISE_DB.filter(e => e.muscle === exMuscle))
-        .filter(e => !exSearch || e.name.toLowerCase().includes(exSearch.toLowerCase()));
-      return (
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ position: "absolute", left: 12, color: "var(--text-muted)", fontSize: 15, pointerEvents: "none", zIndex: 1 }}>
-              {exSearchFocus ? "🔍" : "▾"}
-            </span>
-            <input
-              className="input"
-              style={{ paddingLeft: 36, flex: 1, color: exName && !exSearchFocus ? "var(--text)" : undefined, fontWeight: exName && !exSearchFocus ? 600 : 400 }}
-              placeholder="— Selecciona o escribe uno nuevo — el GIF llegará pronto ✨"
-              value={exSearchFocus ? exSearch : (exName || "")}
-              onChange={e => { setExSearch(e.target.value); setExName(""); }}
-              onFocus={() => { setExSearchFocus(true); setExSearch(""); }}
-              onBlur={() => setTimeout(() => { setExSearchFocus(false); }, 150)}
-            />
-            {exSearch.trim() && !filteredEx.find(ex => ex.name.toLowerCase() === exSearch.trim().toLowerCase()) && (
-              <button
-                onMouseDown={async () => {
-                  const name = exSearch.trim();
-                  if (!name) return;
-                  setExName(name); setExSearch(""); setExSearchFocus(false);
-                  const id = name.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
-                  try { const { setDoc, doc } = await import("firebase/firestore"); await setDoc(doc(db, "custom_exercises", id), { name, muscle: "", equipment: "Personalizado", machine: false, gifUrl: "", status: "pending", suggestedBy: user?.uid || "anon", suggestedAt: todayStr() }, { merge: true }); } catch(e) { console.error(e); }
-                  showToast("✅ Ejercicio agregado — el GIF llegará pronto");
-                }}
-                title="Agregar este ejercicio"
-                style={{ background: "var(--accent)", border: "none", borderRadius: 8, padding: "0 14px", cursor: "pointer", color: "#000", fontWeight: 800, fontSize: 18, flexShrink: 0, height: 42 }}
-              >➕</button>
-            )}
-          </div>
-          {(exSearchFocus || exSearch) && (
-            <div style={{
-              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
-              zIndex: 50, boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-            }}>
-              <div style={{ maxHeight: 220, overflowY: "auto" }}>
-                {filteredEx.slice(0, 30).map(ex => (
-                  <button key={ex.name}
-                    onMouseDown={() => { setExName(ex.name); setExSearch(""); setExSearchFocus(false); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      width: "100%", background: "none", border: "none",
-                      borderBottom: "1px solid var(--border)", padding: "9px 14px",
-                      cursor: "pointer", textAlign: "left", color: "var(--text)",
-                      fontFamily: "Inter, sans-serif", fontSize: 13,
-                      transition: "background 0.12s",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--accent-dim)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "none"}
-                  >
-                    <span style={{ flex: 1 }}>{ex.name}</span>
-                    <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>{ex.muscle}</span>
-                  </button>
-                ))}
-              </div>
-              {exSearch.trim() && !filteredEx.find(ex => ex.name.toLowerCase() === exSearch.trim().toLowerCase()) && (
-                <div style={{ borderTop: "1px solid var(--border)", padding: "8px 14px", fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>
-                  Presiona ➕ para agregar <b style={{color:"var(--accent)"}}>"{exSearch.trim()}"</b>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      );
-    })()}
-  </div>
-
-{exName ? (
-  <div style={{ margin:"10px 0 14px", padding:"16px", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:16, display:"flex", flexDirection:"column", gap:12 }}>
-    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-      <ExerciseGif exName={exName} size={72} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontFamily:"Inter, sans-serif", fontSize:20, fontWeight:800 }}>{exName}</div>
-        {!(customGifsMap[exName] || GIF_MAP[exName]) && (
-          <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>⏳ GIF en camino — el admin lo agregará pronto</div>
-        )}
-      </div>
-      <button onClick={() => { setExName(""); setExSearch(""); }}
-        style={{ background:"none", border:"1px solid var(--border)", color:"var(--text-muted)", borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:14, flexShrink:0 }}>✕</button>
-    </div>
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-      <div className="field">
-        <label className="field-label">Peso ({unit})</label>
-        <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
-      </div>
-      <div className="field">
-        <label className="field-label">Reps</label>
-        <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
-      </div>
-      <div className="field">
-        <label className="field-label">Series</label>
-        <input placeholder="3" value={exSeriesCount} onChange={e => { const n = parseInt(e.target.value.replace(/[^0-9]/g, "")); setExSeriesCount(isNaN(n) ? "" : String(Math.min(n, 20))); }} className="input" />
-      </div>
-    </div>
-    {exWeight && exReps && (
-      <div style={{ fontSize:12, color:"var(--text-muted)" }}>
-        1RM estimado: <b style={{ color:"var(--accent)" }}>{calc1RM(exWeight, exReps)} kg</b>
-      </div>
-    )}
-  </div>
-) : (
-  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-    <div className="field">
-      <label className="field-label">Peso ({unit})</label>
-      <input placeholder="0" value={exWeight} onChange={e => setExWeight(numWeight(e.target.value))} className="input" />
-    </div>
-    <div className="field">
-      <label className="field-label">Reps</label>
-      <input placeholder="0" value={exReps} onChange={e => setExReps(numReps(e.target.value))} className="input" />
-    </div>
-    <div className="field">
-      <label className="field-label">Series</label>
-      <input placeholder="3" value={exSeriesCount} onChange={e => { const n = parseInt(e.target.value.replace(/[^0-9]/g, "")); setExSeriesCount(isNaN(n) ? "" : String(Math.min(n, 20))); }} className="input" />
-    </div>
-  </div>
-)}
-  <div className="field" style={{ marginBottom: 10 }}>
-    <label className="field-label">Nota del ejercicio (opcional)</label>
-    <input className="input" placeholder="Sensaciones, técnica..." value={exNote} onChange={e => setExNote(e.target.value)} />
-  </div>
-  <button className="btn-add-ex" onClick={addExercise}>+ Agregar ejercicio</button>
+  <ExercisePicker
+    ExerciseGif={ExerciseGif}
+    addedNames={currentExercises.map(e => e.name)}
+    onAdd={addExerciseDirect}
+    onAddCustom={addCustomExerciseDirect}
+    accent="#3b82f6"
+  />
   {currentExercises.length > 0 && (
     <div className="ex-list" style={{ marginTop: 14 }}>
       {currentExercises.map((ex, exIdx) => {
@@ -2243,7 +2110,7 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
                 </button>
               </div>
             ) : (
-              <button className="btn-primary" style={{ flex:1 }} onClick={() => {
+              <button className="btn-primary" style={{ flex:1, background:"#3b82f6", color:"#fff", boxShadow:"0 0 20px rgba(59,130,246,0.35)" }} onClick={() => {
                 saveSession();
               }}>
                 &#x1F4BE; {editingId ? "Actualizar sesión" : "Guardar sesión"}
@@ -2799,7 +2666,6 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
             weeklyTarget={weeklyGoal?.target || 3}
             onStartSession={() => {
               setShowStreakModal(false);
-              setExMuscle("Todos");
               setActiveTab("new");
               setSessionMode("live");
               setWorkout("Entrenamiento");
@@ -3239,23 +3105,147 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
           ...userTemplates.map(t => ({ name: t.name, exercises: (t.exercises||[]).map(e => e.name || e), isUser: true })),
           ...presetKeys.filter(k => !userTemplates.find(t => t.name === k)).map(k => ({ name: k, exercises: PRESETS[k], isUser: false })),
         ];
+
+        // ── Saludo dinámico + hora + motivación ──────────────────────────────
+        const now = new Date();
+        const hr = now.getHours();
+        const greeting = hr < 6 ? "Trasnochando 🌙" : hr < 12 ? "Buenos días ☀️" : hr < 19 ? "Buenas tardes 🔥" : "Buenas noches 💪";
+        const timeStr = now.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+        const motivations = [
+          "Listo para superar tu mejor marca",
+          "Hoy serás más fuerte que ayer",
+          "Cada serie cuenta. Vamos.",
+          "El físico se construye con constancia",
+          "Tu única competencia eres tú mismo",
+        ];
+        const motivation = motivations[now.getDate() % motivations.length];
+
+        // ── Acciones rápidas (presets fijos) ─────────────────────────────────
+        const QUICK = [
+          { name: "Push Day",  emoji: "💥" },
+          { name: "Pull Day",  emoji: "🎯" },
+          { name: "Leg Day",   emoji: "🦵" },
+          { name: "Full Body", emoji: "⚡" },
+        ];
+        const loadAndConfig = (name, exNames) => {
+          const cap = name.trim().split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+          setWorkout(cap);
+          if (exNames?.length > 0) setCurrentExercises(exNames.map(n => ({ id: uid(), name: n, sets: [], weight: "", reps: "" })));
+          setShowNameModal(false);
+          setSessionMode("live");
+        };
+
+        // ── Entrenamientos recientes (derivados del historial) ───────────────
+        const recentWorkouts = (() => {
+          const byName = {};
+          for (const s of (sessions || [])) {
+            const key = (s.workout || "").trim();
+            if (!key) continue;
+            if (!byName[key]) byName[key] = { name: key, dates: [], durations: [], exCounts: [], lastEx: [] };
+            const g = byName[key];
+            if (s.date && new Date(s.date) > new Date(g.lastDate || 0)) { g.lastDate = s.date; g.lastEx = (s.exercises || []).map(e => e.name || e); }
+            g.dates.push(s.date);
+            if (s.durationSecs) g.durations.push(s.durationSecs);
+            g.exCounts.push((s.exercises || []).length);
+          }
+          return Object.values(byName)
+            .sort((a, b) => new Date(b.lastDate || 0) - new Date(a.lastDate || 0))
+            .slice(0, 4)
+            .map(g => ({
+              name: g.name,
+              lastDate: g.lastDate,
+              exCount: g.lastEx.length || Math.round(g.exCounts.reduce((x, y) => x + y, 0) / g.exCounts.length) || 0,
+              exNames: g.lastEx,
+              avgMin: g.durations.length ? Math.round(g.durations.reduce((x, y) => x + y, 0) / g.durations.length / 60) : null,
+            }));
+        })();
+        const relDate = (d) => {
+          if (!d) return "";
+          const days = Math.round((Date.now() - new Date(d).getTime()) / 86400000);
+          if (days <= 0) return "Hoy";
+          if (days === 1) return "Ayer";
+          if (days < 7) return `Hace ${days} días`;
+          const w = Math.round(days / 7);
+          if (days < 30) return w === 1 ? "Hace 1 sem" : `Hace ${w} sem`;
+          const m = Math.round(days / 30);
+          return m === 1 ? "Hace 1 mes" : `Hace ${m} meses`;
+        };
+
         return (
           <div className="overlay" onClick={() => setShowNameModal(false)}>
             <div className="modal" style={{ maxWidth: 400, padding: 24, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
 
-              {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-                <div style={{ flex: 1, textAlign: "center" }}>
-                  <div style={{ fontSize: 36, marginBottom: 6 }}>⚡</div>
-                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>
-                    ¿QUÉ VAS A ENTRENAR HOY?
+              {/* Header — saludo dinámico + hora */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>{greeting}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", background: "var(--accent-dim)", border: "1px solid rgba(223,255,0,0.25)", borderRadius: 6, padding: "1px 8px", letterSpacing: 0.5 }}>{timeStr}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>Dale un nombre o elige una plantilla</div>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", lineHeight: 1.05 }}>
+                    ¿Qué vas a<br/>entrenar hoy?
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--accent)", marginTop: 6, fontWeight: 600 }}>🔥 {motivation}</div>
                 </div>
                 <button onClick={() => setShowNameModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer", padding: "0 0 0 8px", lineHeight: 1, flexShrink: 0 }}>✕</button>
               </div>
 
-              {/* Free name input + arrow button */}
+              {/* Acciones rápidas — presets en grid 2×2 */}
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>⚡ Acciones rápidas</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
+                {QUICK.map(q => (
+                  <button
+                    key={q.name}
+                    onClick={() => loadAndConfig(q.name, PRESETS[q.name])}
+                    style={{
+                      background: "var(--accent-dim)", border: "1px solid rgba(223,255,0,0.3)",
+                      borderRadius: 12, padding: "12px 12px", cursor: "pointer", textAlign: "left",
+                      display: "flex", alignItems: "center", gap: 10, transition: "all 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "rgba(223,255,0,0.14)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(223,255,0,0.3)"; e.currentTarget.style.background = "var(--accent-dim)"; }}
+                  >
+                    <span style={{ fontSize: 22, flexShrink: 0 }}>{q.emoji}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 900, letterSpacing: 0.5, textTransform: "uppercase", color: "var(--accent)", lineHeight: 1 }}>{q.name}</div>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{PRESETS[q.name].length} ejercicios</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Entrenamientos recientes (del historial) */}
+              {recentWorkouts.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>🕒 Entrenamientos recientes</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18 }}>
+                    {recentWorkouts.map(rw => (
+                      <button
+                        key={rw.name}
+                        onClick={() => loadAndConfig(rw.name, rw.exNames)}
+                        style={{
+                          background: "var(--input-bg)", border: "1px solid var(--border)",
+                          borderRadius: 10, padding: "10px 14px", cursor: "pointer", textAlign: "left",
+                          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, transition: "all 0.15s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rw.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                            {relDate(rw.lastDate)} · {rw.exCount} ej.{rw.avgMin ? ` · ~${rw.avgMin} min` : ""}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 18, color: "var(--accent)", flexShrink: 0 }}>→</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Crear desde cero — input libre */}
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>➕ Crear desde cero</div>
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <input
                   className="input"
@@ -3277,15 +3267,17 @@ const tw = new Set(sessions.filter(s => new Date(s.date + "T00:00:00") >= lunes)
               </div>
 
               {/* Divider */}
+              {templateOptions.some(t => t.isUser) && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <div style={{ flex: 1, height: 1, background: "var(--border)" }}/>
-                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase" }}>o elige una plantilla</span>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "var(--text-muted)", textTransform: "uppercase" }}>tus plantillas</span>
                 <div style={{ flex: 1, height: 1, background: "var(--border)" }}/>
               </div>
+              )}
 
-              {/* Template cards */}
+              {/* Template cards — solo plantillas del usuario (los presets ya están arriba) */}
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
-                {templateOptions.slice(0, 6).map(tpl => (
+                {templateOptions.filter(t => t.isUser).slice(0, 6).map(tpl => (
                   <div key={tpl.name} style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
                     <button
                       onClick={() => {

@@ -49,8 +49,12 @@ function ParticlesBackground() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    let W = canvas.width = window.innerWidth;
-    let H = canvas.height = window.innerHeight;
+    if (!ctx) return;
+    // Fallback si la ventana reporta 0 (iframe/render transitorio) — evita canvas de 0px que rompía la animación
+    const vw = () => window.innerWidth || document.documentElement?.clientWidth || 360;
+    const vh = () => window.innerHeight || document.documentElement?.clientHeight || 640;
+    let W = canvas.width = vw();
+    let H = canvas.height = vh();
 
     const WORDS = [
       "YEAH BUDDY", "LIGHT WEIGHT", "AIN'T NOTHIN'", "GET SOME",
@@ -113,7 +117,7 @@ function ParticlesBackground() {
       };
     }
 
-    const NUM_DROPS = Math.floor(W / 22);
+    const NUM_DROPS = Math.max(1, Math.floor(W / 22));
     const drops = Array.from({ length: NUM_DROPS }, (_, i) => {
       const d = randomDrop();
       d.x = (i / NUM_DROPS) * W + Math.random() * (W / NUM_DROPS);
@@ -285,8 +289,8 @@ function ParticlesBackground() {
     loop();
 
     const onResize = () => {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
+      W = canvas.width = vw();
+      H = canvas.height = vh();
       ctx.fillStyle = "#060d18";
       ctx.fillRect(0, 0, W, H);
     };
