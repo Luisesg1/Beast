@@ -187,7 +187,7 @@ const thisWeek = new Set(sessions.filter(s => new Date(s.date+"T00:00:00") >= lu
         })()}
 
         {plannerTab === "plan" && mode === "weekly" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
             {DAYS_ES.map((day, i) => {
               const dayData = weekly[i] || { name: "", exercises: [] };
               const isToday = todayDow === i;
@@ -213,21 +213,16 @@ const thisWeek = new Set(sessions.filter(s => new Date(s.date+"T00:00:00") >= lu
               };
 
               return (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {/* ── Tarjeta: Día ── */}
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    background: isToday ? "var(--accent-dim)" : "var(--card)",
-                    border: `1px solid ${isToday ? "var(--accent)" : "var(--border)"}`,
-                    borderRadius: 14, padding: "14px 16px",
-                  }}>
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: i < DAYS_ES.length - 1 ? 22 : 0, borderBottom: i < DAYS_ES.length - 1 ? "1px solid var(--border)" : "none" }}>
+                  {/* ── Título del día (bloque simple, sin caja) ── */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: "Inter, sans-serif", fontSize: 17, fontWeight: 800, color: isToday ? "var(--accent)" : "var(--text)" }}>
                       <span style={{ fontSize: 18 }}>📅</span> {day}
                     </span>
                     {isToday && <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: "var(--accent)", textTransform: "uppercase" }}>Hoy 📍</span>}
                   </div>
 
-                  {/* ── Tarjeta: Estado ── */}
+                  {/* ── Estado ── */}
                   <div>
                     <label style={fieldLabel}>Estado</label>
                     <div style={{ position: "relative" }}>
