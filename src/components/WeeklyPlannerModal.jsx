@@ -97,6 +97,19 @@ export default function WeeklyPlannerModal({ plan, onSave, onClose, sessions, we
   const [cyclePos, setCyclePos] = useState(plan.cyclePos || 0);
   const [expandedDay, setExpandedDay] = useState(null);
   const [exCustomInput, setExCustomInput] = useState("");
+  // Días marcados explícitamente como "Entrenamiento" (incluye los que aún no tienen nombre).
+  const [trainingMode, setTrainingMode] = useState(() => {
+    const s = new Set();
+    Object.entries(migrateWeekly(plan.weekly)).forEach(([k, v]) => {
+      if (v?.name && v.name !== "Descanso") s.add(`w${k}`);
+    });
+    return s;
+  });
+
+  // ── Estilos de tarjeta reutilizables (formulario mobile-first) ──
+  const fieldLabel = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--text-muted)", padding: "0 4px 6px" };
+  const cardBase = { width: "100%", boxSizing: "border-box", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 16px", fontSize: 15, fontWeight: 600, color: "var(--text)", fontFamily: "Inter, sans-serif", outline: "none" };
+  const chevron = { position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)", fontSize: 12 };
 
   const workouts = ["Todas", ...new Set(
     sessions.map(s => s.workout).filter(Boolean).map(w => w.trim())
@@ -174,41 +187,94 @@ const thisWeek = new Set(sessions.filter(s => new Date(s.date+"T00:00:00") >= lu
         })()}
 
         {plannerTab === "plan" && mode === "weekly" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
             {DAYS_ES.map((day, i) => {
               const dayData = weekly[i] || { name: "", exercises: [] };
               const isToday = todayDow === i;
               const isOpen = expandedDay === `w${i}`;
+              const isRest = dayData.name === "Descanso";
+              const isTraining = trainingMode.has(`w${i}`) || (!!dayData.name && !isRest);
+              const estado = isRest ? "Descanso" : isTraining ? "Entrenamiento" : "";
+              const exCount = (dayData.exercises || []).length;
+
+              const setEstado = (v) => {
+                if (v === "Descanso") {
+                  setWeekly(w => ({ ...w, [i]: { ...dayData, name: "Descanso" } }));
+                  setTrainingMode(s => { const n = new Set(s); n.delete(`w${i}`); return n; });
+                  if (isOpen) setExpandedDay(null);
+                } else if (v === "Entrenamiento") {
+                  setTrainingMode(s => new Set(s).add(`w${i}`));
+                  setWeekly(w => ({ ...w, [i]: { ...dayData, name: isRest ? "" : dayData.name } }));
+                } else {
+                  setTrainingMode(s => { const n = new Set(s); n.delete(`w${i}`); return n; });
+                  setWeekly(w => ({ ...w, [i]: { ...dayData, name: "" } }));
+                  if (isOpen) setExpandedDay(null);
+                }
+              };
+
               return (
-                <div key={i} style={{ background: isToday ? "var(--accent-dim)" : "var(--input-bg)", border: `1px solid ${isToday ? "var(--accent)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden" }}>
-                  <div style={{ padding: "10px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: dayData.name || isOpen ? 8 : 0 }}>
-                      <span style={{ width: 80, fontSize: 13, fontWeight: 700, color: isToday ? "var(--accent)" : "var(--text-muted)", flexShrink: 0 }}>{day}{isToday ? " 📍" : ""}</span>
-                      <div style={{ flex: 1, position: "relative" }}>
-                        <input className="input" style={{ width: "100%", padding: "7px 12px", paddingRight: "90px", fontSize: 13, boxSizing: "border-box", fontWeight: 600 }}
-                          placeholder="Push Day, Piernas…"
-                          value={dayData.name || ""}
-                          onChange={e => setWeekly(w => ({ ...w, [i]: { ...dayData, name: e.target.value } }))}
-                        />
-                        {/* Sugerencias como botones, no datalist (evita bug del filtro) */}
-                        {dayData.name === "" || !dayData.name ? (
-                          <button onClick={() => setWeekly(w => ({ ...w, [i]: { ...dayData, name: "Descanso" } }))}
-                            style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--text-muted)", cursor: "pointer", whiteSpace: "nowrap" }}>
-                            💤 Descanso
-                          </button>
-                        ) : (
-                          <button onClick={() => setWeekly(w => ({ ...w, [i]: { ...dayData, name: "" } }))}
-                            style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--text-muted)", cursor: "pointer", whiteSpace: "nowrap" }}>
-                            ✕ Borrar
-                          </button>
-                        )}
-                      </div>
-                      <button className="btn-ghost small" style={{ whiteSpace: "nowrap", fontSize: 11, flexShrink: 0 }} onClick={() => setExpandedDay(isOpen ? null : `w${i}`)}>
-                        {isOpen ? "▲ Cerrar" : `💪 ${(dayData.exercises||[]).length > 0 ? `${(dayData.exercises||[]).length} ej.` : "Ejerc."}`}
-                      </button>
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {/* ── Tarjeta: Día ── */}
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    background: isToday ? "var(--accent-dim)" : "var(--card)",
+                    border: `1px solid ${isToday ? "var(--accent)" : "var(--border)"}`,
+                    borderRadius: 14, padding: "14px 16px",
+                  }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: "Inter, sans-serif", fontSize: 17, fontWeight: 800, color: isToday ? "var(--accent)" : "var(--text)" }}>
+                      <span style={{ fontSize: 18 }}>📅</span> {day}
+                    </span>
+                    {isToday && <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: "var(--accent)", textTransform: "uppercase" }}>Hoy 📍</span>}
+                  </div>
+
+                  {/* ── Tarjeta: Estado ── */}
+                  <div>
+                    <label style={fieldLabel}>Estado</label>
+                    <div style={{ position: "relative" }}>
+                      <select
+                        style={{ ...cardBase, appearance: "none", WebkitAppearance: "none", MozAppearance: "none", paddingRight: 44, cursor: "pointer" }}
+                        value={estado}
+                        onChange={e => setEstado(e.target.value)}
+                      >
+                        <option value="">— Elegir estado —</option>
+                        <option value="Descanso">💤 Descanso</option>
+                        <option value="Entrenamiento">💪 Entrenamiento</option>
+                      </select>
+                      <span style={chevron}>▼</span>
                     </div>
                   </div>
-                  {isOpen && <ExerciseEditor dayKey={i} exercises={dayData.exercises||[]} isWeekly={true} addExToDay={addExToDay} removeExFromDay={removeExFromDay} />}
+
+                  {/* ── Tarjeta: Entrenamiento (nombre) ── */}
+                  {isTraining && (
+                    <div>
+                      <label style={fieldLabel}>Entrenamiento</label>
+                      <input
+                        className="input"
+                        style={{ ...cardBase }}
+                        placeholder="Pecho, Push Day, Piernas…"
+                        value={isRest ? "" : (dayData.name || "")}
+                        onChange={e => setWeekly(w => ({ ...w, [i]: { ...dayData, name: e.target.value } }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* ── Tarjeta: Ejercicios ── */}
+                  {isTraining && (
+                    <div>
+                      <label style={fieldLabel}>Ejercicios</label>
+                      <button
+                        style={{ ...cardBase, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", textAlign: "left" }}
+                        onClick={() => setExpandedDay(isOpen ? null : `w${i}`)}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                          <span style={{ fontSize: 16 }}>💪</span>
+                          {exCount > 0 ? `${exCount} ejercicio${exCount > 1 ? "s" : ""}` : "Agregar ejercicios"}
+                        </span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
+                      </button>
+                      {isOpen && <ExerciseEditor dayKey={i} exercises={dayData.exercises || []} isWeekly={true} addExToDay={addExToDay} removeExFromDay={removeExFromDay} />}
+                    </div>
+                  )}
                 </div>
               );
             })}

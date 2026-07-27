@@ -150,6 +150,32 @@ export function BeastAvatar({ moodKey, bounce, size = 80 }) {
   );
 }
 
+export function getBeastContextGuest(freeAttemptsLeft) {
+  if (freeAttemptsLeft === 0) {
+    return {
+      mood: "coach",
+      title: "Has usado tus entrenamientos gratuitos",
+      message: "Puedes seguir entrenando viendo un anuncio o crear una cuenta gratis para desbloquear más funciones.",
+      cta: null,
+    };
+  }
+  if (freeAttemptsLeft !== undefined && freeAttemptsLeft <= 2) {
+    return {
+      mood: "warning",
+      title: `🔥 Te quedan ${freeAttemptsLeft} entreno${freeAttemptsLeft === 1 ? "" : "s"} gratis`,
+      message: "Aprovéchalos al máximo o crea una cuenta para guardar tu progreso y seguir entrenando.",
+      cta: null,
+    };
+  }
+  const hour = new Date().getHours();
+  const msgs = [
+    { mood: "hype",  title: "¡Bienvenido, campeón! 🔥", message: "Entrena en segundos y descubre todo tu potencial. Cuando quieras guardar tu progreso, crea una cuenta gratis. 💪" },
+    { mood: "happy", title: "¡Empecemos fuerte! ⚡",     message: "Todavía no necesitas registrarte. Prueba Beast y cuando quieras conservar tus entrenamientos, crea una cuenta." },
+    { mood: "hype",  title: "¡A por ello! 💥",           message: "Sin cuenta, sin excusas. Entrena ahora y cuando quieras guardar tu progreso, te registras en segundos." },
+  ];
+  return { ...msgs[hour % msgs.length], cta: null };
+}
+
 export function getBeastContext(sessions, todayPlanned, streak, inNewSession = false) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().slice(0, 10);
@@ -267,12 +293,14 @@ export function getBeastContext(sessions, todayPlanned, streak, inNewSession = f
   return               { mood: "chill",   title: "¡Entreno nocturno! 🌙", message: nightMsgs[seed % nightMsgs.length], cta: null };
 }
 
-export default function BeastMascot({ sessions, todayPlanned, streak, onStartSession, inNewSession = false }) {
+export default function BeastMascot({ sessions, todayPlanned, streak, onStartSession, inNewSession = false, isGuest = false, freeAttemptsLeft }) {
   const [bounce, setBounce]     = useState(false);
   const [prevMood, setPrevMood] = useState(null);
   const [debugIdx, setDebugIdx] = useState(0);
 
-  const ctx      = getBeastContext(sessions, todayPlanned, streak, inNewSession);
+  const ctx      = isGuest
+    ? getBeastContextGuest(freeAttemptsLeft)
+    : getBeastContext(sessions, todayPlanned, streak, inNewSession);
   const activeMood = DEBUG_MOODS ? MOOD_KEYS[debugIdx] : ctx.mood;
   const mood     = BRUX_MOODS[activeMood] || BRUX_MOODS.happy;
 
@@ -302,34 +330,53 @@ export default function BeastMascot({ sessions, todayPlanned, streak, onStartSes
     <div style={{
       background: `linear-gradient(145deg, ${mood.glow}, transparent 70%)`,
       border: `1.5px solid ${mood.color}35`,
-      borderRadius: 20,
-      padding: "14px 16px",
+      borderRadius: 18,
+      padding: "10px 14px",
       marginBottom: 18,
       position: "relative",
       overflow: "hidden",
       transition: "background 0.4s ease, border-color 0.4s ease",
     }}>
-      {/* Badge debug */}
       {DEBUG_MOODS && (
         <div style={{ position: "absolute", top: 6, right: 8, fontSize: 9, color: mood.color, opacity: 0.6, fontWeight: 700 }}>
           DEBUG: {activeMood}
         </div>
       )}
-      <div style={{ position: "absolute", right: -20, bottom: -20, fontSize: 90, opacity: 0.03, userSelect: "none", pointerEvents: "none", transform: "rotate(-15deg)" }}>🏋️</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <BeastAvatar moodKey={activeMood} bounce={bounce} size={86} />
+      <div style={{ position: "absolute", right: -16, bottom: -16, fontSize: 72, opacity: 0.03, userSelect: "none", pointerEvents: "none", transform: "rotate(-15deg)" }}>🏋️</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <BeastAvatar moodKey={activeMood} bounce={bounce} size={68} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-            <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, color: mood.color, textTransform: "uppercase" }}>BEAST · TU FAN</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, color: mood.color, textTransform: "uppercase" }}>🤖 TU COACH IA</div>
             <div style={{ fontSize: 9, padding: "1px 6px", borderRadius: 10, background: `${mood.color}20`, color: mood.color, fontWeight: 700 }}>{mood.label}</div>
           </div>
-          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 20, fontWeight: 900, color: "var(--text)", lineHeight: 1.15, marginBottom: 3 }}>
+          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 17, fontWeight: 900, color: "var(--text)", lineHeight: 1.2, marginBottom: 2 }}>
             {DEBUG_MOODS ? `Mood: ${activeMood}` : ctx.title}
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
             {DEBUG_MOODS ? "Cambia cada 5 segundos — pon DEBUG_MOODS = false cuando estés listo." : ctx.message}
           </div>
         </div>
+        {onStartSession && (
+          <button
+            onClick={() => onStartSession("Todos")}
+            style={{
+              flexShrink: 0,
+              background: mood.color,
+              border: "none",
+              borderRadius: 12,
+              color: "#09090B",
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 800,
+              fontSize: 12,
+              padding: "8px 12px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            ¡Vamos!
+          </button>
+        )}
       </div>
     </div>
   );

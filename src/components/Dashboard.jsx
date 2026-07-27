@@ -204,6 +204,15 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
         <div style={{ marginTop:8 }}><WeekComparison sessions={sessions} /></div>
       </div>
 
+      {/* ══ BEAST — coach IA (posición prioritaria) ══════════════════════════ */}
+      <BeastMascot
+        sessions={sessions}
+        todayPlanned={todayPlanned || ""}
+        streak={streak}
+        onStartSession={onStartSession}
+        isGuest={!user}
+      />
+
       {/* ══ BEAST COACH — recomendación reducida ══════════════════════════════ */}
       {topInsight && (
         <button onClick={onInsightsClick} style={{ ...CARD, padding:"13px 16px", display:"flex", alignItems:"center", gap:12, cursor:"pointer", textAlign:"left", width:"100%" }}>
@@ -308,8 +317,6 @@ export default function Dashboard({ sessions, bodyStats, weeklyGoal, onGoalClick
         <ChevronRight size={18} color="var(--text-muted)" />
       </button>
 
-      {/* ══ BRUX (motivación, ahora secundario) ═══════════════════════════════ */}
-      <BeastMascot sessions={sessions} todayPlanned={""} streak={streak} onStartSession={onStartSession} />
     </motion.div>
   );
 }
