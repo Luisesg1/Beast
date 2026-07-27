@@ -1216,7 +1216,7 @@ useEffect(() => {
               {todayPlanned&&(()=>{const ts=todayStr();const dn=sessions.some(s=>s.date===ts&&s.workout?.toLowerCase()===todayPlanned.toLowerCase());return(<div style={{margin:"12px 14px 0",padding:"10px 14px",background:dn?"rgba(34,197,94,0.07)":"var(--accent-dim)",border:`1px solid ${dn?"rgba(34,197,94,0.2)":"rgba(223,255,0,0.15)"}`,borderRadius:12}}><div style={{fontSize:9,fontWeight:800,letterSpacing:2,color:dn?"#22c55e":"var(--accent)",textTransform:"uppercase",marginBottom:3}}>{dn?"✅ COMPLETADA":"HOY TOCA"}</div><div style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{todayPlanned}</div></div>);})()}
 
               {/* Scrollable nav */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 8px" }}>
+              <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px calc(24px + env(safe-area-inset-bottom))" }}>
 
                 {/* ── Main tabs (Inicio / Historial / …) ── */}
                 {NAV.map(item => {
@@ -1323,17 +1323,15 @@ useEffect(() => {
                     <span className="drawer-tab-label" style={{ color: "#DFFF00", fontWeight: 800 }}>BEAST {user.plan?.toUpperCase()} ✓</span>
                   </button>
                 )}
-              </div>
 
-              {/* Bottom: offline · install · perfil · salir */}
-              <div style={{ padding: "12px 14px 80px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                {/* Offline · install · perfil · salir — dentro del mismo flujo */}
                 {!isOnline && (
-                  <div style={{ padding:"10px 14px", background:"rgba(245,158,11,0.10)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:14, fontSize:12, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ marginTop:10, marginBottom:8, padding:"10px 14px", background:"rgba(245,158,11,0.10)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:14, fontSize:12, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:8 }}>
                     📵 Sin conexión — modo offline
                   </div>
                 )}
                 {installPrompt && (
-                  <button className="drawer-tab" style={{ marginBottom:0, border:"1px solid rgba(34,197,94,0.25)" }} onClick={async () => {
+                  <button className="drawer-tab" style={{ border:"1px solid rgba(34,197,94,0.25)" }} onClick={async () => {
                     installPrompt.prompt();
                     const { outcome } = await installPrompt.userChoice;
                     if (outcome === "accepted") setInstallPrompt(null);
@@ -1346,7 +1344,7 @@ useEffect(() => {
                 )}
 
                 {/* Perfil */}
-                <button className="drawer-tab" style={{ marginBottom:0 }} onClick={() => { setShowProfile(true); setMobileNavOpen(false); }}>
+                <button className="drawer-tab" style={{ marginTop:10 }} onClick={() => { setShowProfile(true); setMobileNavOpen(false); }}>
                   <div style={{ width:36, height:36, borderRadius:"50%", background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
                     {user.photoURL
                       ? <img src={user.photoURL} style={{width:"100%",height:"100%",objectFit:"cover"}} referrerPolicy="no-referrer" />
@@ -1362,7 +1360,7 @@ useEffect(() => {
                 </button>
 
                 {/* Salir */}
-                <button className="drawer-tab" style={{ marginBottom:0, border:"1px solid rgba(239,68,68,0.2)" }} onClick={() => askConfirm("¿Seguro que quieres salir?", logout)}>
+                <button className="drawer-tab" style={{ border:"1px solid rgba(239,68,68,0.2)" }} onClick={() => askConfirm("¿Seguro que quieres salir?", logout)}>
                   <span style={{ fontSize: 18 }}>🚪</span>
                   <span className="drawer-tab-label" style={{ color:"#ef4444" }}>Salir</span>
                 </button>
