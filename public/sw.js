@@ -1,7 +1,7 @@
 // GymTracker Service Worker — v1.0
 // Cachea assets estáticos para funcionar offline
 
-const CACHE_NAME = "gymtracker-v1";
+const CACHE_NAME = "gymtracker-v2";
 
 // Archivos a cachear al instalar
 const STATIC_ASSETS = [
@@ -38,6 +38,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Solo http/https propios (ignora chrome-extension://, data:, etc.)
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
 
   // No interceptar llamadas a Firebase o Anthropic API
   if (
