@@ -6,7 +6,11 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const API_KEY = "process.env.RAPIDAPI_KEY";
+const API_KEY = process.env.RAPIDAPI_KEY;
+if (!API_KEY) {
+  console.error("Falta RAPIDAPI_KEY. Define la variable de entorno (ver .env.example).");
+  process.exit(1);
+}
 
 const NAME_MAP = {
   "Press Banca": "barbell bench press",

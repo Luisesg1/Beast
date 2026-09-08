@@ -35,3 +35,11 @@ firestore-debug.log
 firebase-debug.log
 ui-debug.log
 *.local
+
+# ── Secretos / firma (remediación) ──
+*.jks
+**/google-services.json
+.env
+.env.*
+!.env.example
+local.properties
