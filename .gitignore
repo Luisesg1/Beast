@@ -43,3 +43,6 @@ ui-debug.log
 .env.*
 !.env.example
 local.properties
+
+# Bundle bloat
+functions.zip
